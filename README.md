@@ -1,1 +1,3 @@
 # KakaAnime
+
+Anime streaming application.
