@@ -1,9 +1,12 @@
 package com.kakaanime.app.player
 
+import android.content.pm.ActivityInfo
 import android.view.ViewGroup
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -29,12 +32,14 @@ fun VideoPlayerScreen(
     introEnd: Long = 0L,
     outroStart: Long = 0L,
     outroEnd: Long = 0L,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onNextEpisode: () -> Unit = {}
 ) {
     val context = LocalContext.current
+    val activity = context as? android.app.Activity
     val configuration = LocalConfiguration.current
 
-    val landscape =
+    val isLandscape =
         configuration.screenWidthDp > configuration.screenHeightDp
 
     val player = remember(videoUrl) {
@@ -49,23 +54,105 @@ fun VideoPlayerScreen(
     var duration by remember { mutableLongStateOf(0L) }
     var playing by remember { mutableStateOf(false) }
 
+    var autoSkipIntro by remember { mutableStateOf(false) }
+    var autoSkipOutro by remember { mutableStateOf(false) }
+
+    var speed by remember { mutableStateOf(1f) }
+    var showSpeedMenu by remember { mutableStateOf(false) }
+
+    var showQualityMenu by remember { mutableStateOf(false) }
+    var quality by remember { mutableStateOf("1080p") }
+
     LaunchedEffect(player) {
         while (true) {
             position = player.currentPosition.coerceAtLeast(0L)
             duration = player.duration.coerceAtLeast(0L)
             playing = player.isPlaying
+
+            val seconds = position / 1000L
+
+            if (
+                autoSkipIntro &&
+                introStart > 0L &&
+                introEnd > introStart &&
+                seconds >= introStart &&
+                seconds < introEnd
+            ) {
+                player.seekTo(introEnd * 1000L)
+            }
+
+            if (
+                autoSkipOutro &&
+                outroStart > 0L &&
+                outroEnd > outroStart &&
+                seconds >= outroStart &&
+                seconds < outroEnd
+            ) {
+                player.seekTo(outroEnd * 1000L)
+            }
+
             delay(300)
         }
     }
 
     DisposableEffect(player) {
-        onDispose { player.release() }
+        onDispose {
+            player.release()
+        }
     }
 
-    if (landscape) {
-        LandscapePlayer(player, position, duration, playing, modifier)
+    if (isLandscape) {
+        LandscapePlayer(
+            player = player,
+            position = position,
+            duration = duration,
+            playing = playing,
+            speed = speed,
+            showSpeedMenu = showSpeedMenu,
+            autoSkipIntro = autoSkipIntro,
+            autoSkipOutro = autoSkipOutro,
+            onSpeedMenu = {
+                showSpeedMenu = !showSpeedMenu
+            },
+            onSpeedSelected = {
+                speed = it
+                player.setPlaybackSpeed(it)
+                showSpeedMenu = false
+            },
+            onAutoSkipIntro = {
+                autoSkipIntro = !autoSkipIntro
+            },
+            onAutoSkipOutro = {
+                autoSkipOutro = !autoSkipOutro
+            },
+            onBackPortrait = {
+                activity?.requestedOrientation =
+                    ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+            },
+            onNextEpisode = onNextEpisode,
+            modifier = modifier
+        )
     } else {
-        PortraitPlayer(player, position, duration, playing, modifier)
+        PortraitPlayer(
+            player = player,
+            position = position,
+            duration = duration,
+            playing = playing,
+            quality = quality,
+            showQualityMenu = showQualityMenu,
+            onQualityMenu = {
+                showQualityMenu = !showQualityMenu
+            },
+            onQualitySelected = {
+                quality = it
+                showQualityMenu = false
+            },
+            onLandscape = {
+                activity?.requestedOrientation =
+                    ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
+            },
+            modifier = modifier
+        )
     }
 }
 
@@ -75,6 +162,16 @@ private fun LandscapePlayer(
     position: Long,
     duration: Long,
     playing: Boolean,
+    speed: Float,
+    showSpeedMenu: Boolean,
+    autoSkipIntro: Boolean,
+    autoSkipOutro: Boolean,
+    onSpeedMenu: () -> Unit,
+    onSpeedSelected: (Float) -> Unit,
+    onAutoSkipIntro: () -> Unit,
+    onAutoSkipOutro: () -> Unit,
+    onBackPortrait: () -> Unit,
+    onNextEpisode: () -> Unit,
     modifier: Modifier
 ) {
     Box(
@@ -87,7 +184,9 @@ private fun LandscapePlayer(
                 PlayerView(it).apply {
                     this.player = player
                     useController = false
-                    resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
+                    resizeMode =
+                        AspectRatioFrameLayout.RESIZE_MODE_FIT
+
                     layoutParams = ViewGroup.LayoutParams(
                         ViewGroup.LayoutParams.MATCH_PARENT,
                         ViewGroup.LayoutParams.MATCH_PARENT
@@ -100,12 +199,13 @@ private fun LandscapePlayer(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(20.dp),
+                .padding(18.dp),
             verticalArrangement = Arrangement.SpaceBetween
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
                     "KakaAnime",
@@ -117,9 +217,28 @@ private fun LandscapePlayer(
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    SmallButton("1080p") {}
-                    SmallButton("1x") {}
-                    SmallButton("⛶") {}
+                    SmallButton("1x") {
+                        onSpeedMenu()
+                    }
+
+                    SmallButton("AUTO NEXT") {}
+
+                    SmallButton("⛶") {
+                        onBackPortrait()
+                    }
+                }
+            }
+
+            if (showSpeedMenu) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.Center
+                ) {
+                    listOf(0.5f, 1f, 1.25f, 1.5f, 2f).forEach {
+                        SmallButton("${it}x") {
+                            onSpeedSelected(it)
+                        }
+                    }
                 }
             }
 
@@ -141,8 +260,11 @@ private fun LandscapePlayer(
                     if (playing) "Ⅱ" else "▶",
                     true
                 ) {
-                    if (player.isPlaying) player.pause()
-                    else player.play()
+                    if (player.isPlaying) {
+                        player.pause()
+                    } else {
+                        player.play()
+                    }
                 }
 
                 Spacer(Modifier.width(28.dp))
@@ -157,17 +279,56 @@ private fun LandscapePlayer(
                 }
             }
 
-            Column(Modifier.fillMaxWidth()) {
+            Column(
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    SmallButton(
+                        if (autoSkipIntro)
+                            "SKIP INTRO: AUTO"
+                        else
+                            "SKIP INTRO: MANUAL"
+                    ) {
+                        onAutoSkipIntro()
+                    }
+
+                    Spacer(Modifier.width(8.dp))
+
+                    SmallButton(
+                        if (autoSkipOutro)
+                            "SKIP OUTRO: AUTO"
+                        else
+                            "SKIP OUTRO: MANUAL"
+                    ) {
+                        onAutoSkipOutro()
+                    }
+
+                    Spacer(Modifier.width(8.dp))
+
+                    SmallButton("NEXT ▶") {
+                        onNextEpisode()
+                    }
+                }
+
                 Slider(
                     value = if (duration > 0L) {
                         (position.toFloat() / duration)
                             .coerceIn(0f, 1f)
-                    } else 0f,
+                    } else {
+                        0f
+                    },
                     onValueChange = {
                         if (duration > 0L) {
-                            player.seekTo((it * duration).toLong())
+                            player.seekTo(
+                                (it * duration).toLong()
+                            )
                         }
-                    }
+                    },
+                    modifier = Modifier.fillMaxWidth()
                 )
 
                 Row(
@@ -179,13 +340,6 @@ private fun LandscapePlayer(
                         color = Color.White,
                         fontSize = 13.sp
                     )
-
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        SmallButton("AUTO NEXT") {}
-                        SmallButton("NEXT ▶") {}
-                    }
 
                     Text(
                         formatTime(duration),
@@ -204,6 +358,11 @@ private fun PortraitPlayer(
     position: Long,
     duration: Long,
     playing: Boolean,
+    quality: String,
+    showQualityMenu: Boolean,
+    onQualityMenu: () -> Unit,
+    onQualitySelected: (String) -> Unit,
+    onLandscape: () -> Unit,
     modifier: Modifier
 ) {
     Column(
@@ -222,7 +381,8 @@ private fun PortraitPlayer(
                     PlayerView(it).apply {
                         this.player = player
                         useController = false
-                        resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
+                        resizeMode =
+                            AspectRatioFrameLayout.RESIZE_MODE_FIT
                     }
                 },
                 modifier = Modifier.fillMaxSize()
@@ -231,8 +391,10 @@ private fun PortraitPlayer(
             Row(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
-                    .padding(12.dp),
-                horizontalArrangement = Arrangement.Center
+                    .fillMaxWidth()
+                    .padding(10.dp),
+                horizontalArrangement = Arrangement.Center,
+                verticalAlignment = Alignment.CenterVertically
             ) {
                 ControlButton("↶") {
                     player.seekTo(
@@ -241,17 +403,20 @@ private fun PortraitPlayer(
                     )
                 }
 
-                Spacer(Modifier.width(20.dp))
+                Spacer(Modifier.width(18.dp))
 
                 ControlButton(
                     if (playing) "Ⅱ" else "▶",
                     true
                 ) {
-                    if (player.isPlaying) player.pause()
-                    else player.play()
+                    if (player.isPlaying) {
+                        player.pause()
+                    } else {
+                        player.play()
+                    }
                 }
 
-                Spacer(Modifier.width(20.dp))
+                Spacer(Modifier.width(18.dp))
 
                 ControlButton("↷") {
                     player.seekTo(
@@ -260,6 +425,12 @@ private fun PortraitPlayer(
                                 player.duration.coerceAtLeast(0L)
                             )
                     )
+                }
+
+                Spacer(Modifier.width(18.dp))
+
+                ControlButton("⛶") {
+                    onLandscape()
                 }
             }
         }
@@ -282,14 +453,85 @@ private fun PortraitPlayer(
                 fontSize = 14.sp
             )
 
-            Spacer(Modifier.height(14.dp))
+            Spacer(Modifier.height(8.dp))
 
             Row(
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                SmallButton("1080p") {}
-                SmallButton("1x") {}
-                SmallButton("AUTO NEXT") {}
+                Text(
+                    formatTime(position),
+                    color = Color.White,
+                    fontSize = 13.sp
+                )
+
+                Spacer(Modifier.width(8.dp))
+
+                Slider(
+                    value = if (duration > 0L) {
+                        (position.toFloat() / duration)
+                            .coerceIn(0f, 1f)
+                    } else {
+                        0f
+                    },
+                    onValueChange = {
+                        if (duration > 0L) {
+                            player.seekTo(
+                                (it * duration).toLong()
+                            )
+                        }
+                    },
+                    modifier = Modifier.weight(1f)
+                )
+
+                Spacer(Modifier.width(8.dp))
+
+                Text(
+                    formatTime(duration),
+                    color = Color.White,
+                    fontSize = 13.sp
+                )
+            }
+
+            Spacer(Modifier.height(14.dp))
+
+            Text(
+                "Quality",
+                color = Color.White,
+                fontSize = 18.sp,
+                fontWeight = FontWeight.Bold
+            )
+
+            Spacer(Modifier.height(8.dp))
+
+            Box {
+                SmallButton(quality) {
+                    onQualityMenu()
+                }
+
+                DropdownMenu(
+                    expanded = showQualityMenu,
+                    onDismissRequest = onQualityMenu
+                ) {
+                    listOf("360p", "480p", "720p", "1080p").forEach {
+                        DropdownMenuItem(
+                            text = { Text(it) },
+                            onClick = {
+                                onQualitySelected(it)
+                            }
+                        )
+                    }
+                }
+            }
+
+            Spacer(Modifier.height(16.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                SmallButton("👍 Like") {}
+                SmallButton("👎 Dislike") {}
             }
 
             Spacer(Modifier.height(20.dp))
@@ -304,6 +546,9 @@ private fun PortraitPlayer(
             Spacer(Modifier.height(10.dp))
 
             Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState()),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 EpisodeChip("1138", false) {}
@@ -343,7 +588,7 @@ private fun ControlButton(
             .size(if (large) 64.dp else 50.dp)
             .clickable { onClick() },
         shape = RoundedCornerShape(50),
-        color = Color.Black.copy(alpha = 0.65f)
+        color = Color.Black.copy(alpha = 0.70f)
     ) {
         Box(contentAlignment = Alignment.Center) {
             Text(
@@ -364,13 +609,13 @@ private fun SmallButton(
     Surface(
         modifier = Modifier.clickable { onClick() },
         shape = RoundedCornerShape(8.dp),
-        color = Color.Black.copy(alpha = 0.7f)
+        color = Color.Black.copy(alpha = 0.75f)
     ) {
         Text(
             text,
             modifier = Modifier.padding(
                 horizontal = 12.dp,
-                vertical = 7.dp
+                vertical = 8.dp
             ),
             color = Color.White,
             fontSize = 12.sp,
@@ -393,8 +638,8 @@ private fun EpisodeChip(
         Text(
             text,
             modifier = Modifier.padding(
-                horizontal = 14.dp,
-                vertical = 9.dp
+                horizontal = 15.dp,
+                vertical = 10.dp
             ),
             color = if (selected) Color.Black else Color.White,
             fontSize = 13.sp,
@@ -404,9 +649,9 @@ private fun EpisodeChip(
 }
 
 private fun formatTime(milliseconds: Long): String {
-    val seconds = milliseconds / 1000L
-    val minutes = seconds / 60L
-    val remaining = seconds % 60L
+    val totalSeconds = milliseconds / 1000L
+    val minutes = totalSeconds / 60L
+    val seconds = totalSeconds % 60L
 
-    return "%02d:%02d".format(minutes, remaining)
+    return "%02d:%02d".format(minutes, seconds)
 }
