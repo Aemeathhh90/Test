@@ -4,25 +4,73 @@ import android.app.Activity
 import android.content.pm.ActivityInfo
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.FastForward
+import androidx.compose.material.icons.filled.Fullscreen
+import androidx.compose.material.icons.filled.FullscreenExit
+import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.Pause
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Replay10
+import androidx.compose.material.icons.filled.Send
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.SkipNext
+import androidx.compose.material.icons.filled.SkipPrevious
+import androidx.compose.material.icons.filled.Speed
+import androidx.compose.material.icons.filled.ThumbDown
+import androidx.compose.material.icons.filled.ThumbUp
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material.icons.filled.NavigateBefore
+import androidx.compose.material.icons.filled.NavigateNext
+import androidx.compose.material.icons.filled.SkipNext
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Slider
+import androidx.compose.material3.SliderDefaults
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -31,8 +79,35 @@ import androidx.media3.common.PlaybackParameters
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
+import coil.compose.AsyncImage
 import kotlinx.coroutines.delay
-import kotlin.math.max
+import kotlin.math.roundToInt
+
+private data class EpisodeUi(
+    val number: Int,
+    val thumbnail: String,
+    val locked: Boolean = false
+)
+
+private val demoEpisodes = listOf(
+    EpisodeUi(
+        1138,
+        "https://picsum.photos/seed/kakaanime1138/640/360"
+    ),
+    EpisodeUi(
+        1139,
+        "https://picsum.photos/seed/kakaanime1139/640/360"
+    ),
+    EpisodeUi(
+        1140,
+        "https://picsum.photos/seed/kakaanime1140/640/360"
+    ),
+    EpisodeUi(
+        1141,
+        "https://picsum.photos/seed/kakaanime1141/640/360",
+        locked = true
+    )
+)
 
 @Composable
 fun VideoPlayerScreen(
@@ -42,25 +117,29 @@ fun VideoPlayerScreen(
     outroStart: Long = 0L,
     outroEnd: Long = 0L,
     modifier: Modifier = Modifier,
-    onNextEpisode: () -> Unit = {},
-    isPremium: Boolean = false
+    onNextEpisode: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val activity = context as? Activity
     val configuration = LocalConfiguration.current
-    val landscape = configuration.screenWidthDp > configuration.screenHeightDp
+
+    val isLandscape =
+        configuration.screenWidthDp > configuration.screenHeightDp
 
     val colors = MaterialTheme.colorScheme
-    val appBackground = colors.background
-    val controlColor = colors.surfaceVariant
+
     val accent = colors.primary
+    val controlBackground = colors.surfaceVariant.copy(alpha = 0.72f)
+    val controlBackgroundStrong = colors.surfaceVariant.copy(alpha = 0.86f)
 
     val player = remember(videoUrl) {
-        ExoPlayer.Builder(context).build().apply {
-            setMediaItem(MediaItem.fromUri(videoUrl))
-            prepare()
-            playWhenReady = false
-        }
+        ExoPlayer.Builder(context)
+            .build()
+            .apply {
+                setMediaItem(MediaItem.fromUri(videoUrl))
+                prepare()
+                playWhenReady = false
+            }
     }
 
     var position by remember { mutableLongStateOf(0L) }
@@ -74,76 +153,51 @@ fun VideoPlayerScreen(
     var autoSkipIntro by remember { mutableStateOf(false) }
     var autoSkipOutro by remember { mutableStateOf(false) }
 
-    var selectedResolution by remember { mutableStateOf("720p") }
-    var showResolutionMenu by remember { mutableStateOf(false) }
-    var showPremiumDialog by remember { mutableStateOf(false) }
+    var selectedEpisode by remember { mutableStateOf(1140) }
+    var selectedQuality by remember { mutableStateOf("720p") }
+    var showQualityMenu by remember { mutableStateOf(false) }
+
+    var descriptionExpanded by remember { mutableStateOf(false) }
 
     LaunchedEffect(player) {
         while (true) {
-            position = max(0L, player.currentPosition)
-            duration = max(0L, player.duration)
+            position = player.currentPosition.coerceAtLeast(0L)
+            duration = player.duration.coerceAtLeast(0L)
             playing = player.isPlaying
 
-            val second = position / 1000L
+            val seconds = position / 1000L
 
-            if (
-                autoSkipIntro &&
-                introStart > 0L &&
-                introEnd > introStart &&
-                second >= introStart &&
-                second < introEnd
-            ) {
+            val insideIntro =
+                introStart > 0 &&
+                    introEnd > introStart &&
+                    seconds >= introStart &&
+                    seconds < introEnd
+
+            val insideOutro =
+                outroStart > 0 &&
+                    outroEnd > outroStart &&
+                    seconds >= outroStart &&
+                    seconds < outroEnd
+
+            if (insideIntro && autoSkipIntro) {
                 player.seekTo(introEnd * 1000L)
             }
 
-            if (
-                autoSkipOutro &&
-                outroStart > 0L &&
-                outroEnd > outroStart &&
-                second >= outroStart &&
-                second < outroEnd
-            ) {
+            if (insideOutro && autoSkipOutro) {
                 player.seekTo(outroEnd * 1000L)
             }
 
-            delay(300)
+            delay(250)
         }
     }
 
     DisposableEffect(player) {
-        onDispose { player.release() }
+        onDispose {
+            player.release()
+        }
     }
 
-    if (showPremiumDialog) {
-        AlertDialog(
-            onDismissRequest = { showPremiumDialog = false },
-            title = {
-                Text(
-                    "1080p Premium",
-                    fontWeight = FontWeight.Bold
-                )
-            },
-            text = {
-                Text("Resolusi 1080p hanya tersedia untuk pengguna Premium.")
-            },
-            confirmButton = {
-                TextButton(
-                    onClick = { showPremiumDialog = false }
-                ) {
-                    Text("Berlangganan")
-                }
-            },
-            dismissButton = {
-                TextButton(
-                    onClick = { showPremiumDialog = false }
-                ) {
-                    Text("Nanti")
-                }
-            }
-        )
-    }
-
-    if (landscape) {
+    if (isLandscape) {
         LandscapePlayer(
             player = player,
             position = position,
@@ -154,9 +208,9 @@ fun VideoPlayerScreen(
             autoNext = autoNext,
             autoSkipIntro = autoSkipIntro,
             autoSkipOutro = autoSkipOutro,
-            controlColor = controlColor,
             accent = accent,
-            appBackground = appBackground,
+            controlBackground = controlBackground,
+            controlBackgroundStrong = controlBackgroundStrong,
             onSpeedClick = {
                 showSpeedMenu = !showSpeedMenu
             },
@@ -174,13 +228,32 @@ fun VideoPlayerScreen(
             onAutoSkipOutro = {
                 autoSkipOutro = !autoSkipOutro
             },
-            onPreviousEpisode = {
-                player.seekTo(0L)
-            },
-            onNextEpisode = onNextEpisode,
-            onPortrait = {
+            onBackPortrait = {
                 activity?.requestedOrientation =
                     ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+            },
+            onPreviousEpisode = {
+                if (selectedEpisode > 1) {
+                    selectedEpisode--
+                }
+            },
+            onNextEpisode = {
+                selectedEpisode++
+                onNextEpisode()
+            },
+            onSeekBack = {
+                player.seekTo(
+                    (player.currentPosition - 10_000L)
+                        .coerceAtLeast(0L)
+                )
+            },
+            onSeekForward = {
+                player.seekTo(
+                    (player.currentPosition + 10_000L)
+                        .coerceAtMost(
+                            player.duration.coerceAtLeast(0L)
+                        )
+                )
             },
             modifier = modifier
         )
@@ -190,27 +263,45 @@ fun VideoPlayerScreen(
             position = position,
             duration = duration,
             playing = playing,
-            selectedResolution = selectedResolution,
-            showResolutionMenu = showResolutionMenu,
-            isPremium = isPremium,
-            controlColor = controlColor,
+            selectedEpisode = selectedEpisode,
+            selectedQuality = selectedQuality,
+            showQualityMenu = showQualityMenu,
+            descriptionExpanded = descriptionExpanded,
             accent = accent,
-            appBackground = appBackground,
+            controlBackground = controlBackground,
+            controlBackgroundStrong = controlBackgroundStrong,
+            onQualityClick = {
+                showQualityMenu = !showQualityMenu
+            },
+            onQualitySelected = {
+                selectedQuality = it
+                showQualityMenu = false
+            },
+            onDescriptionToggle = {
+                descriptionExpanded = !descriptionExpanded
+            },
+            onEpisodeSelected = {
+                if (!it.locked) {
+                    selectedEpisode = it.number
+                }
+            },
             onLandscape = {
                 activity?.requestedOrientation =
                     ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
             },
-            onResolutionClick = {
-                showResolutionMenu = !showResolutionMenu
+            onSeekBack = {
+                player.seekTo(
+                    (player.currentPosition - 10_000L)
+                        .coerceAtLeast(0L)
+                )
             },
-            onResolutionSelected = { resolution ->
-                if (resolution == "1080p" && !isPremium) {
-                    showResolutionMenu = false
-                    showPremiumDialog = true
-                } else {
-                    selectedResolution = resolution
-                    showResolutionMenu = false
-                }
+            onSeekForward = {
+                player.seekTo(
+                    (player.currentPosition + 10_000L)
+                        .coerceAtMost(
+                            player.duration.coerceAtLeast(0L)
+                        )
+                )
             },
             modifier = modifier
         )
@@ -223,321 +314,223 @@ private fun PortraitPlayer(
     position: Long,
     duration: Long,
     playing: Boolean,
-    selectedResolution: String,
-    showResolutionMenu: Boolean,
-    isPremium: Boolean,
-    controlColor: Color,
+    selectedEpisode: Int,
+    selectedQuality: String,
+    showQualityMenu: Boolean,
+    descriptionExpanded: Boolean,
     accent: Color,
-    appBackground: Color,
+    controlBackground: Color,
+    controlBackgroundStrong: Color,
+    onQualityClick: () -> Unit,
+    onQualitySelected: (String) -> Unit,
+    onDescriptionToggle: () -> Unit,
+    onEpisodeSelected: (EpisodeUi) -> Unit,
     onLandscape: () -> Unit,
-    onResolutionClick: () -> Unit,
-    onResolutionSelected: (String) -> Unit,
+    onSeekBack: () -> Unit,
+    onSeekForward: () -> Unit,
     modifier: Modifier
 ) {
+    val colors = MaterialTheme.colorScheme
+
     Column(
         modifier = modifier
             .fillMaxSize()
-            .background(appBackground)
-            .windowInsetsPadding(WindowInsets.navigationBars)
+            .background(colors.background)
     ) {
-        Box(
+        PortraitVideo(
+            player = player,
+            position = position,
+            duration = duration,
+            playing = playing,
+            accent = accent,
+            controlBackground = controlBackground,
+            onLandscape = onLandscape,
+            onSeekBack = onSeekBack,
+            onSeekForward = onSeekForward,
             modifier = Modifier
                 .fillMaxWidth()
-                .height(250.dp)
-                .background(Color.Black)
-        ) {
-            AndroidView(
-                modifier = Modifier.fillMaxSize(),
-                factory = { context ->
-                    PlayerView(context).apply {
-                        this.player = player
-                        useController = false
-                        resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
-                    }
-                }
-            )
-
-            Row(
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .fillMaxWidth()
-                    .padding(horizontal = 10.dp, vertical = 5.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    formatTime(position),
-                    color = Color.White,
-                    fontSize = 11.sp
-                )
-
-                Slider(
-                    value = if (duration > 0) {
-                        position.toFloat() / duration.toFloat()
-                    } else {
-                        0f
-                    },
-                    onValueChange = {
-                        if (duration > 0) {
-                            player.seekTo((it * duration).toLong())
-                        }
-                    },
-                    modifier = Modifier.weight(1f),
-                    colors = SliderDefaults.colors(
-                        thumbColor = accent,
-                        activeTrackColor = accent
-                    )
-                )
-
-                Text(
-                    formatTime(duration),
-                    color = Color.White,
-                    fontSize = 11.sp
-                )
-
-                IconButton(
-                    onClick = onLandscape,
-                    modifier = Modifier
-                        .size(36.dp)
-                        .clip(RoundedCornerShape(10.dp))
-                        .background(controlColor)
-                ) {
-                    Icon(
-                        Icons.Filled.Fullscreen,
-                        contentDescription = "Fullscreen",
-                        tint = Color.White,
-                        modifier = Modifier.size(20.dp)
-                    )
-                }
-            }
-
-            Row(
-                modifier = Modifier.align(Alignment.Center),
-                horizontalArrangement = Arrangement.spacedBy(18.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                PlayerCircleButton(
-                    icon = Icons.Filled.Replay10,
-                    contentDescription = "Mundur 10 detik",
-                    size = 64.dp,
-                    color = controlColor,
-                    onClick = {
-                        player.seekTo(
-                            max(0L, player.currentPosition - 10_000L)
-                        )
-                    }
-                )
-
-                PlayerCircleButton(
-                    icon = if (playing) {
-                        Icons.Filled.Pause
-                    } else {
-                        Icons.Filled.PlayArrow
-                    },
-                    contentDescription = "Play",
-                    size = 82.dp,
-                    color = controlColor,
-                    onClick = {
-                        if (player.isPlaying) {
-                            player.pause()
-                        } else {
-                            player.play()
-                        }
-                    }
-                )
-
-                PlayerCircleButton(
-                    icon = Icons.Filled.FastForward,
-                    contentDescription = "Maju 10 detik",
-                    size = 64.dp,
-                    color = controlColor,
-                    onClick = {
-                        player.seekTo(
-                            minOf(
-                                duration,
-                                player.currentPosition + 10_000L
-                            )
-                        )
-                    }
-                )
-            }
-        }
+                .aspectRatio(16f / 9f)
+        )
 
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 20.dp, vertical = 15.dp)
+                .padding(
+                    start = 20.dp,
+                    end = 20.dp,
+                    top = 16.dp,
+                    bottom = 24.dp
+                )
         ) {
             Text(
-                "One Piece",
-                fontSize = 26.sp,
+                text = "One Piece",
+                fontSize = 28.sp,
                 fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onBackground
+                color = colors.onBackground
             )
+
+            Spacer(Modifier.height(2.dp))
 
             Text(
-                "Episode 1140",
-                fontSize = 15.sp,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                text = "Episode $selectedEpisode",
+                fontSize = 16.sp,
+                color = colors.onSurfaceVariant
             )
 
-            Spacer(Modifier.height(7.dp))
+            Spacer(Modifier.height(10.dp))
 
             Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(7.dp)
+                verticalAlignment = Alignment.CenterVertically
             ) {
                 Icon(
-                    Icons.Filled.Visibility,
+                    imageVector = Icons.Filled.Visibility,
+                    contentDescription = null,
+                    tint = accent,
+                    modifier = Modifier.size(19.dp)
+                )
+
+                Spacer(Modifier.width(8.dp))
+
+                Text(
+                    text = "1.2M menonton",
+                    fontSize = 14.sp,
+                    color = colors.onSurfaceVariant
+                )
+
+                Text(
+                    text = "  •  ",
+                    fontSize = 14.sp,
+                    color = colors.onSurfaceVariant
+                )
+
+                Text(
+                    text = "24 min",
+                    fontSize = 14.sp,
+                    color = colors.onSurfaceVariant
+                )
+            }
+
+            Spacer(Modifier.height(12.dp))
+
+            val description =
+                "Mengikuti petualangan Monkey D. Luffy dan kru Topi Jerami " +
+                    "dalam mencari One Piece, harta karun legendaris yang " +
+                    "akan membawanya menjadi Raja Bajak Laut."
+
+            Text(
+                text = if (descriptionExpanded) {
+                    description
+                } else {
+                    description.take(155) +
+                        if (description.length > 155) "..." else ""
+                },
+                fontSize = 14.sp,
+                lineHeight = 21.sp,
+                color = colors.onBackground
+            )
+
+            Spacer(Modifier.height(3.dp))
+
+            Row(
+                modifier = Modifier.clickable {
+                    onDescriptionToggle()
+                },
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Selengkapnya",
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = accent
+                )
+
+                Icon(
+                    imageVector = Icons.Filled.ExpandMore,
                     contentDescription = null,
                     tint = accent,
                     modifier = Modifier.size(18.dp)
                 )
-
-                Text(
-                    "1.2M menonton",
-                    fontSize = 13.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-
-                Text(
-                    "•",
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-
-                Text(
-                    "24 min",
-                    fontSize = 13.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
             }
 
-            Spacer(Modifier.height(11.dp))
-
-            Text(
-                "Mengikuti petualangan Monkey D. Luffy dan kru Topi Jerami " +
-                    "dalam mencari One Piece, harta karun legendaris yang " +
-                    "akan membawanya menjadi Raja Bajak Laut.",
-                fontSize = 14.sp,
-                lineHeight = 21.sp,
-                color = MaterialTheme.colorScheme.onSurface,
-                maxLines = 4,
-                overflow = TextOverflow.Ellipsis
-            )
-
-            Spacer(Modifier.height(17.dp))
+            Spacer(Modifier.height(14.dp))
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                LikeDislikePanel(
-                    controlColor = controlColor,
-                    accent = accent
+                ReactionPanel(
+                    accent = accent,
+                    background = controlBackground
                 )
 
-                Spacer(Modifier.width(8.dp))
+                Spacer(Modifier.width(10.dp))
 
                 Box {
-                    OutlinedButton(
-                        onClick = onResolutionClick,
-                        shape = RoundedCornerShape(15.dp)
-                    ) {
-                        Text(
-                            selectedResolution,
-                            fontWeight = FontWeight.Bold
-                        )
-
-                        if (!isPremium) {
-                            Spacer(Modifier.width(5.dp))
-
-                            Icon(
-                                Icons.Filled.Lock,
-                                contentDescription = "Premium",
-                                tint = accent,
-                                modifier = Modifier.size(16.dp)
-                            )
-                        }
-                    }
+                    QualityButton(
+                        quality = selectedQuality,
+                        accent = accent,
+                        background = controlBackground,
+                        onClick = onQualityClick
+                    )
 
                     DropdownMenu(
-                        expanded = showResolutionMenu,
-                        onDismissRequest = onResolutionClick
+                        expanded = showQualityMenu,
+                        onDismissRequest = onQualityClick
                     ) {
-                        listOf("240p", "480p", "720p", "1080p")
-                            .forEach { resolution ->
-                                DropdownMenuItem(
-                                    text = {
-                                        Row(
-                                            verticalAlignment =
-                                                Alignment.CenterVertically
-                                        ) {
-                                            Text(resolution)
-
-                                            if (
-                                                resolution == "1080p" &&
-                                                !isPremium
-                                            ) {
-                                                Spacer(Modifier.width(7.dp))
-
-                                                Icon(
-                                                    Icons.Filled.Lock,
-                                                    contentDescription = null,
-                                                    modifier = Modifier.size(16.dp)
-                                                )
-                                            }
-                                        }
-                                    },
-                                    onClick = {
-                                        onResolutionSelected(resolution)
-                                    }
-                                )
+                        DropdownMenuItem(
+                            text = { Text("240p") },
+                            onClick = {
+                                onQualitySelected("240p")
                             }
+                        )
+
+                        DropdownMenuItem(
+                            text = { Text("480p") },
+                            onClick = {
+                                onQualitySelected("480p")
+                            }
+                        )
+
+                        DropdownMenuItem(
+                            text = { Text("720p") },
+                            onClick = {
+                                onQualitySelected("720p")
+                            }
+                        )
+
+                        DropdownMenuItem(
+                            text = {
+                                Row(
+                                    verticalAlignment =
+                                        Alignment.CenterVertically
+                                ) {
+                                    Text("1080p")
+                                    Spacer(Modifier.width(8.dp))
+                                    Icon(
+                                        imageVector =
+                                            Icons.Filled.Lock,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                }
+                            },
+                            onClick = {
+                                // Premium-only placeholder.
+                            }
+                        )
                     }
                 }
 
-                Spacer(Modifier.weight(1f))
+                Spacer(
+                    Modifier.weight(1f)
+                )
 
-                IconButton(
-                    onClick = {},
-                    modifier = Modifier
-                        .size(50.dp)
-                        .clip(RoundedCornerShape(15.dp))
-                        .background(controlColor)
-                ) {
-                    Icon(
-                        Icons.Filled.Download,
-                        contentDescription = "Download",
-                        tint = accent,
-                        modifier = Modifier.size(23.dp)
-                    )
-                }
-            }
-
-            Spacer(Modifier.height(21.dp))
-
-            Text(
-                "Episode List",
-                fontSize = 22.sp,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onBackground
-            )
-
-            Spacer(Modifier.height(10.dp))
-
-            LazyRow(
-                horizontalArrangement = Arrangement.spacedBy(9.dp)
-            ) {
-                items(
-                    listOf(1138, 1139, 1140, 1141, 1142, 1143)
-                ) { episode ->
-                    EpisodeChip(
-                        episode = episode,
-                        locked = episode >= 1141,
-                        selected = episode == 1140,
-                        controlColor = controlColor,
-                        accent = accent
-                    )
-                }
+                SmallIconButton(
+                    icon = Icons.Filled.Download,
+                    contentDescription = "Download",
+                    accent = accent,
+                    background = controlBackgroundStrong
+                )
             }
 
             Spacer(Modifier.height(22.dp))
@@ -546,92 +539,334 @@ private fun PortraitPlayer(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Icon(
-                    Icons.Filled.AccountCircle,
-                    contentDescription = "Akun",
-                    tint = accent,
-                    modifier = Modifier.size(43.dp)
+                Text(
+                    text = "Episode List",
+                    fontSize = 21.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = colors.onBackground
                 )
 
-                Spacer(Modifier.width(9.dp))
+                Spacer(Modifier.weight(1f))
 
-                Box(
-                    modifier = Modifier
-                        .weight(1f)
-                        .clip(RoundedCornerShape(18.dp))
-                        .background(controlColor)
-                        .padding(
-                            horizontal = 15.dp,
-                            vertical = 12.dp
-                        )
+                Text(
+                    text = "Lihat Semua",
+                    fontSize = 13.sp,
+                    color = accent
+                )
+
+                Icon(
+                    imageVector = Icons.Filled.NavigateNext,
+                    contentDescription = null,
+                    tint = accent,
+                    modifier = Modifier.size(19.dp)
+                )
+            }
+
+            Spacer(Modifier.height(10.dp))
+
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(
+                        rememberScrollState()
+                    ),
+                horizontalArrangement =
+                    Arrangement.spacedBy(10.dp)
+            ) {
+                demoEpisodes.forEach { episode ->
+                    EpisodeThumbnail(
+                        episode = episode,
+                        selected =
+                            episode.number == selectedEpisode,
+                        accent = accent,
+                        onClick = {
+                            onEpisodeSelected(episode)
+                        }
+                    )
+                }
+            }
+
+            Spacer(Modifier.height(24.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Komentar",
+                    fontSize = 21.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = colors.onBackground
+                )
+
+                Spacer(Modifier.width(5.dp))
+
+                Text(
+                    text = "(320)",
+                    fontSize = 15.sp,
+                    color = colors.onSurfaceVariant
+                )
+
+                Spacer(Modifier.weight(1f))
+
+                Surface(
+                    color = controlBackground,
+                    shape = RoundedCornerShape(12.dp)
                 ) {
                     Text(
-                        "Tulis komentar...",
-                        color =
-                            MaterialTheme.colorScheme.onSurfaceVariant
+                        text = "Terbaru",
+                        modifier = Modifier.padding(
+                            horizontal = 12.dp,
+                            vertical = 7.dp
+                        ),
+                        fontSize = 12.sp,
+                        color = colors.onSurface
+                    )
+                }
+            }
+
+            Spacer(Modifier.height(12.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Surface(
+                    modifier = Modifier.size(44.dp),
+                    shape = RoundedCornerShape(50),
+                    color = accent.copy(alpha = 0.18f)
+                ) {
+                    Box(
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.Person,
+                            contentDescription = "Akun",
+                            tint = accent,
+                            modifier = Modifier.size(28.dp)
+                        )
+                    }
+                }
+
+                Spacer(Modifier.width(10.dp))
+
+                Surface(
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(22.dp),
+                    color = controlBackground
+                ) {
+                    Text(
+                        text = "Tulis komentar...",
+                        modifier = Modifier.padding(
+                            horizontal = 16.dp,
+                            vertical = 12.dp
+                        ),
+                        fontSize = 14.sp,
+                        color = colors.onSurfaceVariant
                     )
                 }
 
-                IconButton(onClick = {}) {
-                    Icon(
-                        Icons.Filled.Send,
-                        contentDescription = "Kirim",
-                        tint = accent
-                    )
-                }
+                Spacer(Modifier.width(8.dp))
+
+                Icon(
+                    imageVector = Icons.Filled.Send,
+                    contentDescription = "Kirim",
+                    tint = accent,
+                    modifier = Modifier.size(27.dp)
+                )
             }
         }
     }
 }
 
 @Composable
-private fun LikeDislikePanel(
-    controlColor: Color,
-    accent: Color
+private fun PortraitVideo(
+    player: ExoPlayer,
+    position: Long,
+    duration: Long,
+    playing: Boolean,
+    accent: Color,
+    controlBackground: Color,
+    onLandscape: () -> Unit,
+    onSeekBack: () -> Unit,
+    onSeekForward: () -> Unit,
+    modifier: Modifier
 ) {
-    Row(
-        modifier = Modifier
-            .clip(RoundedCornerShape(17.dp))
-            .background(controlColor)
-            .padding(horizontal = 13.dp, vertical = 10.dp),
-        verticalAlignment = Alignment.CenterVertically
+    Box(
+        modifier = modifier
+            .clip(
+                RoundedCornerShape(
+                    bottomStart = 16.dp,
+                    bottomEnd = 16.dp
+                )
+            )
     ) {
-        Icon(
-            Icons.Filled.ThumbUp,
-            contentDescription = "Like",
-            tint = accent,
-            modifier = Modifier.size(20.dp)
+        AndroidView(
+            modifier = Modifier.fillMaxSize(),
+            factory = { context ->
+                PlayerView(context).apply {
+                    useController = false
+                    resizeMode =
+                        AspectRatioFrameLayout.RESIZE_MODE_FIT
+                    this.player = player
+                    setShutterBackgroundColor(
+                        android.graphics.Color.BLACK
+                    )
+                }
+            }
         )
 
-        Spacer(Modifier.width(6.dp))
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(
+                    start = 12.dp,
+                    end = 12.dp,
+                    top = 10.dp
+                ),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            IconButton(
+                onClick = {},
+                modifier = Modifier.size(38.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.ArrowBack,
+                    contentDescription = "Kembali",
+                    tint = Color.White,
+                    modifier = Modifier.size(24.dp)
+                )
+            }
 
-        Text(
-            "4.5K",
-            fontWeight = FontWeight.Bold
-        )
+            Spacer(Modifier.weight(1f))
 
-        Spacer(Modifier.width(10.dp))
+            MiniPill(
+                text = "1.0x",
+                background = controlBackground
+            )
 
-        Text(
-            "|",
-            color = MaterialTheme.colorScheme.outline
-        )
+            Spacer(Modifier.width(6.dp))
 
-        Spacer(Modifier.width(10.dp))
+            MiniPill(
+                text = "AUTO NEXT",
+                background = controlBackground
+            )
 
-        Icon(
-            Icons.Filled.ThumbDown,
-            contentDescription = "Dislike",
-            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.size(20.dp)
-        )
+            Spacer(Modifier.width(6.dp))
 
-        Spacer(Modifier.width(6.dp))
+            IconButton(
+                onClick = {},
+                modifier = Modifier
+                    .size(38.dp)
+                    .background(
+                        controlBackground,
+                        RoundedCornerShape(50)
+                    )
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.Settings,
+                    contentDescription = "Pengaturan",
+                    tint = Color.White,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
+        }
 
-        Text(
-            "16",
-            fontWeight = FontWeight.Bold
-        )
+        Row(
+            modifier = Modifier.align(Alignment.Center),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement =
+                Arrangement.spacedBy(18.dp)
+        ) {
+            PlayerCircleButton(
+                icon = Icons.Filled.Replay10,
+                size = 58.dp,
+                background = controlBackground,
+                onClick = onSeekBack
+            )
+
+            PlayerCircleButton(
+                icon =
+                    if (playing) {
+                        Icons.Filled.Pause
+                    } else {
+                        Icons.Filled.PlayArrow
+                    },
+                size = 72.dp,
+                background = controlBackground,
+                onClick = {
+                    if (player.isPlaying) {
+                        player.pause()
+                    } else {
+                        player.play()
+                    }
+                }
+            )
+
+            PlayerCircleButton(
+                icon = Icons.Filled.FastForward,
+                size = 58.dp,
+                background = controlBackground,
+                onClick = onSeekForward
+            )
+        }
+
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .align(Alignment.BottomCenter)
+                .padding(
+                    start = 12.dp,
+                    end = 12.dp,
+                    bottom = 5.dp
+                ),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = formatTime(position),
+                fontSize = 11.sp,
+                color = Color.White
+            )
+
+            Spacer(Modifier.width(5.dp))
+
+            VideoProgressBar(
+                position = position,
+                duration = duration,
+                accent = accent,
+                onSeek = {
+                    player.seekTo(it)
+                },
+                modifier = Modifier.weight(1f)
+            )
+
+            Spacer(Modifier.width(5.dp))
+
+            Text(
+                text = formatTime(duration),
+                fontSize = 11.sp,
+                color = Color.White
+            )
+
+            Spacer(Modifier.width(5.dp))
+
+            IconButton(
+                onClick = onLandscape,
+                modifier = Modifier
+                    .size(38.dp)
+                    .background(
+                        controlBackground,
+                        RoundedCornerShape(12.dp)
+                    )
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.Fullscreen,
+                    contentDescription = "Fullscreen",
+                    tint = Color.White,
+                    modifier = Modifier.size(21.dp)
+                )
+            }
+        }
     }
 }
 
@@ -646,75 +881,84 @@ private fun LandscapePlayer(
     autoNext: Boolean,
     autoSkipIntro: Boolean,
     autoSkipOutro: Boolean,
-    controlColor: Color,
     accent: Color,
-    appBackground: Color,
+    controlBackground: Color,
+    controlBackgroundStrong: Color,
     onSpeedClick: () -> Unit,
     onSpeedSelected: (Float) -> Unit,
     onAutoNext: () -> Unit,
     onAutoSkipIntro: () -> Unit,
     onAutoSkipOutro: () -> Unit,
+    onBackPortrait: () -> Unit,
     onPreviousEpisode: () -> Unit,
     onNextEpisode: () -> Unit,
-    onPortrait: () -> Unit,
+    onSeekBack: () -> Unit,
+    onSeekForward: () -> Unit,
     modifier: Modifier
 ) {
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(appBackground)
+            .background(Color.Black)
     ) {
         AndroidView(
             modifier = Modifier.fillMaxSize(),
             factory = { context ->
                 PlayerView(context).apply {
-                    this.player = player
                     useController = false
-                    resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
+                    resizeMode =
+                        AspectRatioFrameLayout.RESIZE_MODE_FIT
+                    this.player = player
+                    setShutterBackgroundColor(
+                        android.graphics.Color.BLACK
+                    )
                 }
             }
         )
 
         Row(
             modifier = Modifier
-                .align(Alignment.TopStart)
-                .padding(14.dp),
+                .fillMaxWidth()
+                .padding(
+                    horizontal = 18.dp,
+                    vertical = 12.dp
+                ),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            IconButton(onClick = onPortrait) {
+            IconButton(
+                onClick = onBackPortrait,
+                modifier = Modifier.size(38.dp)
+            ) {
                 Icon(
-                    Icons.Filled.ArrowBack,
+                    imageVector = Icons.Filled.ArrowBack,
                     contentDescription = "Kembali",
-                    tint = Color.White
+                    tint = Color.White,
+                    modifier = Modifier.size(23.dp)
                 )
             }
 
             Column {
                 Text(
-                    "One Piece",
-                    color = Color.White,
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.Bold
+                    text = "One Piece",
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White
                 )
 
                 Text(
-                    "Episode 1140",
-                    color = Color.White.copy(alpha = .75f),
-                    fontSize = 12.sp
+                    text = "Episode 1140",
+                    fontSize = 11.sp,
+                    color = Color.White.copy(alpha = 0.72f)
                 )
             }
-        }
 
-        Row(
-            modifier = Modifier
-                .align(Alignment.TopEnd)
-                .padding(14.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
+            Spacer(Modifier.weight(1f))
+
             Box {
-                PlayerPill(
+                SmallIconButtonWithText(
+                    icon = Icons.Filled.Speed,
                     text = "${speed}x",
-                    color = controlColor,
+                    background = controlBackground,
                     onClick = onSpeedClick
                 )
 
@@ -722,75 +966,94 @@ private fun LandscapePlayer(
                     expanded = showSpeedMenu,
                     onDismissRequest = onSpeedClick
                 ) {
-                    listOf(.75f, 1f, 1.25f, 1.5f, 2f)
-                        .forEach { value ->
-                            DropdownMenuItem(
-                                text = { Text("${value}x") },
-                                onClick = {
-                                    onSpeedSelected(value)
-                                }
-                            )
-                        }
+                    listOf(
+                        0.75f,
+                        1f,
+                        1.25f,
+                        1.5f,
+                        2f
+                    ).forEach { value ->
+                        DropdownMenuItem(
+                            text = {
+                                Text("${value}x")
+                            },
+                            onClick = {
+                                onSpeedSelected(value)
+                            }
+                        )
+                    }
                 }
             }
 
-            PlayerPill(
-                text = if (autoNext) "AUTO NEXT" else "AUTO NEXT OFF",
-                color = controlColor,
-                onClick = onAutoNext
+            Spacer(Modifier.width(6.dp))
+
+            MiniPill(
+                text = "AUTO NEXT",
+                background = controlBackground
             )
+
+            Spacer(Modifier.width(6.dp))
 
             IconButton(
                 onClick = {},
                 modifier = Modifier
-                    .size(50.dp)
-                    .clip(RoundedCornerShape(15.dp))
-                    .background(controlColor)
+                    .size(38.dp)
+                    .background(
+                        controlBackground,
+                        RoundedCornerShape(50)
+                    )
             ) {
                 Icon(
-                    Icons.Filled.Settings,
+                    imageVector = Icons.Filled.Settings,
                     contentDescription = "Pengaturan",
-                    tint = Color.White
+                    tint = Color.White,
+                    modifier = Modifier.size(20.dp)
                 )
             }
         }
 
-        PlayerEpisodeButton(
-            icon = Icons.Filled.SkipPrevious,
+        EpisodeNavButton(
             text = "Ep. 1139",
-            color = controlColor,
+            icon = Icons.Filled.SkipPrevious,
+            background = controlBackground,
             modifier = Modifier
                 .align(Alignment.CenterStart)
                 .padding(start = 18.dp),
             onClick = onPreviousEpisode
         )
 
+        EpisodeNavButton(
+            text = "Ep. 1141",
+            icon = Icons.Filled.SkipNext,
+            background = controlBackground,
+            modifier = Modifier
+                .align(Alignment.CenterEnd)
+                .padding(end = 18.dp),
+            onClick = onNextEpisode
+        )
+
         Row(
             modifier = Modifier.align(Alignment.Center),
-            horizontalArrangement = Arrangement.spacedBy(20.dp),
-            verticalAlignment = Alignment.CenterVertically
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement =
+                Arrangement.spacedBy(18.dp)
         ) {
             PlayerCircleButton(
                 icon = Icons.Filled.Replay10,
-                contentDescription = "Mundur 10 detik",
-                size = 62.dp,
-                color = controlColor,
-                onClick = {
-                    player.seekTo(
-                        max(0L, player.currentPosition - 10_000L)
-                    )
-                }
+                size = 54.dp,
+                background = controlBackground,
+                onClick = onSeekBack
             )
 
             PlayerCircleButton(
-                icon = if (playing) {
-                    Icons.Filled.Pause
-                } else {
-                    Icons.Filled.PlayArrow
-                },
-                contentDescription = "Play",
-                size = 80.dp,
-                color = controlColor,
+                icon =
+                    if (playing) {
+                        Icons.Filled.Pause
+                    } else {
+                        Icons.Filled.PlayArrow
+                    },
+                size = 68.dp,
+                background = controlBackgroundStrong,
                 onClick = {
                     if (player.isPlaying) {
                         player.pause()
@@ -802,101 +1065,163 @@ private fun LandscapePlayer(
 
             PlayerCircleButton(
                 icon = Icons.Filled.FastForward,
-                contentDescription = "Maju 10 detik",
-                size = 62.dp,
-                color = controlColor,
-                onClick = {
-                    player.seekTo(
-                        minOf(
-                            duration,
-                            player.currentPosition + 10_000L
-                        )
-                    )
-                }
+                size = 54.dp,
+                background = controlBackground,
+                onClick = onSeekForward
             )
         }
 
-        PlayerEpisodeButton(
-            icon = Icons.Filled.SkipNext,
-            text = "Ep. 1141",
-            color = controlColor,
-            modifier = Modifier
-                .align(Alignment.CenterEnd)
-                .padding(end = 18.dp),
-            onClick = onNextEpisode
-        )
-
-        SkipButton(
-            text = "Skip Intro",
-            checked = autoSkipIntro,
-            color = controlColor,
-            accent = accent,
+        Surface(
             modifier = Modifier
                 .align(Alignment.BottomStart)
-                .padding(start = 18.dp, bottom = 36.dp),
-            onClick = onAutoSkipIntro
-        )
+                .padding(
+                    start = 18.dp,
+                    bottom = 32.dp
+                ),
+            color = controlBackground,
+            shape = RoundedCornerShape(13.dp)
+        ) {
+            Row(
+                modifier = Modifier.padding(
+                    start = 10.dp,
+                    end = 4.dp,
+                    top = 5.dp,
+                    bottom = 5.dp
+                ),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.SkipNext,
+                    contentDescription = null,
+                    tint = Color.White,
+                    modifier = Modifier.size(17.dp)
+                )
 
-        SkipButton(
-            text = "Skip Outro",
-            checked = autoSkipOutro,
-            color = controlColor,
-            accent = accent,
+                Spacer(Modifier.width(4.dp))
+
+                Text(
+                    text = "Skip Intro",
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = Color.White
+                )
+
+                Spacer(Modifier.width(6.dp))
+
+                Switch(
+                    checked = autoSkipIntro,
+                    onCheckedChange = {
+                        onAutoSkipIntro()
+                    },
+                    modifier = Modifier
+                        .height(28.dp)
+                        .width(48.dp)
+                )
+            }
+        }
+
+        Surface(
             modifier = Modifier
                 .align(Alignment.BottomEnd)
-                .padding(end = 18.dp, bottom = 36.dp),
-            onClick = onAutoSkipOutro
-        )
+                .padding(
+                    end = 18.dp,
+                    bottom = 32.dp
+                ),
+            color = controlBackground,
+            shape = RoundedCornerShape(13.dp)
+        ) {
+            Row(
+                modifier = Modifier.padding(
+                    start = 10.dp,
+                    end = 4.dp,
+                    top = 5.dp,
+                    bottom = 5.dp
+                ),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.SkipNext,
+                    contentDescription = null,
+                    tint = Color.White,
+                    modifier = Modifier.size(17.dp)
+                )
+
+                Spacer(Modifier.width(4.dp))
+
+                Text(
+                    text = "Skip Outro",
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = Color.White
+                )
+
+                Spacer(Modifier.width(6.dp))
+
+                Switch(
+                    checked = autoSkipOutro,
+                    onCheckedChange = {
+                        onAutoSkipOutro()
+                    },
+                    modifier = Modifier
+                        .height(28.dp)
+                        .width(48.dp)
+                )
+            }
+        }
 
         Row(
             modifier = Modifier
-                .align(Alignment.BottomCenter)
                 .fillMaxWidth()
-                .padding(horizontal = 18.dp, vertical = 8.dp),
+                .align(Alignment.BottomCenter)
+                .padding(
+                    start = 18.dp,
+                    end = 18.dp,
+                    bottom = 7.dp
+                ),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                formatTime(position),
-                color = Color.White,
-                fontSize = 11.sp
+                text = formatTime(position),
+                fontSize = 11.sp,
+                color = Color.White
             )
 
-            Slider(
-                value = if (duration > 0) {
-                    position.toFloat() / duration.toFloat()
-                } else {
-                    0f
+            Spacer(Modifier.width(6.dp))
+
+            VideoProgressBar(
+                position = position,
+                duration = duration,
+                accent = accent,
+                onSeek = {
+                    player.seekTo(it)
                 },
-                onValueChange = {
-                    if (duration > 0) {
-                        player.seekTo((it * duration).toLong())
-                    }
-                },
-                modifier = Modifier.weight(1f),
-                colors = SliderDefaults.colors(
-                    thumbColor = accent,
-                    activeTrackColor = accent
-                )
+                modifier = Modifier.weight(1f)
             )
+
+            Spacer(Modifier.width(6.dp))
 
             Text(
-                formatTime(duration),
-                color = Color.White,
-                fontSize = 11.sp
+                text = formatTime(duration),
+                fontSize = 11.sp,
+                color = Color.White
             )
 
+            Spacer(Modifier.width(5.dp))
+
             IconButton(
-                onClick = onPortrait,
+                onClick = {},
                 modifier = Modifier
-                    .size(36.dp)
-                    .clip(RoundedCornerShape(10.dp))
-                    .background(controlColor)
+                    .size(38.dp)
+                    .background(
+                        controlBackground,
+                        RoundedCornerShape(12.dp)
+                    )
             ) {
                 Icon(
-                    Icons.Filled.Fullscreen,
-                    contentDescription = "Portrait",
+                    imageVector = Icons.Filled.FullscreenExit,
+                    contentDescription = "Keluar fullscreen",
                     tint = Color.White,
-                    modifier = Modifier.size(20.dp)
+                    modifier = Modifier.size(21.dp)
                 )
             }
         }
@@ -904,175 +1229,376 @@ private fun LandscapePlayer(
 }
 
 @Composable
-private fun SkipButton(
-    text: String,
-    checked: Boolean,
-    color: Color,
+private fun VideoProgressBar(
+    position: Long,
+    duration: Long,
     accent: Color,
-    modifier: Modifier,
-    onClick: () -> Unit
+    onSeek: (Long) -> Unit,
+    modifier: Modifier
 ) {
-    Row(
-        modifier = modifier
-            .clip(RoundedCornerShape(13.dp))
-            .background(color)
-            .clickable(onClick = onClick)
-            .padding(horizontal = 9.dp, vertical = 4.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Icon(
-            Icons.Filled.SkipNext,
-            contentDescription = null,
-            tint = Color.White,
-            modifier = Modifier.size(17.dp)
+    val max = duration.coerceAtLeast(1L).toFloat()
+
+    Slider(
+        value = position.coerceIn(
+            0L,
+            duration.coerceAtLeast(1L)
+        ).toFloat(),
+        onValueChange = {
+            onSeek(it.roundToInt().toLong())
+        },
+        valueRange = 0f..max,
+        modifier = modifier.height(28.dp),
+        colors = SliderDefaults.colors(
+            thumbColor = accent,
+            activeTrackColor = accent,
+            inactiveTrackColor =
+                Color.White.copy(alpha = 0.28f)
         )
-
-        Spacer(Modifier.width(4.dp))
-
-        Text(
-            text,
-            color = Color.White,
-            fontSize = 11.sp,
-            fontWeight = FontWeight.SemiBold
-        )
-
-        Spacer(Modifier.width(2.dp))
-
-        Switch(
-            checked = checked,
-            onCheckedChange = { onClick() }
-        )
-    }
-}
-
-@Composable
-private fun PlayerEpisodeButton(
-    icon: ImageVector,
-    text: String,
-    color: Color,
-    modifier: Modifier,
-    onClick: () -> Unit
-) {
-    Row(
-        modifier = modifier
-            .clip(RoundedCornerShape(15.dp))
-            .background(color)
-            .clickable(onClick = onClick)
-            .padding(horizontal = 13.dp, vertical = 10.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Icon(
-            icon,
-            contentDescription = null,
-            tint = Color.White,
-            modifier = Modifier.size(19.dp)
-        )
-
-        Spacer(Modifier.width(6.dp))
-
-        Text(
-            text,
-            color = Color.White,
-            fontWeight = FontWeight.SemiBold
-        )
-    }
-}
-
-@Composable
-private fun PlayerPill(
-    text: String,
-    color: Color,
-    onClick: () -> Unit
-) {
-    Box(
-        modifier = Modifier
-            .clip(RoundedCornerShape(15.dp))
-            .background(color)
-            .clickable(onClick = onClick)
-            .padding(horizontal = 16.dp, vertical = 13.dp)
-    ) {
-        Text(
-            text,
-            color = Color.White,
-            fontWeight = FontWeight.Bold
-        )
-    }
+    )
 }
 
 @Composable
 private fun PlayerCircleButton(
-    icon: ImageVector,
-    contentDescription: String,
-    size: Dp,
-    color: Color,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    size: androidx.compose.ui.unit.Dp,
+    background: Color,
     onClick: () -> Unit
 ) {
-    IconButton(
-        onClick = onClick,
+    Surface(
         modifier = Modifier
             .size(size)
-            .clip(CircleShape)
-            .background(color)
+            .clickable(onClick = onClick),
+        color = background,
+        shape = RoundedCornerShape(50)
     ) {
-        Icon(
-            icon,
-            contentDescription = contentDescription,
-            tint = Color.White,
-            modifier = Modifier.size(size * .38f)
-        )
-    }
-}
-
-@Composable
-private fun EpisodeChip(
-    episode: Int,
-    locked: Boolean,
-    selected: Boolean,
-    controlColor: Color,
-    accent: Color
-) {
-    Box(
-        modifier = Modifier
-            .size(width = 78.dp, height = 66.dp)
-            .clip(RoundedCornerShape(15.dp))
-            .background(
-                if (selected) {
-                    accent.copy(alpha = .22f)
-                } else {
-                    controlColor
-                }
-            ),
-        contentAlignment = Alignment.Center
-    ) {
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally
+        Box(
+            contentAlignment = Alignment.Center
         ) {
-            if (locked) {
-                Icon(
-                    Icons.Filled.Lock,
-                    contentDescription = "Terkunci",
-                    tint = accent,
-                    modifier = Modifier.size(17.dp)
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = Color.White,
+                modifier = Modifier.size(
+                    if (size.value >= 68f) 32.dp
+                    else 25.dp
                 )
-            }
-
-            Text(
-                episode.toString(),
-                fontWeight = if (selected) {
-                    FontWeight.Bold
-                } else {
-                    FontWeight.Medium
-                },
-                color = MaterialTheme.colorScheme.onSurface
             )
         }
     }
 }
 
-private fun formatTime(ms: Long): String {
-    val totalSeconds = max(0L, ms) / 1000L
+@Composable
+private fun ReactionPanel(
+    accent: Color,
+    background: Color
+) {
+    Surface(
+        color = background,
+        shape = RoundedCornerShape(24.dp)
+    ) {
+        Row(
+            modifier = Modifier.padding(
+                horizontal = 15.dp,
+                vertical = 10.dp
+            ),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                imageVector = Icons.Filled.ThumbUp,
+                contentDescription = "Like",
+                tint = accent,
+                modifier = Modifier.size(23.dp)
+            )
+
+            Spacer(Modifier.width(7.dp))
+
+            Text(
+                text = "4.5K",
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Bold
+            )
+
+            Spacer(Modifier.width(14.dp))
+
+            Text(
+                text = "|",
+                color = Color.White.copy(alpha = 0.45f)
+            )
+
+            Spacer(Modifier.width(14.dp))
+
+            Icon(
+                imageVector = Icons.Filled.ThumbDown,
+                contentDescription = "Dislike",
+                tint = Color.White.copy(alpha = 0.82f),
+                modifier = Modifier.size(23.dp)
+            )
+
+            Spacer(Modifier.width(7.dp))
+
+            Text(
+                text = "16",
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Bold
+            )
+        }
+    }
+}
+
+@Composable
+private fun QualityButton(
+    quality: String,
+    accent: Color,
+    background: Color,
+    onClick: () -> Unit
+) {
+    Surface(
+        modifier = Modifier.clickable(onClick = onClick),
+        color = background,
+        shape = RoundedCornerShape(22.dp)
+    ) {
+        Row(
+            modifier = Modifier.padding(
+                horizontal = 17.dp,
+                vertical = 10.dp
+            ),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = quality,
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Bold,
+                color = accent
+            )
+
+            Spacer(Modifier.width(7.dp))
+
+            Icon(
+                imageVector = Icons.Filled.Lock,
+                contentDescription = "Premium",
+                tint = accent,
+                modifier = Modifier.size(17.dp)
+            )
+        }
+    }
+}
+
+@Composable
+private fun SmallIconButton(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    contentDescription: String,
+    accent: Color,
+    background: Color
+) {
+    Surface(
+        modifier = Modifier.size(48.dp),
+        color = background,
+        shape = RoundedCornerShape(15.dp)
+    ) {
+        Box(
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = contentDescription,
+                tint = accent,
+                modifier = Modifier.size(24.dp)
+            )
+        }
+    }
+}
+
+@Composable
+private fun SmallIconButtonWithText(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    text: String,
+    background: Color,
+    onClick: () -> Unit
+) {
+    Surface(
+        modifier = Modifier
+            .clickable(onClick = onClick),
+        color = background,
+        shape = RoundedCornerShape(14.dp)
+    ) {
+        Row(
+            modifier = Modifier.padding(
+                horizontal = 12.dp,
+                vertical = 9.dp
+            ),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = Color.White,
+                modifier = Modifier.size(16.dp)
+            )
+
+            Spacer(Modifier.width(5.dp))
+
+            Text(
+                text = text,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color.White
+            )
+        }
+    }
+}
+
+@Composable
+private fun MiniPill(
+    text: String,
+    background: Color
+) {
+    Surface(
+        color = background,
+        shape = RoundedCornerShape(14.dp)
+    ) {
+        Text(
+            text = text,
+            modifier = Modifier.padding(
+                horizontal = 13.dp,
+                vertical = 9.dp
+            ),
+            fontSize = 12.sp,
+            fontWeight = FontWeight.Bold,
+            color = Color.White
+        )
+    }
+}
+
+@Composable
+private fun EpisodeNavButton(
+    text: String,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    background: Color,
+    modifier: Modifier,
+    onClick: () -> Unit
+) {
+    Surface(
+        modifier = modifier.clickable(onClick = onClick),
+        color = background,
+        shape = RoundedCornerShape(16.dp)
+    ) {
+        Row(
+            modifier = Modifier.padding(
+                horizontal = 12.dp,
+                vertical = 10.dp
+            ),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = Color.White,
+                modifier = Modifier.size(17.dp)
+            )
+
+            Spacer(Modifier.width(5.dp))
+
+            Text(
+                text = text,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color.White
+            )
+        }
+    }
+}
+
+@Composable
+private fun EpisodeThumbnail(
+    episode: EpisodeUi,
+    selected: Boolean,
+    accent: Color,
+    onClick: () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .width(115.dp)
+            .height(70.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .clickable(onClick = onClick)
+    ) {
+        AsyncImage(
+            model = episode.thumbnail,
+            contentDescription = "Episode ${episode.number}",
+            modifier = Modifier.fillMaxSize(),
+            contentScale = ContentScale.Crop
+        )
+
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(
+                    Color.Black.copy(
+                        alpha = if (episode.locked) {
+                            0.52f
+                        } else {
+                            0.18f
+                        }
+                    )
+                )
+        )
+
+        if (selected) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(
+                        accent.copy(alpha = 0.15f)
+                    )
+            )
+        }
+
+        Text(
+            text = episode.number.toString(),
+            modifier = Modifier
+                .align(Alignment.BottomStart)
+                .padding(
+                    start = 8.dp,
+                    bottom = 6.dp
+                ),
+            fontSize = 14.sp,
+            fontWeight = FontWeight.Bold,
+            color = Color.White
+        )
+
+        if (episode.locked) {
+            Icon(
+                imageVector = Icons.Filled.Lock,
+                contentDescription = "Terkunci",
+                tint = accent,
+                modifier = Modifier
+                    .align(Alignment.Center)
+                    .size(23.dp)
+            )
+        }
+
+        if (selected) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(
+                        Color.Transparent,
+                        RoundedCornerShape(12.dp)
+                    )
+            )
+        }
+    }
+}
+
+private fun formatTime(milliseconds: Long): String {
+    val totalSeconds =
+        (milliseconds / 1000L).coerceAtLeast(0L)
+
     val minutes = totalSeconds / 60L
     val seconds = totalSeconds % 60L
 
-    return "%02d:%02d".format(minutes, seconds)
+    return "%02d:%02d".format(
+        minutes,
+        seconds
+    )
 }
