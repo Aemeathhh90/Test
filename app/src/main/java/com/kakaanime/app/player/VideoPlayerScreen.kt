@@ -4,6 +4,8 @@ import android.view.ViewGroup
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.Button
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -19,6 +21,7 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.media3.common.MediaItem
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.PlayerView
+import kotlinx.coroutines.delay
 
 @Composable
 fun VideoPlayerScreen(
@@ -30,6 +33,7 @@ fun VideoPlayerScreen(
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
+
     var showSkipIntro by remember { mutableStateOf(false) }
     var showSkipOutro by remember { mutableStateOf(false) }
 
@@ -41,12 +45,23 @@ fun VideoPlayerScreen(
         }
     }
 
-    LaunchedEffect(player, introStart, introEnd) {
+    LaunchedEffect(player, introStart, introEnd, outroStart, outroEnd) {
         while (true) {
             val position = player.currentPosition / 1000L
-            showSkipIntro = introStart > 0L && introEnd > introStart && position >= introStart && position < introEnd
-            showSkipOutro = outroStart > 0L && outroEnd > outroStart && position >= outroStart && position < outroEnd
-            kotlinx.coroutines.delay(300)
+
+            showSkipIntro =
+                introStart > 0L &&
+                introEnd > introStart &&
+                position >= introStart &&
+                position < introEnd
+
+            showSkipOutro =
+                outroStart > 0L &&
+                outroEnd > outroStart &&
+                position >= outroStart &&
+                position < outroEnd
+
+            delay(300)
         }
     }
 
@@ -56,13 +71,16 @@ fun VideoPlayerScreen(
         }
     }
 
-    Box(modifier = modifier.fillMaxSize()) {
+    Box(
+        modifier = modifier.fillMaxSize()
+    ) {
         AndroidView(
             factory = {
                 PlayerView(it).apply {
                     this.player = player
                     useController = true
                     controllerShowTimeoutMs = 3000
+
                     layoutParams = ViewGroup.LayoutParams(
                         ViewGroup.LayoutParams.MATCH_PARENT,
                         ViewGroup.LayoutParams.MATCH_PARENT
@@ -73,16 +91,30 @@ fun VideoPlayerScreen(
         )
 
         if (showSkipIntro) {
-            androidx.compose.material3.Button(
+            Button(
                 onClick = {
                     player.seekTo(introEnd * 1000L)
                     showSkipIntro = false
                 },
                 modifier = Modifier
                     .align(Alignment.BottomEnd)
+                    .padding(end = 24.dp, bottom = 140.dp)
+            ) {
+                Text("SKIP INTRO")
+            }
+        }
+
+        if (showSkipOutro) {
+            Button(
+                onClick = {
+                    player.seekTo(outroEnd * 1000L)
+                    showSkipOutro = false
+                },
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
                     .padding(end = 24.dp, bottom = 80.dp)
             ) {
-                androidx.compose.material3.Text("SKIP INTRO")
+                Text("SKIP OUTRO")
             }
         }
     }
