@@ -1,0 +1,38 @@
+{
+  "anime": [
+    {
+      "id": "one-piece",
+      "title": "One Piece",
+      "description": "Monkey D. Luffy dan kru Topi Jerami melanjutkan perjalanan mereka.",
+      "genres": [
+        "Action",
+        "Adventure"
+      ],
+      "episodes": [
+        {
+          "number": 1140,
+          "title": "Episode 1140"
+        }
+      ],
+      "introStart": 90,
+      "introEnd": 180
+    },
+    {
+      "id": "solo-leveling",
+      "title": "Solo Leveling",
+      "description": "Sung Jin-Woo berkembang dari hunter terlemah menjadi hunter yang sangat kuat.",
+      "genres": [
+        "Action",
+        "Fantasy"
+      ],
+      "episodes": [
+        {
+          "number": 25,
+          "title": "Episode 25"
+        }
+      ],
+      "introStart": 75,
+      "introEnd": 165
+    }
+  ]
+}
