@@ -114,8 +114,6 @@ fun VideoPlayerScreen(
     var showSpeedMenu by remember { mutableStateOf(false) }
 
     var autoNext by remember { mutableStateOf(true) }
-    var autoSkipIntro by remember { mutableStateOf(false) }
-    var autoSkipOutro by remember { mutableStateOf(false) }
 
     var selectedQuality by remember { mutableStateOf("720p") }
     var showQualityMenu by remember { mutableStateOf(false) }
@@ -142,13 +140,7 @@ fun VideoPlayerScreen(
                 seconds >= outroStart &&
                 seconds < outroEnd
 
-            if (insideIntro && autoSkipIntro) {
-                player.seekTo(introEnd * 1000L)
-            }
 
-            if (insideOutro && autoSkipOutro) {
-                player.seekTo(outroEnd * 1000L)
-            }
 
             delay(250)
         }
@@ -169,8 +161,6 @@ fun VideoPlayerScreen(
             speed = speed,
             showSpeedMenu = showSpeedMenu,
             autoNext = autoNext,
-            autoSkipIntro = autoSkipIntro,
-            autoSkipOutro = autoSkipOutro,
             accent = accent,
             controlBackground = playerControl,
             controlBackgroundStrong = playerControlStrong,
@@ -184,12 +174,6 @@ fun VideoPlayerScreen(
             },
             onAutoNext = {
                 autoNext = !autoNext
-            },
-            onAutoSkipIntro = {
-                autoSkipIntro = !autoSkipIntro
-            },
-            onAutoSkipOutro = {
-                autoSkipOutro = !autoSkipOutro
             },
             onBackPortrait = {
                 activity?.requestedOrientation =
@@ -574,16 +558,12 @@ private fun LandscapePlayer(
     speed: Float,
     showSpeedMenu: Boolean,
     autoNext: Boolean,
-    autoSkipIntro: Boolean,
-    autoSkipOutro: Boolean,
     accent: Color,
     controlBackground: Color,
     controlBackgroundStrong: Color,
     onSpeedClick: () -> Unit,
     onSpeedSelected: (Float) -> Unit,
     onAutoNext: () -> Unit,
-    onAutoSkipIntro: () -> Unit,
-    onAutoSkipOutro: () -> Unit,
     onBackPortrait: () -> Unit,
     onPreviousEpisode: () -> Unit,
     onNextEpisode: () -> Unit,
@@ -707,41 +687,25 @@ private fun LandscapePlayer(
         Row(
             modifier = Modifier
                 .align(Alignment.BottomStart)
-                .padding(start = 18.dp, bottom = 34.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                .padding(start = 28.dp, bottom = 34.dp)
         ) {
             SmallIconTextButton(
-                icon = Icons.Filled.FastRewind,
-                text = "Intro",
-                background = controlBackground,
+                icon = Icons.Filled.SkipNext,
+                text = "Skip Intro",
+                background = Color.Transparent,
                 onClick = onSkipIntro
-            )
-
-            SmallIconTextButton(
-                icon = Icons.Filled.FastRewind,
-                text = "Auto Intro",
-                background = controlBackground,
-                onClick = onAutoSkipIntro
             )
         }
 
         Row(
             modifier = Modifier
                 .align(Alignment.BottomEnd)
-                .padding(end = 18.dp, bottom = 34.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                .padding(end = 28.dp, bottom = 34.dp)
         ) {
             SmallIconTextButton(
-                icon = Icons.Filled.FastForward,
-                text = "Auto Outro",
-                background = controlBackground,
-                onClick = onAutoSkipOutro
-            )
-
-            SmallIconTextButton(
-                icon = Icons.Filled.FastForward,
-                text = "Outro",
-                background = controlBackground,
+                icon = Icons.Filled.SkipNext,
+                text = "Skip Outro",
+                background = Color.Transparent,
                 onClick = onSkipOutro
             )
         }
