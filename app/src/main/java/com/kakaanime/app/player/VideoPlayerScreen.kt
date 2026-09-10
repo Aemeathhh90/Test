@@ -46,6 +46,8 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Slider
+import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -613,7 +615,7 @@ private fun LandscapePlayer(
                 SmallIconTextButton(
                     icon = Icons.Filled.Speed,
                     text = "${speed}x",
-                    background = controlBackgroundStrong,
+                    background = Color.Transparent,
                     onClick = onSpeedClick
                 )
 
@@ -642,8 +644,7 @@ private fun LandscapePlayer(
                 onClick = onBackPortrait,
                 modifier = Modifier
                     .size(44.dp)
-                    .clip(RoundedCornerShape(14.dp))
-                    .background(controlBackgroundStrong)
+                    
             ) {
                 Icon(
                     imageVector = Icons.Filled.FullscreenExit,
@@ -973,8 +974,6 @@ private fun PlayerCircleButton(
     Box(
         modifier = modifier
             .size(size)
-            .clip(RoundedCornerShape(50))
-            .background(background)
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center
     ) {
@@ -992,26 +991,44 @@ private fun VideoProgressBar(
     position: Long,
     duration: Long,
     accent: Color,
-    modifier: Modifier
+    modifier: Modifier,
+    onProgressChange: (Float) -> Unit = {}
 ) {
-    val progress =
-        if (duration > 0L)
-            (position.toFloat() / duration.toFloat()).coerceIn(0f, 1f)
-        else
-            0f
+    val progress = if (duration > 0L) {
+        (position.toFloat() / duration.toFloat()).coerceIn(0f, 1f)
+    } else {
+        0f
+    }
 
-    Box(
-        modifier = modifier
-            .height(4.dp)
-            .clip(RoundedCornerShape(50))
-            .background(Color.White.copy(alpha = 0.35f))
-    ) {
-        Box(
+    Column(modifier = modifier) {
+        Slider(
+            value = progress,
+            onValueChange = onProgressChange,
             modifier = Modifier
-                .fillMaxWidth(progress)
-                .fillMaxSize()
-                .background(accent)
+                .fillMaxWidth()
+                .height(30.dp),
+            colors = SliderDefaults.colors(
+                thumbColor = Color.White,
+                activeTrackColor = accent,
+                inactiveTrackColor = Color.White.copy(alpha = 0.4f)
+            )
         )
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Text(
+                text = formatTime(position),
+                fontSize = 11.sp,
+                color = Color.White
+            )
+            Text(
+                text = formatTime(duration),
+                fontSize = 11.sp,
+                color = Color.White
+            )
+        }
     }
 }
 
