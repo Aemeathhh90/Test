@@ -9,7 +9,7 @@ on:
 jobs:
   provider-smoke:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     steps:
       - name: Check provider search endpoints with gateway fallback
         shell: bash
@@ -30,6 +30,7 @@ jobs:
                 passed=1
                 break
               fi
+              echo "TRY   $provider  $url  HTTP=$code bytes=$bytes"
             done
             if [[ "$passed" -eq 0 ]]; then
               echo "FAIL  $provider"
@@ -46,6 +47,10 @@ jobs:
             "https://wajik-anime-api.vercel.app/oploverz/search?q=$QUERY" \
             "https://www.vharasc.my.id/api/v1/oploverz/search/$QUERY" \
             "https://www.sankavollerei.web.id/anime/oploverz/search/$QUERY"
+
+          check samehadaku \
+            "https://wajik-anime-api.vercel.app/samehadaku/search?q=$QUERY" \
+            "https://www.sankavollerei.web.id/anime/samehadaku/search/$QUERY"
 
           check animeindo \
             "https://kumanime.vercel.app/api/search/$QUERY" \
@@ -69,7 +74,7 @@ jobs:
 
           # Remaining sources use Sanka as the current generic fallback.
           providers=(
-            otakudesu samehadaku animasu zoronime kuronime hianime doronime
+            otakudesu animasu zoronime kuronime hianime doronime
             hunter-no-sekai gomunime neonime ylnime nontonanimeid animeisme
             animeku wibudesu meownime anibatch drivenime anitoki riie
             animekuindo animesail allanime
