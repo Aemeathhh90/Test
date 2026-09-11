@@ -24,10 +24,17 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Button
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.CalendarMonth
+import androidx.compose.material.icons.outlined.FavoriteBorder
+import androidx.compose.material.icons.outlined.Home
+import androidx.compose.material.icons.outlined.Person
+import androidx.compose.material.icons.outlined.Schedule
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.Button
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -42,7 +49,7 @@ import com.kakaanime.app.player.VideoPlayerScreen
 import com.kakaanime.app.ui.theme.KakaAnimeTheme
 import com.kakaanime.app.ui.theme.rememberKakaThemeState
 
-data class Anime(
+ data class Anime(
     val title: String,
     val latestEpisode: Int,
     val genre: String,
@@ -65,9 +72,7 @@ private val localAnime = listOf(
 )
 
 private enum class AnimeScreen { HOME, DETAIL, PLAYER }
-private enum class BottomTab(val label: String, val symbol: String) {
-    HOME("Home", "⌂"), CALENDAR("Calendar", "▣"), HISTORY("History", "◷"), FAVORITE("Favorite", "♡"), PROFILE("Profile", "●")
-}
+private enum class BottomTab { HOME, CALENDAR, HISTORY, FAVORITE, PROFILE }
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -108,7 +113,7 @@ fun KakaAnimeApp() {
                     ) { tab ->
                         when (tab) {
                             BottomTab.HOME -> ReDantotsuHomeScreen(localAnime) { selectedAnime = it }
-                            BottomTab.CALENDAR -> SimpleTabScreen("Calendar", "Jadwal anime akan terhubung di tahap V1 berikutnya.")
+                            BottomTab.CALENDAR -> CalendarScreen(localAnime) { selectedAnime = it }
                             BottomTab.HISTORY -> SimpleTabScreen("History", "Riwayat tontonan akan terhubung di tahap V1 berikutnya.")
                             BottomTab.FAVORITE -> SimpleTabScreen("Favorite", "Anime favorit akan terhubung di tahap V1 berikutnya.")
                             BottomTab.PROFILE -> SimpleTabScreen("Profile", "Pengaturan dan profil akan terhubung di tahap V1 berikutnya.")
@@ -145,12 +150,27 @@ private fun KakaBottomNavigation(selectedTab: BottomTab, onTabSelected: (BottomT
     ) {
         Row(Modifier.fillMaxWidth().padding(6.dp), horizontalArrangement = Arrangement.SpaceEvenly) {
             BottomTab.entries.forEach { tab ->
+                val selected = selectedTab == tab
+                val icon = when (tab) {
+                    BottomTab.HOME -> Icons.Outlined.Home
+                    BottomTab.CALENDAR -> Icons.Outlined.CalendarMonth
+                    BottomTab.HISTORY -> Icons.Outlined.Schedule
+                    BottomTab.FAVORITE -> Icons.Outlined.FavoriteBorder
+                    BottomTab.PROFILE -> Icons.Outlined.Person
+                }
+                val label = when (tab) {
+                    BottomTab.HOME -> "Home"
+                    BottomTab.CALENDAR -> "Calendar"
+                    BottomTab.HISTORY -> "History"
+                    BottomTab.FAVORITE -> "Favorite"
+                    BottomTab.PROFILE -> "Profile"
+                }
                 Column(
                     Modifier.weight(1f).clickable { onTabSelected(tab) }.padding(vertical = 7.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    Text(tab.symbol, fontSize = if (selectedTab == tab) 22.sp else 20.sp, color = if (selectedTab == tab) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
-                    Text(tab.label, fontSize = 10.sp, fontWeight = if (selectedTab == tab) FontWeight.Bold else FontWeight.Normal, color = if (selectedTab == tab) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
+                    Icon(icon, contentDescription = label, tint = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(label, fontSize = 10.sp, fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal, color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
         }
