@@ -38,7 +38,7 @@ jobs:
             fi
           }
 
-          # Dedicated gateway routes.
+          # Dedicated routes.
           check kuramanime \
             "https://wajik-anime-api.vercel.app/kuramanime/search?q=$QUERY" \
             "https://www.sankavollerei.web.id/anime/kura/search/$QUERY"
@@ -72,10 +72,10 @@ jobs:
             "https://www.vharasc.my.id/api/v1/animekompi/search/$QUERY" \
             "https://www.sankavollerei.web.id/anime/animekompi/search/$QUERY"
 
-          # Sources without a verified secondary API currently fall back to Sanka.
-          # HiAnime is intentionally excluded: its original service shut down in 2026.
+          # Remaining sources currently use Sanka as a fallback route.
+          # HiAnime is intentionally excluded because its original service shut down.
           providers=(
-            otakudesu animasu animeindo zoronime kuronime doronime
+            otakudesu animasu zoronime kuronime doronime
             hunter-no-sekai gomunime neonime ylnime nontonanimeid animeisme
             animeku wibudesu meownime anibatch drivenime anitoki riie
             animekuindo animesail allanime
