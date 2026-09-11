@@ -1,8 +1,5 @@
 package com.kakaanime.app
 
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.slideInVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -22,12 +19,8 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.CalendarMonth
-import androidx.compose.material.icons.outlined.FavoriteBorder
-import androidx.compose.material.icons.outlined.History
-import androidx.compose.material.icons.outlined.Home
-import androidx.compose.material.icons.outlined.PersonOutline
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material3.Icon
@@ -46,7 +39,6 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import coil.compose.AsyncImage
 
 @Composable
 fun ReDantotsuHomeScreen(
@@ -57,28 +49,16 @@ fun ReDantotsuHomeScreen(
     val filtered = animeList.filter { it.title.contains(search, ignoreCase = true) }
 
     LazyColumn(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background),
+        modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background),
         contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 10.dp, bottom = 116.dp),
         verticalArrangement = Arrangement.spacedBy(22.dp)
     ) {
-        item {
-            HomeReferenceHeader(
-                search = search,
-                onSearchChanged = { search = it }
-            )
-        }
+        item { HomeReferenceHeader(search = search, onSearchChanged = { search = it }) }
 
         if (search.isNotBlank()) {
-            item {
-                Text("Hasil Pencarian", fontSize = 20.sp, fontWeight = FontWeight.Bold)
-            }
-            if (filtered.isEmpty()) {
-                item { EmptyHomeState() }
-            } else {
-                items(filtered) { anime -> SearchAnimeRow(anime, onAnimeClick) }
-            }
+            item { Text("Hasil Pencarian", fontSize = 20.sp, fontWeight = FontWeight.Bold) }
+            if (filtered.isEmpty()) item { EmptyHomeState() }
+            else items(filtered) { anime -> SearchAnimeRow(anime, onAnimeClick) }
         } else {
             item { FeaturedReferenceCard(animeList.firstOrNull(), onAnimeClick) }
             item { HomeAnimeSection("Continue Watching", animeList, onAnimeClick, showProgress = true) }
@@ -94,15 +74,8 @@ fun ReDantotsuHomeScreen(
 @Composable
 private fun HomeReferenceHeader(search: String, onSearchChanged: (String) -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Surface(
-                modifier = Modifier.size(44.dp),
-                shape = CircleShape,
-                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.14f)
-            ) {
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Surface(Modifier.size(44.dp), CircleShape, color = MaterialTheme.colorScheme.primary.copy(alpha = .14f)) {
                 Box(contentAlignment = Alignment.Center) {
                     Text("KA", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
                 }
@@ -112,31 +85,29 @@ private fun HomeReferenceHeader(search: String, onSearchChanged: (String) -> Uni
                 Text("KakaAnime", fontSize = 21.sp, fontWeight = FontWeight.Bold)
                 Text("Temukan anime berikutnya", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
-            Surface(
-                shape = CircleShape,
-                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.72f)
-            ) {
+            Surface(shape = CircleShape, color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = .72f)) {
                 Icon(Icons.Outlined.Settings, contentDescription = "Pengaturan", modifier = Modifier.padding(11.dp))
             }
         }
 
         Surface(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(22.dp),
-            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.72f)
+            Modifier.fillMaxWidth(),
+            RoundedCornerShape(22.dp),
+            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = .72f)
         ) {
-            Row(
-                modifier = Modifier.padding(horizontal = 15.dp, vertical = 12.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
+            Row(Modifier.padding(horizontal = 15.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
                 Icon(Icons.Outlined.Search, contentDescription = "Cari", tint = MaterialTheme.colorScheme.onSurfaceVariant)
                 Spacer(Modifier.width(10.dp))
-                androidx.compose.material3.BasicAlertDialog
-                Text(
-                    if (search.isEmpty()) "Cari anime..." else search,
-                    color = if (search.isEmpty()) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface,
-                    fontSize = 14.sp,
-                    modifier = Modifier.weight(1f)
+                BasicTextField(
+                    value = search,
+                    onValueChange = onSearchChanged,
+                    modifier = Modifier.weight(1f),
+                    singleLine = true,
+                    textStyle = MaterialTheme.typography.bodyMedium.copy(color = MaterialTheme.colorScheme.onSurface),
+                    decorationBox = { inner ->
+                        if (search.isEmpty()) Text("Cari anime...", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        inner()
+                    }
                 )
             }
         }
@@ -147,35 +118,15 @@ private fun HomeReferenceHeader(search: String, onSearchChanged: (String) -> Uni
 private fun FeaturedReferenceCard(anime: Anime?, onClick: (Anime) -> Unit) {
     if (anime == null) return
     Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(285.dp)
-            .clip(RoundedCornerShape(26.dp))
-            .clickable { onClick(anime) }
-            .background(
-                Brush.verticalGradient(
-                    listOf(
-                        MaterialTheme.colorScheme.surfaceVariant,
-                        MaterialTheme.colorScheme.surface,
-                        MaterialTheme.colorScheme.background
-                    )
-                )
-            )
+        Modifier.fillMaxWidth().height(285.dp).clip(RoundedCornerShape(26.dp)).clickable { onClick(anime) }
+            .background(Brush.verticalGradient(listOf(MaterialTheme.colorScheme.surfaceVariant, MaterialTheme.colorScheme.surface, MaterialTheme.colorScheme.background)))
     ) {
-        Column(
-            modifier = Modifier
-                .align(Alignment.BottomStart)
-                .padding(20.dp)
-        ) {
+        Column(Modifier.align(Alignment.BottomStart).padding(20.dp)) {
             Text("FEATURED", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
             Spacer(Modifier.height(4.dp))
             Text(anime.title, fontSize = 28.sp, fontWeight = FontWeight.Bold, maxLines = 2)
             Spacer(Modifier.height(4.dp))
-            Text(
-                "★ ${anime.rating}  •  ${anime.status}  •  ${anime.year}",
-                fontSize = 12.sp,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
+            Text("★ ${anime.rating}  •  ${anime.status}  •  ${anime.year}", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Spacer(Modifier.height(9.dp))
             Text(anime.genre, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
         }
@@ -183,13 +134,7 @@ private fun FeaturedReferenceCard(anime: Anime?, onClick: (Anime) -> Unit) {
 }
 
 @Composable
-private fun HomeAnimeSection(
-    title: String,
-    animeList: List<Anime>,
-    onClick: (Anime) -> Unit,
-    badge: String? = null,
-    showProgress: Boolean = false
-) {
+private fun HomeAnimeSection(title: String, animeList: List<Anime>, onClick: (Anime) -> Unit, badge: String? = null, showProgress: Boolean = false) {
     if (animeList.isEmpty()) return
     Column {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -198,59 +143,23 @@ private fun HomeAnimeSection(
         }
         Spacer(Modifier.height(10.dp))
         LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp), contentPadding = PaddingValues(end = 8.dp)) {
-            items(animeList) { anime ->
-                ReferencePosterCard(anime, onClick, badge, showProgress)
-            }
+            items(animeList) { anime -> ReferencePosterCard(anime, onClick, badge, showProgress) }
         }
     }
 }
 
 @Composable
-private fun ReferencePosterCard(
-    anime: Anime,
-    onClick: (Anime) -> Unit,
-    badge: String?,
-    showProgress: Boolean
-) {
+private fun ReferencePosterCard(anime: Anime, onClick: (Anime) -> Unit, badge: String?, showProgress: Boolean) {
     Column(Modifier.width(136.dp).clickable { onClick(anime) }) {
-        Box(
-            Modifier
-                .fillMaxWidth()
-                .height(184.dp)
-                .clip(RoundedCornerShape(16.dp))
-                .background(MaterialTheme.colorScheme.surfaceVariant)
-        ) {
-            Box(
-                Modifier
-                    .fillMaxSize()
-                    .background(
-                        Brush.verticalGradient(
-                            listOf(
-                                MaterialTheme.colorScheme.primary.copy(alpha = .12f),
-                                MaterialTheme.colorScheme.surface
-                            )
-                        )
-                    )
-            )
+        Box(Modifier.fillMaxWidth().height(184.dp).clip(RoundedCornerShape(16.dp)).background(MaterialTheme.colorScheme.surfaceVariant)) {
+            Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(MaterialTheme.colorScheme.primary.copy(alpha = .12f), MaterialTheme.colorScheme.surface))))
             Text("POSTER", Modifier.align(Alignment.Center), fontSize = 9.sp, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
             if (badge != null) {
-                Surface(
-                    modifier = Modifier.align(Alignment.TopStart).padding(8.dp),
-                    shape = RoundedCornerShape(8.dp),
-                    color = MaterialTheme.colorScheme.primary.copy(alpha = .9f)
-                ) {
+                Surface(Modifier.align(Alignment.TopStart).padding(8.dp), RoundedCornerShape(8.dp), color = MaterialTheme.colorScheme.primary.copy(alpha = .9f)) {
                     Text(badge, Modifier.padding(horizontal = 7.dp, vertical = 4.dp), fontSize = 8.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onPrimary)
                 }
             }
-            if (showProgress) {
-                Box(
-                    Modifier
-                        .align(Alignment.BottomCenter)
-                        .fillMaxWidth()
-                        .height(3.dp)
-                        .background(MaterialTheme.colorScheme.primary)
-                )
-            }
+            if (showProgress) Box(Modifier.align(Alignment.BottomCenter).fillMaxWidth().height(3.dp).background(MaterialTheme.colorScheme.primary))
         }
         Spacer(Modifier.height(7.dp))
         Text(anime.title, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
@@ -260,19 +169,10 @@ private fun ReferencePosterCard(
 
 @Composable
 private fun SearchAnimeRow(anime: Anime, onClick: (Anime) -> Unit) {
-    Row(
-        Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(16.dp))
-            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = .55f))
-            .clickable { onClick(anime) }
-            .padding(10.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Box(
-            Modifier.size(64.dp, 86.dp).clip(RoundedCornerShape(11.dp)).background(MaterialTheme.colorScheme.surfaceVariant),
-            contentAlignment = Alignment.Center
-        ) { Text("POSTER", fontSize = 8.sp, color = MaterialTheme.colorScheme.primary) }
+    Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = .55f)).clickable { onClick(anime) }.padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
+        Box(Modifier.size(64.dp, 86.dp).clip(RoundedCornerShape(11.dp)).background(MaterialTheme.colorScheme.surfaceVariant), contentAlignment = Alignment.Center) {
+            Text("POSTER", fontSize = 8.sp, color = MaterialTheme.colorScheme.primary)
+        }
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {
             Text(anime.title, fontSize = 16.sp, fontWeight = FontWeight.Bold)
@@ -285,11 +185,7 @@ private fun SearchAnimeRow(anime: Anime, onClick: (Anime) -> Unit) {
 
 @Composable
 private fun HomePremiumReferenceCard() {
-    Surface(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(22.dp),
-        color = MaterialTheme.colorScheme.primary.copy(alpha = .10f)
-    ) {
+    Surface(Modifier.fillMaxWidth(), RoundedCornerShape(22.dp), color = MaterialTheme.colorScheme.primary.copy(alpha = .10f)) {
         Column(Modifier.padding(18.dp)) {
             Text("PREMIUM", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
             Spacer(Modifier.height(3.dp))
