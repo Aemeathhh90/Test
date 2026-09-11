@@ -42,10 +42,13 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.kakaanime.app.monetization.AdMobRewardedAdGateway
 import com.kakaanime.app.monetization.MonetizationState
+import com.kakaanime.app.monetization.DiamondRules
 import com.kakaanime.app.player.VideoPlayerScreen
 import com.kakaanime.app.premium.PremiumScreen
 import com.kakaanime.app.ui.theme.KakaAnimeTheme
@@ -86,6 +89,8 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun KakaAnimeApp() {
     val themeState = rememberKakaThemeState()
+    val context = LocalContext.current
+    val rewardedAds = remember(context) { AdMobRewardedAdGateway(context) }
     var selectedAnime by remember { mutableStateOf<Anime?>(null) }
     var selectedEpisode by remember { mutableStateOf<Int?>(null) }
     var selectedTab by remember { mutableStateOf(BottomTab.HOME) }
@@ -93,6 +98,35 @@ fun KakaAnimeApp() {
     var favoriteTitles by remember { mutableStateOf(setOf("One Piece")) }
     var watchedEpisodes by remember { mutableStateOf(mapOf("One Piece" to 1140)) }
     var monetizationState by remember { mutableStateOf(MonetizationState(diamonds = 0, isPremium = false)) }
+
+    fun openEpisode(anime: Anime, episode: Int) {
+        if (monetizationState.isPremium) {
+            watchedEpisodes = watchedEpisodes + (anime.title to episode)
+            selectedEpisode = episode
+            return
+        }
+
+        val consumed = DiamondRules.consumeForEpisode(monetizationState)
+        if (consumed != null) {
+            monetizationState = consumed
+            watchedEpisodes = watchedEpisodes + (anime.title to episode)
+            selectedEpisode = episode
+            return
+        }
+
+        rewardedAds.show(
+            onReward = { diamonds ->
+                monetizationState = monetizationState.copy(diamonds = monetizationState.diamonds + diamonds)
+                val afterReward = DiamondRules.consumeForEpisode(monetizationState.copy(diamonds = monetizationState.diamonds + diamonds))
+                if (afterReward != null) {
+                    monetizationState = afterReward
+                    watchedEpisodes = watchedEpisodes + (anime.title to episode)
+                    selectedEpisode = episode
+                }
+            },
+            onUnavailable = { }
+        )
+    }
 
     val screen = when {
         showPremium -> AnimeScreen.PREMIUM
@@ -121,7 +155,7 @@ fun KakaAnimeApp() {
                     isFavorite = selectedAnime!!.title in favoriteTitles,
                     onBack = { selectedAnime = null; selectedEpisode = null },
                     onFavorite = { favoriteTitles = if (selectedAnime!!.title in favoriteTitles) favoriteTitles - selectedAnime!!.title else favoriteTitles + selectedAnime!!.title },
-                    onEpisodeClick = { watchedEpisodes = watchedEpisodes + (selectedAnime!!.title to it); selectedEpisode = it }
+                    onEpisodeClick = { openEpisode(selectedAnime!!, it) }
                 )
                 AnimeScreen.PLAYER -> VideoPlayerScreen(
                     videoUrl = "https://media.w3.org/2010/05/bunny/trailer.mp4",
@@ -135,7 +169,7 @@ fun KakaAnimeApp() {
                 AnimeScreen.PREMIUM -> PremiumScreen(
                     state = monetizationState,
                     onBack = { showPremium = false },
-                    onSubscribe = { /* Billing provider will be connected in release integration. */ }
+                    onSubscribe = { /* Billing provider will be connected after Play product setup. */ }
                 )
             }
         }
