@@ -4,7 +4,7 @@
 
     <application
         android:theme="@style/Theme.KakaAnime"
-        android:label="KakaAnime"
+        android:label="AniLab"
         android:allowBackup="true"
         android:supportsRtl="true">
 
