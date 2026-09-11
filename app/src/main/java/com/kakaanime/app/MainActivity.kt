@@ -102,19 +102,10 @@ fun KakaAnimeApp() {
     }
 
     KakaAnimeTheme(themeState = themeState) {
-        AnimatedContent(
-            targetState = screen,
-            transitionSpec = { (fadeIn() + slideInHorizontally { it / 8 }) togetherWith (fadeOut() + slideOutHorizontally { -it / 10 }) },
-            label = "screen_transition"
-        ) { target ->
+        AnimatedContent(targetState = screen, transitionSpec = { (fadeIn() + slideInHorizontally { it / 8 }) togetherWith (fadeOut() + slideOutHorizontally { -it / 10 }) }, label = "screen_transition") { target ->
             when (target) {
                 AnimeScreen.HOME -> Box(Modifier.fillMaxSize()) {
-                    AnimatedContent(
-                        targetState = selectedTab,
-                        transitionSpec = { fadeIn() togetherWith fadeOut() },
-                        label = "tab_transition",
-                        modifier = Modifier.fillMaxSize().padding(bottom = 84.dp)
-                    ) { tab ->
+                    AnimatedContent(targetState = selectedTab, transitionSpec = { fadeIn() togetherWith fadeOut() }, label = "tab_transition", modifier = Modifier.fillMaxSize().padding(bottom = 84.dp)) { tab ->
                         when (tab) {
                             BottomTab.HOME -> ReDantotsuHomeScreen(localAnime) { selectedAnime = it }
                             BottomTab.CALENDAR -> CalendarScreen(localAnime, { selectedAnime = it }, favoriteTitles)
@@ -129,14 +120,8 @@ fun KakaAnimeApp() {
                     anime = selectedAnime!!,
                     isFavorite = selectedAnime!!.title in favoriteTitles,
                     onBack = { selectedAnime = null; selectedEpisode = null },
-                    onFavorite = {
-                        favoriteTitles = if (selectedAnime!!.title in favoriteTitles) favoriteTitles - selectedAnime!!.title
-                        else favoriteTitles + selectedAnime!!.title
-                    },
-                    onEpisodeClick = {
-                        watchedEpisodes = watchedEpisodes + (selectedAnime!!.title to it)
-                        selectedEpisode = it
-                    }
+                    onFavorite = { favoriteTitles = if (selectedAnime!!.title in favoriteTitles) favoriteTitles - selectedAnime!!.title else favoriteTitles + selectedAnime!!.title },
+                    onEpisodeClick = { watchedEpisodes = watchedEpisodes + (selectedAnime!!.title to it); selectedEpisode = it }
                 )
                 AnimeScreen.PLAYER -> VideoPlayerScreen(
                     videoUrl = "https://media.w3.org/2010/05/bunny/trailer.mp4",
@@ -144,6 +129,7 @@ fun KakaAnimeApp() {
                     introEnd = selectedAnime!!.introEnd,
                     outroStart = selectedAnime!!.outroStart,
                     outroEnd = selectedAnime!!.outroEnd,
+                    isPremium = monetizationState.isPremium,
                     modifier = Modifier.fillMaxSize()
                 )
                 AnimeScreen.PREMIUM -> PremiumScreen(
@@ -158,13 +144,7 @@ fun KakaAnimeApp() {
 
 @Composable
 private fun KakaBottomNavigation(selectedTab: BottomTab, onTabSelected: (BottomTab) -> Unit) {
-    Surface(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 12.dp),
-        shape = RoundedCornerShape(28.dp),
-        color = MaterialTheme.colorScheme.surface.copy(alpha = .94f),
-        tonalElevation = 5.dp,
-        shadowElevation = 10.dp
-    ) {
+    Surface(modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 12.dp), shape = RoundedCornerShape(28.dp), color = MaterialTheme.colorScheme.surface.copy(alpha = .94f), tonalElevation = 5.dp, shadowElevation = 10.dp) {
         Row(Modifier.fillMaxWidth().padding(6.dp), horizontalArrangement = Arrangement.SpaceEvenly) {
             BottomTab.entries.forEach { tab ->
                 val selected = selectedTab == tab
