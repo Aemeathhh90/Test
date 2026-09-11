@@ -4,10 +4,9 @@ object ProviderFactory {
 
     fun createRegistry(): ProviderRegistry {
         return ProviderRegistry().apply {
-            // Primary/source-specific adapters.
+            // Source-specific adapters with verified implementations.
             register(OtakudesuProvider())
             register(SamehadakuProvider())
-            register(AnimeSailProvider())
 
             // Multi-gateway adapters. Each source can fail over to another gateway.
             register(RemoteSourceProvider("animasu", "Animasu", 30, "animasu"))
@@ -36,7 +35,8 @@ object ProviderFactory {
             register(RemoteSourceProvider("riie", "RiiE", 280, "riie"))
             register(RemoteSourceProvider("kusonime", "Kusonime", 290, "kusonime"))
             register(RemoteSourceProvider("animekuindo", "Animekuindo", 300, "animekuindo"))
-            register(RemoteSourceProvider("allanime", "AllAnime", 320, "AllAnime",))
+            register(RemoteSourceProvider("animesail", "AnimeSail", 310, "animesail"))
+            register(RemoteSourceProvider("allanime", "AllAnime", 320, "AllAnime"))
         }
     }
 
