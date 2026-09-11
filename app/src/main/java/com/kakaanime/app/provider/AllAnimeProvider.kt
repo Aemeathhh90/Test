@@ -26,10 +26,10 @@ class AllAnimeProvider : AnimeProvider {
     override suspend fun search(query: String): List<ProviderAnime> {
         val root = request("/search?query=${encode(query)}") ?: return emptyList()
         return array(root).mapNotNull { item ->
-            val id = item.optString("id").trim().ifBlank { return@mapNotNull null }
+            val showId = item.optString("id").trim().ifBlank { return@mapNotNull null }
             val title = item.optString("title").trim().ifBlank { return@mapNotNull null }
             ProviderAnime(
-                id = "$id:$id",
+                id = "$id:$showId",
                 title = title,
                 providerId = id,
                 latestEpisode = maxOf(
