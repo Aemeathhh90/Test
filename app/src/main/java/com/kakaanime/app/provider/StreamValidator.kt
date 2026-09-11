@@ -10,10 +10,7 @@ import java.util.concurrent.TimeUnit
 
 /**
  * Runtime gate between provider discovery and the player.
- *
  * A URL is not considered playable just because it looks like .m3u8/.mpd/.mp4.
- * The validator performs a small network probe and rejects HTML/error pages,
- * redirects that land on pages, and dead streams before they reach Media3.
  */
 class StreamValidator(
     private val client: OkHttpClient = defaultClient()
@@ -51,21 +48,16 @@ class StreamValidator(
                 val contentType = body.contentType()?.toString()?.lowercase().orEmpty()
 
                 when (stream.type) {
-                    StreamType.HLS -> {
-                        val sample = body.source().buffer.peek().readUtf8(8192)
-                        sample.contains("#EXTM3U", ignoreCase = true)
-                    }
+                    StreamType.HLS -> body.string().take(8192)
+                        .contains("#EXTM3U", ignoreCase = true)
                     StreamType.DASH -> {
-                        val sample = body.source().buffer.peek().readUtf8(8192)
+                        val sample = body.string().take(8192)
                         sample.contains("<MPD", ignoreCase = true) ||
-                            contentType.contains("dash") ||
-                            contentType.contains("mpd")
+                            contentType.contains("dash") || contentType.contains("mpd")
                     }
-                    StreamType.MP4 -> {
-                        response.code == 206 ||
-                            contentType.contains("video/mp4") ||
-                            contentType.contains("application/mp4")
-                    }
+                    StreamType.MP4 -> response.code == 206 ||
+                        contentType.contains("video/mp4") ||
+                        contentType.contains("application/mp4")
                     StreamType.UNKNOWN -> false
                 }
             }
