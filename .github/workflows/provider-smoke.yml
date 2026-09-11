@@ -11,34 +11,75 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - name: Check provider search endpoints
+      - name: Check provider search endpoints with gateway fallback
         shell: bash
         run: |
           set -u
-          BASE="https://www.sankavollerei.web.id/anime"
           QUERY="one%20piece"
-          providers=(
-            otakudesu samehadaku animasu animeindo zoronime anoboy animekompi
-            kuronime hianime doronime hunter-no-sekai gomunime neonime ylnime
-            nontonanimeid animeisme animeku oploverz kura wibudesu meownime
-            anibatch nimegami drivenime anitoki riie kusonime animekuindo
-            animesail allanime
-          )
-
           failed=0
-          for provider in "${providers[@]}"; do
-            url="$BASE/$provider/search/$QUERY"
-            code=$(curl -L -sS --max-time 20 -o /tmp/provider.json -w '%{http_code}' "$url" || true)
-            bytes=$(wc -c < /tmp/provider.json 2>/dev/null || echo 0)
-            if [[ "$code" == "200" && "$bytes" -gt 20 ]]; then
-              echo "PASS  $provider  HTTP=$code bytes=$bytes"
-            else
-              echo "FAIL  $provider  HTTP=$code bytes=$bytes"
+
+          check() {
+            provider="$1"
+            shift
+            passed=0
+            for url in "$@"; do
+              code=$(curl -L -sS --max-time 20 -A "KakaAnime/0.1" -o /tmp/provider.json -w '%{http_code}' "$url" || true)
+              bytes=$(wc -c < /tmp/provider.json 2>/dev/null || echo 0)
+              if [[ "$code" == "200" && "$bytes" -gt 20 ]]; then
+                echo "PASS  $provider  $url  HTTP=$code bytes=$bytes"
+                passed=1
+                break
+              fi
+            done
+            if [[ "$passed" -eq 0 ]]; then
+              echo "FAIL  $provider"
               failed=1
             fi
+          }
+
+          # Dedicated gateway routes.
+          check kuramanime \
+            "https://wajik-anime-api.vercel.app/kuramanime/search?q=$QUERY" \
+            "https://www.sankavollerei.web.id/anime/kura/search/$QUERY"
+
+          check oploverz \
+            "https://wajik-anime-api.vercel.app/oploverz/search?q=$QUERY" \
+            "https://www.vharasc.my.id/api/v1/oploverz/search/$QUERY" \
+            "https://www.sankavollerei.web.id/anime/oploverz/search/$QUERY"
+
+          check animeindo \
+            "https://kumanime.vercel.app/api/search/$QUERY" \
+            "https://www.sankavollerei.web.id/anime/animeindo/search/$QUERY"
+
+          check anoboy \
+            "https://www.vharasc.my.id/api/v1/anoboy/search/$QUERY" \
+            "https://www.sankavollerei.web.id/anime/anoboy/search/$QUERY"
+
+          check nimegami \
+            "https://www.vharasc.my.id/api/v1/nimegami/search/$QUERY" \
+            "https://www.sankavollerei.web.id/anime/nimegami/search/$QUERY"
+
+          check kusonime \
+            "https://www.vharasc.my.id/api/v1/kusonime/search/$QUERY" \
+            "https://www.sankavollerei.web.id/anime/kusonime/search/$QUERY"
+
+          check animekompi \
+            "https://www.vharasc.my.id/api/v1/animekompi/search/$QUERY" \
+            "https://www.sankavollerei.web.id/anime/animekompi/search/$QUERY"
+
+          # Remaining sources use Sanka as the current generic fallback.
+          providers=(
+            otakudesu samehadaku animasu zoronime kuronime hianime doronime
+            hunter-no-sekai gomunime neonime ylnime nontonanimeid animeisme
+            animeku wibudesu meownime anibatch drivenime anitoki riie
+            animekuindo animesail allanime
+          )
+
+          for provider in "${providers[@]}"; do
+            check "$provider" "https://www.sankavollerei.web.id/anime/$provider/search/$QUERY"
           done
 
           if [[ "$failed" -ne 0 ]]; then
-            echo "One or more provider endpoints failed the smoke check."
+            echo "One or more provider gateway routes failed the smoke check."
             exit 1
           fi
