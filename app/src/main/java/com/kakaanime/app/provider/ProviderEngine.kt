@@ -1,7 +1,8 @@
 package com.kakaanime.app.provider
 
 class ProviderEngine(
-    private val registry: ProviderRegistry
+    private val registry: ProviderRegistry,
+    private val streamValidator: StreamValidator = StreamValidator()
 ) {
     private val router = SmartProviderRouter(registry)
 
@@ -19,11 +20,12 @@ class ProviderEngine(
         val providerPriorities = registry.all().associate { it.id to it.priority }
         val deduplicated = ProviderStreamDeduplicator.deduplicate(rawStreams, providerPriorities)
         val normalized = StreamNormalizer.normalize(deduplicated)
+        val validated = streamValidator.validate(normalized)
 
         return NormalizedEpisodeStream(
             animeId = animeId,
             episodeNumber = episodeNumber,
-            streams = normalized
+            streams = validated
         )
     }
 
