@@ -3,46 +3,22 @@ package com.kakaanime.app.provider
 class ProviderEngine(
     private val registry: ProviderRegistry
 ) {
+    private val router = SmartProviderRouter(registry)
 
-    private val router =
-        SmartProviderRouter(registry)
+    suspend fun search(query: String): List<ProviderAnime> = router.search(query)
 
-    suspend fun search(
-        query: String
-    ): List<ProviderAnime> {
+    suspend fun getAnime(animeId: String): ProviderAnime? = router.getAnime(animeId)
 
-        return router.search(query)
-    }
-
-    suspend fun getAnime(
-        animeId: String
-    ): ProviderAnime? {
-
-        return router.getAnime(animeId)
-    }
-
-    suspend fun getEpisodes(
-        animeId: String
-    ): List<ProviderEpisode> {
-
-        return router.getEpisodes(animeId)
-    }
+    suspend fun getEpisodes(animeId: String): List<ProviderEpisode> = router.getEpisodes(animeId)
 
     suspend fun getEpisodeStreams(
         animeId: String,
         episodeNumber: Int
     ): NormalizedEpisodeStream {
-
-        val rawStreams =
-            router.getStreams(
-                animeId = animeId,
-                episodeNumber = episodeNumber
-            )
-
-        val normalized =
-            StreamNormalizer.normalize(
-                rawStreams
-            )
+        val rawStreams = router.getStreams(animeId, episodeNumber)
+        val providerPriorities = registry.all().associate { it.id to it.priority }
+        val deduplicated = ProviderStreamDeduplicator.deduplicate(rawStreams, providerPriorities)
+        val normalized = StreamNormalizer.normalize(deduplicated)
 
         return NormalizedEpisodeStream(
             animeId = animeId,
@@ -57,13 +33,7 @@ class ProviderEngine(
         preferredQuality: StreamQuality? = null,
         premium: Boolean = false
     ): NormalizedStream? {
-
-        val result =
-            getEpisodeStreams(
-                animeId = animeId,
-                episodeNumber = episodeNumber
-            )
-
+        val result = getEpisodeStreams(animeId, episodeNumber)
         return StreamSelector.best(
             streams = result.streams,
             preferredQuality = preferredQuality,
