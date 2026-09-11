@@ -30,11 +30,11 @@ import androidx.compose.material.icons.outlined.FavoriteBorder
 import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material.icons.outlined.Schedule
+import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.Button
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -49,7 +49,7 @@ import com.kakaanime.app.player.VideoPlayerScreen
 import com.kakaanime.app.ui.theme.KakaAnimeTheme
 import com.kakaanime.app.ui.theme.rememberKakaThemeState
 
- data class Anime(
+data class Anime(
     val title: String,
     val latestEpisode: Int,
     val genre: String,
@@ -90,6 +90,8 @@ fun KakaAnimeApp() {
     var selectedAnime by remember { mutableStateOf<Anime?>(null) }
     var selectedEpisode by remember { mutableStateOf<Int?>(null) }
     var selectedTab by remember { mutableStateOf(BottomTab.HOME) }
+    var favoriteTitles by remember { mutableStateOf(setOf("One Piece")) }
+    var watchedEpisodes by remember { mutableStateOf(mapOf("One Piece" to 1140)) }
 
     val screen = when {
         selectedAnime != null && selectedEpisode != null -> AnimeScreen.PLAYER
@@ -113,9 +115,23 @@ fun KakaAnimeApp() {
                     ) { tab ->
                         when (tab) {
                             BottomTab.HOME -> ReDantotsuHomeScreen(localAnime) { selectedAnime = it }
-                            BottomTab.CALENDAR -> CalendarScreen(localAnime) { selectedAnime = it }
-                            BottomTab.HISTORY -> SimpleTabScreen("History", "Riwayat tontonan akan terhubung di tahap V1 berikutnya.")
-                            BottomTab.FAVORITE -> SimpleTabScreen("Favorite", "Anime favorit akan terhubung di tahap V1 berikutnya.")
+                            BottomTab.CALENDAR -> CalendarScreen(
+                                animeList = localAnime,
+                                onAnimeClick = { selectedAnime = it },
+                                favoriteTitles = favoriteTitles
+                            )
+                            BottomTab.HISTORY -> LibraryScreen(
+                                title = "History",
+                                animeList = localAnime.filter { it.title in watchedEpisodes.keys },
+                                onAnimeClick = { selectedAnime = it },
+                                emptyText = "Belum ada riwayat tontonan"
+                            )
+                            BottomTab.FAVORITE -> LibraryScreen(
+                                title = "Favorite",
+                                animeList = localAnime.filter { it.title in favoriteTitles },
+                                onAnimeClick = { selectedAnime = it },
+                                emptyText = "Belum ada anime favorit"
+                            )
                             BottomTab.PROFILE -> SimpleTabScreen("Profile", "Pengaturan dan profil akan terhubung di tahap V1 berikutnya.")
                         }
                     }
@@ -123,8 +139,19 @@ fun KakaAnimeApp() {
                 }
                 AnimeScreen.DETAIL -> AnimeDetailScreen(
                     anime = selectedAnime!!,
+                    isFavorite = selectedAnime!!.title in favoriteTitles,
                     onBack = { selectedAnime = null; selectedEpisode = null },
-                    onEpisodeClick = { selectedEpisode = it }
+                    onFavorite = {
+                        favoriteTitles = if (selectedAnime!!.title in favoriteTitles) {
+                            favoriteTitles - selectedAnime!!.title
+                        } else {
+                            favoriteTitles + selectedAnime!!.title
+                        }
+                    },
+                    onEpisodeClick = {
+                        watchedEpisodes = watchedEpisodes + (selectedAnime!!.title to it)
+                        selectedEpisode = it
+                    }
                 )
                 AnimeScreen.PLAYER -> VideoPlayerScreen(
                     videoUrl = "https://media.w3.org/2010/05/bunny/trailer.mp4",
@@ -191,7 +218,13 @@ private fun SimpleTabScreen(title: String, subtitle: String) {
 }
 
 @Composable
-private fun AnimeDetailScreen(anime: Anime, onBack: () -> Unit, onEpisodeClick: (Int) -> Unit) {
+private fun AnimeDetailScreen(
+    anime: Anime,
+    isFavorite: Boolean,
+    onBack: () -> Unit,
+    onFavorite: () -> Unit,
+    onEpisodeClick: (Int) -> Unit
+) {
     LazyColumn(
         Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background),
         contentPadding = PaddingValues(16.dp, 16.dp, 16.dp, 32.dp),
@@ -205,8 +238,13 @@ private fun AnimeDetailScreen(anime: Anime, onBack: () -> Unit, onEpisodeClick: 
             Spacer(Modifier.height(8.dp))
             Text(anime.description)
             Spacer(Modifier.height(10.dp))
-            Button(onClick = { onEpisodeClick(anime.latestEpisode) }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp)) {
-                Text("▶  Tonton Episode ${anime.latestEpisode}")
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                Button(onClick = { onEpisodeClick(anime.latestEpisode) }, modifier = Modifier.weight(1f), shape = RoundedCornerShape(14.dp)) {
+                    Text("▶  Tonton")
+                }
+                Button(onClick = onFavorite, modifier = Modifier.weight(1f), shape = RoundedCornerShape(14.dp)) {
+                    Text(if (isFavorite) "♥ Favorit" else "♡ Favorit")
+                }
             }
             Spacer(Modifier.height(8.dp))
             Text("Episode", fontSize = 21.sp, fontWeight = FontWeight.Bold)
