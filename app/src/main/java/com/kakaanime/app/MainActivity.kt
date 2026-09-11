@@ -92,7 +92,7 @@ fun KakaAnimeApp() {
     var showPremium by remember { mutableStateOf(false) }
     var favoriteTitles by remember { mutableStateOf(setOf("One Piece")) }
     var watchedEpisodes by remember { mutableStateOf(mapOf("One Piece" to 1140)) }
-    val monetizationState = remember { mutableStateOf(MonetizationState(diamonds = 0, isPremium = false)) }
+    var monetizationState by remember { mutableStateOf(MonetizationState(diamonds = 0, isPremium = false)) }
 
     val screen = when {
         showPremium -> AnimeScreen.PREMIUM
@@ -120,7 +120,7 @@ fun KakaAnimeApp() {
                             BottomTab.CALENDAR -> CalendarScreen(localAnime, { selectedAnime = it }, favoriteTitles)
                             BottomTab.HISTORY -> LibraryScreen("History", localAnime.filter { it.title in watchedEpisodes.keys }, { selectedAnime = it }, "Belum ada riwayat tontonan")
                             BottomTab.FAVORITE -> LibraryScreen("Favorite", localAnime.filter { it.title in favoriteTitles }, { selectedAnime = it }, "Belum ada anime favorit")
-                            BottomTab.PROFILE -> ProfileScreen(themeState, monetizationState.value) { showPremium = true }
+                            BottomTab.PROFILE -> ProfileScreen(themeState, monetizationState) { showPremium = true }
                         }
                     }
                     KakaBottomNavigation(selectedTab) { selectedTab = it }
@@ -147,8 +147,9 @@ fun KakaAnimeApp() {
                     modifier = Modifier.fillMaxSize()
                 )
                 AnimeScreen.PREMIUM -> PremiumScreen(
-                    state = monetizationState.value,
-                    onSubscribe = { /* Billing integration is intentionally kept for the final release pass. */ }
+                    state = monetizationState,
+                    onBack = { showPremium = false },
+                    onSubscribe = { /* Billing provider will be connected in release integration. */ }
                 )
             }
         }
@@ -181,10 +182,7 @@ private fun KakaBottomNavigation(selectedTab: BottomTab, onTabSelected: (BottomT
                     BottomTab.FAVORITE -> "Favorite"
                     BottomTab.PROFILE -> "Profile"
                 }
-                Column(
-                    Modifier.weight(1f).clickable { onTabSelected(tab) }.padding(vertical = 7.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
+                Column(Modifier.weight(1f).clickable { onTabSelected(tab) }.padding(vertical = 7.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                     Icon(icon, contentDescription = label, tint = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
                     Text(label, fontSize = 10.sp, fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal, color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
                 }
@@ -194,18 +192,8 @@ private fun KakaBottomNavigation(selectedTab: BottomTab, onTabSelected: (BottomT
 }
 
 @Composable
-private fun AnimeDetailScreen(
-    anime: Anime,
-    isFavorite: Boolean,
-    onBack: () -> Unit,
-    onFavorite: () -> Unit,
-    onEpisodeClick: (Int) -> Unit
-) {
-    LazyColumn(
-        Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background),
-        contentPadding = PaddingValues(16.dp, 16.dp, 16.dp, 32.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp)
-    ) {
+private fun AnimeDetailScreen(anime: Anime, isFavorite: Boolean, onBack: () -> Unit, onFavorite: () -> Unit, onEpisodeClick: (Int) -> Unit) {
+    LazyColumn(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background), contentPadding = PaddingValues(16.dp, 16.dp, 16.dp, 32.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
         item {
             Text("‹ Kembali", modifier = Modifier.clickable { onBack() }, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.SemiBold)
             Spacer(Modifier.height(10.dp))
@@ -222,11 +210,7 @@ private fun AnimeDetailScreen(
             Text("Episode", fontSize = 21.sp, fontWeight = FontWeight.Bold)
         }
         items((anime.latestEpisode downTo maxOf(1, anime.latestEpisode - 19)).toList()) { episode ->
-            Surface(
-                Modifier.fillMaxWidth().clickable { onEpisodeClick(episode) },
-                shape = RoundedCornerShape(14.dp),
-                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = .55f)
-            ) {
+            Surface(Modifier.fillMaxWidth().clickable { onEpisodeClick(episode) }, shape = RoundedCornerShape(14.dp), color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = .55f)) {
                 Row(Modifier.fillMaxWidth().padding(15.dp), horizontalArrangement = Arrangement.SpaceBetween) {
                     Text("Episode $episode", fontWeight = FontWeight.Medium)
                     if (episode == anime.latestEpisode) Text("BARU", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
