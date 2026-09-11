@@ -15,6 +15,7 @@ import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeout
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -40,7 +41,10 @@ class AllProvidersPlaybackE2eTest {
 
         for (provider in providers) {
             try {
-                exerciseProvider(provider)
+                // Keep one unhealthy/stalled provider from consuming the entire batch.
+                withTimeout(45_000) {
+                    exerciseProvider(provider)
+                }
             } catch (t: Throwable) {
                 failures += "${provider.id}: ${t.message ?: t::class.java.simpleName}"
             }
