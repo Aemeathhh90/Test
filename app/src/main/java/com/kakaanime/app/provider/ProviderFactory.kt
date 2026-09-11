@@ -4,18 +4,19 @@ object ProviderFactory {
 
     fun createRegistry(): ProviderRegistry {
         return ProviderRegistry().apply {
-            // Source-specific adapters with verified implementations.
+            // Source-specific adapters.
             register(OtakudesuProvider())
             register(SamehadakuProvider())
 
-            // Multi-gateway adapters. Each source can fail over to another gateway.
+            // Multi-gateway adapters. Sanka is only a fallback; dedicated
+            // gateways are tried first where a known route exists.
             register(RemoteSourceProvider("animasu", "Animasu", 30, "animasu"))
             register(RemoteSourceProvider("animeindo", "AnimeIndo", 40, "animeindo"))
             register(RemoteSourceProvider("zoronime", "Zoronime", 50, "zoronime"))
             register(RemoteSourceProvider("anoboy", "Anoboy", 60, "anoboy"))
             register(RemoteSourceProvider("animekompi", "AnimeKompi", 70, "animekompi"))
             register(RemoteSourceProvider("kuronime", "Kuronime", 80, "kuronime"))
-            // HiAnime was retired/shut down in 2026; do not route playback to it.
+            // HiAnime was retired/shut down; intentionally excluded.
             register(RemoteSourceProvider("doronime", "Doronime", 100, "doronime"))
             register(RemoteSourceProvider("hunter-no-sekai", "Hunter no Sekai", 110, "hunter-no-sekai"))
             register(RemoteSourceProvider("gomunime", "Gomunime", 120, "gomunime"))
@@ -36,7 +37,7 @@ object ProviderFactory {
             register(RemoteSourceProvider("kusonime", "Kusonime", 290, "kusonime"))
             register(RemoteSourceProvider("animekuindo", "Animekuindo", 300, "animekuindo"))
             register(RemoteSourceProvider("animesail", "AnimeSail", 310, "animesail"))
-            register(RemoteSourceProvider("allanime", "AllAnime", 320, "AllAnime"))
+            register(RemoteSourceProvider("allanime", "AllAnime", 320, "allanime"))
         }
     }
 
