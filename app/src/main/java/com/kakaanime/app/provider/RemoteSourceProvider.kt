@@ -10,11 +10,12 @@ import java.net.URLEncoder
 import java.util.concurrent.TimeUnit
 
 /**
- * Configurable adapter for public JSON anime-source wrappers.
+ * Configurable provider adapter with gateway fallback.
  *
- * The adapter keeps source-specific naming outside the player/router. When a
- * source wrapper changes, only its source slug/config needs to be updated.
- * It does not bypass authentication or DRM.
+ * Important: Sanka is no longer the only route. Providers that have another
+ * maintained public adapter are tried through that adapter first, then the
+ * Sanka wrapper is used as a fallback. This keeps a gateway outage from
+ * taking down every provider at once.
  */
 class RemoteSourceProvider(
     override val id: String,
@@ -29,45 +30,95 @@ class RemoteSourceProvider(
         .callTimeout(20, TimeUnit.SECONDS)
         .build()
 
-    private val baseUrl = "https://www.sankavollerei.web.id/anime"
+    private val sankaBaseUrl = "https://www.sankavollerei.web.id/anime"
+    private val wajikBaseUrl = "https://wajik-anime-api.vercel.app"
+    private val kumanimeBaseUrl = "https://kumanime.vercel.app/api"
 
-    override suspend fun search(query: String): List<ProviderAnime> =
-        requestJson("$baseUrl/$sourceSlug/search/${encode(query)}")
-            ?.let(::extractItems)
-            ?.mapNotNull { it.toAnime() }
-            ?: emptyList()
+    override suspend fun search(query: String): List<ProviderAnime> {
+        for (url in searchGatewayUrls(query)) {
+            val root = requestJson(url) ?: continue
+            val result = extractItems(root).mapNotNull { it.toAnime() }
+            if (result.isNotEmpty()) return result
+        }
+        return emptyList()
+    }
 
     override suspend fun getAnime(animeId: String): ProviderAnime? {
         val slug = animeId.removePrefix("$id:").trim('/')
-        return requestJson("$baseUrl/$sourceSlug/detail/${encodePath(slug)}")
-            ?.toAnime(slug)
+        for (url in detailGatewayUrls(slug)) {
+            val root = requestJson(url) ?: continue
+            root.toAnime(slug)?.let { return it }
+        }
+        return null
     }
 
     override suspend fun getEpisodes(animeId: String): List<ProviderEpisode> {
         val slug = animeId.removePrefix("$id:").trim('/')
-        val root = requestJson("$baseUrl/$sourceSlug/detail/${encodePath(slug)}") ?: return emptyList()
-        return extractEpisodeItems(root).mapNotNull { item ->
-            val number = item.episodeNumber() ?: return@mapNotNull null
-            val endpoint = item.firstString("slug", "endpoint", "id", "url") ?: number.toString()
-            ProviderEpisode(
-                id = "$id:$endpoint",
-                animeId = "$id:$slug",
-                number = number,
-                providerId = id,
-                title = item.firstString("title", "name") ?: "Episode $number",
-                isNew = item.optBoolean("isNew", false)
-            )
-        }.distinctBy { it.number }.sortedBy { it.number }
+        for (url in detailGatewayUrls(slug)) {
+            val root = requestJson(url) ?: continue
+            val episodes = extractEpisodeItems(root).mapNotNull { item ->
+                val number = item.episodeNumber() ?: return@mapNotNull null
+                val endpoint = item.firstString("slug", "endpoint", "id", "url") ?: number.toString()
+                ProviderEpisode(
+                    id = "$id:$endpoint",
+                    animeId = "$id:$slug",
+                    number = number,
+                    providerId = id,
+                    title = item.firstString("title", "name") ?: "Episode $number",
+                    isNew = item.optBoolean("isNew", false)
+                )
+            }.distinctBy { it.number }.sortedBy { it.number }
+            if (episodes.isNotEmpty()) return episodes
+        }
+        return emptyList()
     }
 
     override suspend fun getStreams(animeId: String, episodeNumber: Int): List<ProviderStream> {
-        val episodes = getEpisodes(animeId)
-        val episode = episodes.firstOrNull { it.number == episodeNumber } ?: return emptyList()
-        val endpoint = episode.id.removePrefix("$id:").trim('/')
-        val root = requestJson("$baseUrl/$sourceSlug/episode/${encodePath(endpoint)}") ?: return emptyList()
-        val streams = mutableListOf<ProviderStream>()
-        collectStreams(root, streams)
-        return streams.distinctBy { it.url }
+        val slug = animeId.removePrefix("$id:").trim('/')
+        val episodeId = getEpisodes("$id:$slug").firstOrNull { it.number == episodeNumber }?.id
+            ?.removePrefix("$id:")?.trim('/') ?: episodeNumber.toString()
+
+        for (url in episodeGatewayUrls(slug, episodeId, episodeNumber)) {
+            val root = requestJson(url) ?: continue
+            val streams = mutableListOf<ProviderStream>()
+            collectStreams(root, streams)
+            val result = streams.distinctBy { it.url }
+            if (result.isNotEmpty()) return result
+        }
+        return emptyList()
+    }
+
+    private fun searchGatewayUrls(query: String): List<String> = buildList {
+        val encoded = encode(query)
+        when (id) {
+            "kuramanime", "oploverz" -> add("$wajikBaseUrl/$sourceSlug/search?q=$encoded")
+            "animeindo" -> add("$kumanimeBaseUrl/search/$encoded")
+        }
+        add("$sankaBaseUrl/$sourceSlug/search/$encoded")
+    }
+
+    private fun detailGatewayUrls(slug: String): List<String> = buildList {
+        val encoded = encodePath(slug)
+        when (id) {
+            "kuramanime", "oploverz" -> add("$wajikBaseUrl/$sourceSlug/anime/$encoded")
+            "animeindo" -> add("$kumanimeBaseUrl/anime/$encoded")
+        }
+        add("$sankaBaseUrl/$sourceSlug/detail/$encoded")
+    }
+
+    private fun episodeGatewayUrls(slug: String, episodeId: String, episodeNumber: Int): List<String> = buildList {
+        val encodedEpisode = encodePath(episodeId)
+        when (id) {
+            "kuramanime", "oploverz" -> {
+                add("$wajikBaseUrl/$sourceSlug/episode/$encodedEpisode")
+                add("$wajikBaseUrl/$sourceSlug/episode/$episodeNumber")
+            }
+            "animeindo" -> {
+                add("$kumanimeBaseUrl/episode/$encodedEpisode")
+                add("$kumanimeBaseUrl/episode/$slug-$episodeNumber")
+            }
+        }
+        add("$sankaBaseUrl/$sourceSlug/episode/$encodedEpisode")
     }
 
     private suspend fun requestJson(url: String): JSONObject? = withContext(Dispatchers.IO) {
@@ -86,20 +137,26 @@ class RemoteSourceProvider(
     }
 
     private fun extractItems(root: JSONObject): List<JSONObject> {
-        val keys = listOf("results", "data", "anime", "items", "search", "list")
-        for (key in keys) root.optJSONArray(key)?.let { return it.objects() }
+        val directKeys = listOf("results", "anime", "items", "search", "list", "animeList")
+        for (key in directKeys) root.optJSONArray(key)?.let { return it.objects() }
+        root.optJSONObject("data")?.let { nested ->
+            extractItems(nested).takeIf { it.isNotEmpty() }?.let { return it }
+        }
         return if (root.has("title") || root.has("name")) listOf(root) else emptyList()
     }
 
     private fun extractEpisodeItems(root: JSONObject): List<JSONObject> {
-        val keys = listOf("episodes", "episode", "episodeList", "episode_list", "data")
-        for (key in keys) root.optJSONArray(key)?.let { return it.objects() }
+        val directKeys = listOf("episodes", "episode", "episodeList", "episode_list", "data", "episodeListData")
+        for (key in directKeys) root.optJSONArray(key)?.let { return it.objects() }
+        root.optJSONObject("data")?.let { nested ->
+            extractEpisodeItems(nested).takeIf { it.isNotEmpty() }?.let { return it }
+        }
         return emptyList()
     }
 
     private fun JSONObject.toAnime(fallbackId: String? = null): ProviderAnime? {
         val title = firstString("title", "name", "animeTitle") ?: return null
-        val rawId = firstString("slug", "endpoint", "id", "animeId") ?: fallbackId ?: title.slugify()
+        val rawId = firstString("slug", "endpoint", "id", "animeId", "animeId") ?: fallbackId ?: title.slugify()
         val episodes = extractEpisodeItems(this)
         return ProviderAnime(
             id = "$id:$rawId",
@@ -110,7 +167,9 @@ class RemoteSourceProvider(
             backdropUrl = firstString("backdrop", "backdropUrl", "cover"),
             description = firstString("description", "synopsis") ?: "",
             genres = extractStrings(this, "genres", "genre"),
-            year = firstString("year", "released", "release")?.let { Regex("\\b(19\\d{2}|20\\d{2})\\b").find(it)?.value?.toIntOrNull() },
+            year = firstString("year", "released", "release")?.let {
+                Regex("\\b(19\\d{2}|20\\d{2})\\b").find(it)?.value?.toIntOrNull()
+            },
             status = firstString("status") ?: "UNKNOWN",
             rating = firstString("rating", "score", "skor")?.toDoubleOrNull(),
             latestEpisode = episodes.mapNotNull { it.episodeNumber() }.maxOrNull()
@@ -120,7 +179,7 @@ class RemoteSourceProvider(
     private fun collectStreams(value: Any?, out: MutableList<ProviderStream>, quality: String? = null) {
         when (value) {
             is JSONObject -> {
-                val directKeys = listOf("url", "file", "stream", "streamUrl", "stream_url", "m3u8", "mp4", "source")
+                val directKeys = listOf("url", "file", "stream", "streamUrl", "stream_url", "m3u8", "mp4", "source", "videoUrl")
                 val nextQuality = value.firstString("quality", "resolution") ?: quality
                 for (key in directKeys) {
                     val url = value.optString(key).trim()
@@ -163,7 +222,11 @@ class RemoteSourceProvider(
     private fun extractStrings(root: JSONObject, vararg keys: String): List<String> {
         for (key in keys) {
             val array = root.optJSONArray(key) ?: continue
-            return buildList { for (i in 0 until array.length()) array.optString(i).trim().takeIf { it.isNotBlank() }?.let(::add) }
+            return buildList {
+                for (i in 0 until array.length()) {
+                    array.optString(i).trim().takeIf { it.isNotBlank() }?.let(::add)
+                }
+            }
         }
         return emptyList()
     }
