@@ -45,7 +45,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.kakaanime.app.monetization.MonetizationState
 import com.kakaanime.app.player.VideoPlayerScreen
+import com.kakaanime.app.premium.PremiumScreen
 import com.kakaanime.app.ui.theme.KakaAnimeTheme
 import com.kakaanime.app.ui.theme.rememberKakaThemeState
 
@@ -71,16 +73,13 @@ private val localAnime = listOf(
     Anime("Solo Leveling", 25, "Action, Fantasy", "Sung Jin-woo berkembang dari hunter terlemah menjadi hunter yang sangat kuat.", "A-1 Pictures", "Season 2", "2025", "TV", "Finished", "8.8", 75L, 165L, 1380L, 1440L)
 )
 
-private enum class AnimeScreen { HOME, DETAIL, PLAYER }
+private enum class AnimeScreen { HOME, DETAIL, PLAYER, PREMIUM }
 private enum class BottomTab { HOME, CALENDAR, HISTORY, FAVORITE, PROFILE }
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContent {
-            val themeState = rememberKakaThemeState()
-            KakaAnimeTheme(themeState = themeState) { KakaAnimeApp() }
-        }
+        setContent { KakaAnimeApp() }
     }
 }
 
@@ -90,10 +89,13 @@ fun KakaAnimeApp() {
     var selectedAnime by remember { mutableStateOf<Anime?>(null) }
     var selectedEpisode by remember { mutableStateOf<Int?>(null) }
     var selectedTab by remember { mutableStateOf(BottomTab.HOME) }
+    var showPremium by remember { mutableStateOf(false) }
     var favoriteTitles by remember { mutableStateOf(setOf("One Piece")) }
     var watchedEpisodes by remember { mutableStateOf(mapOf("One Piece" to 1140)) }
+    val monetizationState = remember { mutableStateOf(MonetizationState(diamonds = 0, isPremium = false)) }
 
     val screen = when {
+        showPremium -> AnimeScreen.PREMIUM
         selectedAnime != null && selectedEpisode != null -> AnimeScreen.PLAYER
         selectedAnime != null -> AnimeScreen.DETAIL
         else -> AnimeScreen.HOME
@@ -115,24 +117,10 @@ fun KakaAnimeApp() {
                     ) { tab ->
                         when (tab) {
                             BottomTab.HOME -> ReDantotsuHomeScreen(localAnime) { selectedAnime = it }
-                            BottomTab.CALENDAR -> CalendarScreen(
-                                animeList = localAnime,
-                                onAnimeClick = { selectedAnime = it },
-                                favoriteTitles = favoriteTitles
-                            )
-                            BottomTab.HISTORY -> LibraryScreen(
-                                title = "History",
-                                animeList = localAnime.filter { it.title in watchedEpisodes.keys },
-                                onAnimeClick = { selectedAnime = it },
-                                emptyText = "Belum ada riwayat tontonan"
-                            )
-                            BottomTab.FAVORITE -> LibraryScreen(
-                                title = "Favorite",
-                                animeList = localAnime.filter { it.title in favoriteTitles },
-                                onAnimeClick = { selectedAnime = it },
-                                emptyText = "Belum ada anime favorit"
-                            )
-                            BottomTab.PROFILE -> SimpleTabScreen("Profile", "Pengaturan dan profil akan terhubung di tahap V1 berikutnya.")
+                            BottomTab.CALENDAR -> CalendarScreen(localAnime, { selectedAnime = it }, favoriteTitles)
+                            BottomTab.HISTORY -> LibraryScreen("History", localAnime.filter { it.title in watchedEpisodes.keys }, { selectedAnime = it }, "Belum ada riwayat tontonan")
+                            BottomTab.FAVORITE -> LibraryScreen("Favorite", localAnime.filter { it.title in favoriteTitles }, { selectedAnime = it }, "Belum ada anime favorit")
+                            BottomTab.PROFILE -> ProfileScreen(themeState, monetizationState.value) { showPremium = true }
                         }
                     }
                     KakaBottomNavigation(selectedTab) { selectedTab = it }
@@ -142,11 +130,8 @@ fun KakaAnimeApp() {
                     isFavorite = selectedAnime!!.title in favoriteTitles,
                     onBack = { selectedAnime = null; selectedEpisode = null },
                     onFavorite = {
-                        favoriteTitles = if (selectedAnime!!.title in favoriteTitles) {
-                            favoriteTitles - selectedAnime!!.title
-                        } else {
-                            favoriteTitles + selectedAnime!!.title
-                        }
+                        favoriteTitles = if (selectedAnime!!.title in favoriteTitles) favoriteTitles - selectedAnime!!.title
+                        else favoriteTitles + selectedAnime!!.title
                     },
                     onEpisodeClick = {
                         watchedEpisodes = watchedEpisodes + (selectedAnime!!.title to it)
@@ -160,6 +145,10 @@ fun KakaAnimeApp() {
                     outroStart = selectedAnime!!.outroStart,
                     outroEnd = selectedAnime!!.outroEnd,
                     modifier = Modifier.fillMaxSize()
+                )
+                AnimeScreen.PREMIUM -> PremiumScreen(
+                    state = monetizationState.value,
+                    onSubscribe = { /* Billing integration is intentionally kept for the final release pass. */ }
                 )
             }
         }
@@ -205,19 +194,6 @@ private fun KakaBottomNavigation(selectedTab: BottomTab, onTabSelected: (BottomT
 }
 
 @Composable
-private fun SimpleTabScreen(title: String, subtitle: String) {
-    Column(
-        Modifier.fillMaxSize().padding(24.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
-    ) {
-        Text(title, fontSize = 28.sp, fontWeight = FontWeight.Bold)
-        Spacer(Modifier.height(8.dp))
-        Text(subtitle, color = MaterialTheme.colorScheme.onSurfaceVariant)
-    }
-}
-
-@Composable
 private fun AnimeDetailScreen(
     anime: Anime,
     isFavorite: Boolean,
@@ -239,12 +215,8 @@ private fun AnimeDetailScreen(
             Text(anime.description)
             Spacer(Modifier.height(10.dp))
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                Button(onClick = { onEpisodeClick(anime.latestEpisode) }, modifier = Modifier.weight(1f), shape = RoundedCornerShape(14.dp)) {
-                    Text("▶  Tonton")
-                }
-                Button(onClick = onFavorite, modifier = Modifier.weight(1f), shape = RoundedCornerShape(14.dp)) {
-                    Text(if (isFavorite) "♥ Favorit" else "♡ Favorit")
-                }
+                Button(onClick = { onEpisodeClick(anime.latestEpisode) }, modifier = Modifier.weight(1f), shape = RoundedCornerShape(14.dp)) { Text("▶  Tonton") }
+                Button(onClick = onFavorite, modifier = Modifier.weight(1f), shape = RoundedCornerShape(14.dp)) { Text(if (isFavorite) "♥ Favorit" else "♡ Favorit") }
             }
             Spacer(Modifier.height(8.dp))
             Text("Episode", fontSize = 21.sp, fontWeight = FontWeight.Bold)
