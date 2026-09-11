@@ -5,6 +5,7 @@ on:
   push:
     branches:
       - provider-batch-2026-09-12
+      - provider-e2e-dedicated-2026-09-12
 
 jobs:
   kuronime-playback:
@@ -57,4 +58,30 @@ jobs:
           script: >-
             ./gradlew :app:connectedDebugAndroidTest
             -Pandroid.testInstrumentationRunnerArguments.class=com.kakaanime.app.provider.AllAnimePlaybackE2eTest
+            --stacktrace
+
+  samehadaku-playback:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up JDK 17
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: gradle
+      - name: Make Gradle executable
+        run: chmod +x ./gradlew
+      - name: Run Samehadaku playback E2E on Android emulator
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          target: google_apis
+          arch: x86_64
+          profile: pixel_6
+          script: >-
+            ./gradlew :app:connectedDebugAndroidTest
+            -Pandroid.testInstrumentationRunnerArguments.class=com.kakaanime.app.provider.SamehadakuPlaybackE2eTest
             --stacktrace
