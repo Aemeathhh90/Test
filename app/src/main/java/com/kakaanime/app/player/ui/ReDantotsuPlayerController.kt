@@ -12,17 +12,22 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.FastForward
 import androidx.compose.material.icons.filled.FastRewind
+import androidx.compose.material.icons.filled.Fullscreen
+import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.SkipPrevious
+import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Slider
@@ -36,6 +41,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
@@ -49,18 +55,22 @@ fun ReDantotsuPlayerController(
     title: String = "KakaAnime",
     previousEpisode: String? = null,
     nextEpisode: String? = null,
+    accent: Color = Color(0xFF4DA3FF),
     onPlayPause: () -> Unit,
     onSeekBack: () -> Unit,
     onSeekForward: () -> Unit,
     onSeekTo: (Long) -> Unit,
     onPreviousEpisode: () -> Unit,
     onNextEpisode: () -> Unit,
+    onFullscreen: () -> Unit = {},
+    onSpeed: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     var visible by remember { mutableStateOf(true) }
+    var locked by remember { mutableStateOf(false) }
 
-    LaunchedEffect(visible, state.isPlaying) {
-        if (visible) {
+    LaunchedEffect(visible, state.isPlaying, locked) {
+        if (visible && !locked) {
             delay(3500L)
             visible = false
         }
@@ -70,38 +80,55 @@ fun ReDantotsuPlayerController(
         modifier = modifier
             .fillMaxSize()
             .clickable {
-                visible = !visible
+                if (!locked) visible = !visible
             }
     ) {
-
         AnimatedVisibility(
             visible = visible,
             enter = fadeIn(),
             exit = fadeOut(),
             modifier = Modifier.fillMaxSize()
         ) {
-
             Box(
                 modifier = Modifier
                     .fillMaxSize()
                     .background(
                         Brush.verticalGradient(
                             listOf(
-                                Color.Black.copy(alpha = 0.45f),
+                                Color.Black.copy(alpha = 0.58f),
                                 Color.Transparent,
-                                Color.Black.copy(alpha = 0.70f)
+                                Color.Black.copy(alpha = 0.78f)
                             )
                         )
                     )
             ) {
+                GlassAction(
+                    icon = Icons.Filled.ArrowBack,
+                    description = "Kembali",
+                    accent = accent,
+                    modifier = Modifier
+                        .align(Alignment.TopStart)
+                        .padding(14.dp),
+                    onClick = { }
+                )
 
                 Text(
                     text = title,
                     color = Color.White,
-                    fontSize = 17.sp,
+                    fontSize = 16.sp,
                     modifier = Modifier
-                        .align(Alignment.TopStart)
-                        .padding(18.dp)
+                        .align(Alignment.TopCenter)
+                        .padding(top = 21.dp)
+                )
+
+                GlassAction(
+                    icon = if (locked) Icons.Filled.Lock else Icons.Filled.Lock,
+                    description = if (locked) "Buka kontrol" else "Kunci kontrol",
+                    accent = accent,
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(14.dp),
+                    onClick = { locked = !locked }
                 )
 
                 Row(
@@ -109,86 +136,71 @@ fun ReDantotsuPlayerController(
                     horizontalArrangement = Arrangement.Center,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-
-                    IconButton(
+                    SeekAction(
+                        icon = Icons.Filled.FastRewind,
+                        label = "10",
+                        accent = accent,
                         onClick = onSeekBack
-                    ) {
-                        Icon(
-                            imageVector = Icons.Filled.FastRewind,
-                            contentDescription = "Mundur 10 detik",
-                            tint = Color.White
-                        )
-                    }
-
-                    Spacer(
-                        modifier = Modifier.width(18.dp)
                     )
 
-                    IconButton(
-                        onClick = onPlayPause
+                    Spacer(Modifier.width(20.dp))
+
+                    Box(
+                        modifier = Modifier
+                            .size(72.dp)
+                            .clip(CircleShape)
+                            .background(accent.copy(alpha = 0.92f)),
+                        contentAlignment = Alignment.Center
                     ) {
-                        Icon(
-                            imageVector =
-                                if (state.isPlaying)
+                        IconButton(onClick = onPlayPause) {
+                            Icon(
+                                imageVector = if (state.isPlaying)
                                     Icons.Filled.Pause
                                 else
                                     Icons.Filled.PlayArrow,
-                            contentDescription =
-                                if (state.isPlaying)
-                                    "Pause"
-                                else
-                                    "Play",
-                            tint = Color.White
-                        )
+                                contentDescription = if (state.isPlaying) "Pause" else "Play",
+                                tint = Color.White,
+                                modifier = Modifier.size(38.dp)
+                            )
+                        }
                     }
 
-                    Spacer(
-                        modifier = Modifier.width(18.dp)
-                    )
+                    Spacer(Modifier.width(20.dp))
 
-                    IconButton(
+                    SeekAction(
+                        icon = Icons.Filled.FastForward,
+                        label = "10",
+                        accent = accent,
                         onClick = onSeekForward
-                    ) {
-                        Icon(
-                            imageVector = Icons.Filled.FastForward,
-                            contentDescription = "Maju 10 detik",
-                            tint = Color.White
-                        )
-                    }
+                    )
                 }
 
                 Column(
                     modifier = Modifier
                         .align(Alignment.BottomCenter)
                         .fillMaxWidth()
-                        .padding(
-                            start = 16.dp,
-                            end = 16.dp,
-                            bottom = 14.dp
-                        )
+                        .padding(horizontal = 14.dp, vertical = 12.dp)
                 ) {
-
                     if (state.duration > 0L) {
-
                         Slider(
-                            value =
-                                state.position
-                                    .toFloat()
-                                    .coerceIn(
-                                        0f,
-                                        state.duration.toFloat()
-                                    ),
-                            onValueChange = {
-                                onSeekTo(it.toLong())
-                            },
-                            valueRange =
-                                0f..state.duration.toFloat(),
+                            value = state.position
+                                .toFloat()
+                                .coerceIn(0f, state.duration.toFloat()),
+                            onValueChange = { onSeekTo(it.toLong()) },
+                            valueRange = 0f..state.duration.toFloat(),
                             modifier = Modifier.fillMaxWidth(),
+                            thumb = {
+                                Box(
+                                    modifier = Modifier
+                                        .size(7.dp)
+                                        .clip(CircleShape)
+                                        .background(accent)
+                                )
+                            },
                             colors = SliderDefaults.colors(
-                                thumbColor = Color.White,
-                                activeTrackColor = Color.White,
-                                inactiveTrackColor =
-                                    Color.White.copy(alpha = 0.35f)
+                                thumbColor = accent,
+                                activeTrackColor = accent,
+                                inactiveTrackColor = Color.White.copy(alpha = 0.32f)
                             )
                         )
                     }
@@ -197,70 +209,140 @@ fun ReDantotsuPlayerController(
                         modifier = Modifier.fillMaxWidth(),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-
                         if (previousEpisode != null) {
-                            IconButton(
-                                onClick = onPreviousEpisode
-                            ) {
-                                Icon(
-                                    Icons.Filled.SkipPrevious,
-                                    contentDescription = "Episode sebelumnya",
-                                    tint = Color.White
-                                )
-                            }
-
-                            Text(
+                            EpisodeAction(
+                                icon = Icons.Filled.SkipPrevious,
                                 text = previousEpisode,
-                                color = Color.White,
-                                fontSize = 12.sp
+                                accent = accent,
+                                onClick = onPreviousEpisode
                             )
                         }
 
-                        Spacer(
-                            modifier = Modifier.weight(1f)
-                        )
+                        Spacer(Modifier.weight(1f))
 
                         Text(
-                            text = formatPlayerTime(state.position),
+                            text = "${formatPlayerTime(state.position)} / ${formatPlayerTime(state.duration)}",
                             color = Color.White,
                             fontSize = 12.sp
                         )
 
-                        Text(
-                            text = " / ",
-                            color = Color.White.copy(alpha = 0.6f),
-                            fontSize = 12.sp
-                        )
-
-                        Text(
-                            text = formatPlayerTime(state.duration),
-                            color = Color.White,
-                            fontSize = 12.sp
-                        )
-
-                        Spacer(
-                            modifier = Modifier.weight(1f)
-                        )
+                        Spacer(Modifier.weight(1f))
 
                         if (nextEpisode != null) {
-                            Text(
+                            EpisodeAction(
+                                icon = Icons.Filled.SkipNext,
                                 text = nextEpisode,
-                                color = Color.White,
-                                fontSize = 12.sp
-                            )
-
-                            IconButton(
+                                accent = accent,
+                                reverse = true,
                                 onClick = onNextEpisode
-                            ) {
-                                Icon(
-                                    Icons.Filled.SkipNext,
-                                    contentDescription = "Episode berikutnya",
-                                    tint = Color.White
-                                )
-                            }
+                            )
                         }
                     }
+
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 7.dp),
+                        horizontalArrangement = Arrangement.End,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        GlassAction(
+                            icon = Icons.Filled.Speed,
+                            description = "Kecepatan",
+                            accent = accent,
+                            onClick = onSpeed
+                        )
+
+                        Spacer(Modifier.width(6.dp))
+
+                        GlassAction(
+                            icon = Icons.Filled.Fullscreen,
+                            description = "Fullscreen",
+                            accent = accent,
+                            onClick = onFullscreen
+                        )
+                    }
                 }
+            }
+        }
+    }
+}
+
+@Composable
+private fun GlassAction(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    description: String,
+    accent: Color,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit
+) {
+    IconButton(
+        onClick = onClick,
+        modifier = modifier
+            .size(42.dp)
+            .clip(RoundedCornerShape(14.dp))
+            .background(Color.White.copy(alpha = 0.10f))
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = description,
+            tint = Color.White
+        )
+    }
+}
+
+@Composable
+private fun SeekAction(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    label: String,
+    accent: Color,
+    onClick: () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .size(58.dp)
+            .clip(CircleShape)
+            .background(Color.White.copy(alpha = 0.10f)),
+        contentAlignment = Alignment.Center
+    ) {
+        IconButton(onClick = onClick) {
+            Icon(
+                imageVector = icon,
+                contentDescription = "$label detik",
+                tint = Color.White,
+                modifier = Modifier.size(27.dp)
+            )
+        }
+        Text(
+            text = label,
+            color = Color.White,
+            fontSize = 8.sp,
+            modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 7.dp)
+        )
+    }
+}
+
+@Composable
+private fun EpisodeAction(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    text: String,
+    accent: Color,
+    reverse: Boolean = false,
+    onClick: () -> Unit
+) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(2.dp)
+    ) {
+        if (!reverse) {
+            IconButton(onClick = onClick) {
+                Icon(icon, contentDescription = text, tint = Color.White)
+            }
+            Text(text, color = Color.White, fontSize = 11.sp)
+        } else {
+            Text(text, color = Color.White, fontSize = 11.sp)
+            IconButton(onClick = onClick) {
+                Icon(icon, contentDescription = text, tint = Color.White)
             }
         }
     }
