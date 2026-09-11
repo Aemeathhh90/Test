@@ -1,0 +1,110 @@
+package com.kakaanime.app.player.core
+
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.Button
+import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.viewinterop.AndroidView
+import androidx.media3.ui.PlayerView
+
+@Composable
+fun PlayerCoreHost(
+    videoUrl: String,
+    modifier: Modifier = Modifier
+) {
+    val context = LocalContext.current
+
+    val core = remember {
+        PlayerCore(context)
+    }
+
+    val controller = rememberPlayerController(core)
+    val state = rememberPlayerState(controller)
+
+    LaunchedEffect(videoUrl) {
+        core.setVideo(videoUrl)
+    }
+
+    Column(
+        modifier = modifier
+            .fillMaxSize()
+            .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+
+        AndroidView(
+            modifier = Modifier.fillMaxWidth(),
+            factory = {
+                PlayerView(it).apply {
+                    player = core.player
+                    useController = false
+                }
+            }
+        )
+
+        Text(
+            text = if (state.isPlaying) "Playing" else "Paused"
+        )
+
+        Text(
+            text = "Position: ${state.position} ms"
+        )
+
+        Text(
+            text = "Duration: ${state.duration} ms"
+        )
+
+        Text(
+            text = if (state.isBuffering) "Buffering..." else "Ready"
+        )
+
+        if (state.duration > 0L) {
+            LinearProgressIndicator(
+                progress = {
+                    (state.position.toFloat() / state.duration.toFloat())
+                        .coerceIn(0f, 1f)
+                },
+                modifier = Modifier.fillMaxWidth()
+            )
+        }
+
+        Button(
+            onClick = controller::togglePlayPause,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text(
+                if (state.isPlaying) "Pause" else "Play"
+            )
+        }
+
+        Button(
+            onClick = controller::seekBack,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text("⏪ 10 detik")
+        }
+
+        Button(
+            onClick = controller::seekForward,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text("10 detik ⏩")
+        }
+
+        if (state.hasError) {
+            Text(
+                text = "Error: ${state.errorMessage ?: "Unknown error"}"
+            )
+        }
+    }
+}

@@ -1,0 +1,85 @@
+package com.kakaanime.app.player.ui
+
+import androidx.compose.runtime.*
+import androidx.compose.ui.Modifier
+import androidx.media3.common.Player
+import androidx.media3.exoplayer.ExoPlayer
+import com.kakaanime.app.player.core.PlayerState
+
+@Composable
+fun ReDantotsuOverlay(
+    player: ExoPlayer,
+    title: String = "KakaAnime",
+    previousEpisode: String? = null,
+    nextEpisode: String? = null,
+    onPreviousEpisode: () -> Unit = {},
+    onNextEpisode: () -> Unit = {},
+    modifier: Modifier = Modifier
+) {
+    var position by remember { mutableLongStateOf(0L) }
+    var duration by remember { mutableLongStateOf(0L) }
+    var isPlaying by remember { mutableStateOf(player.isPlaying) }
+
+    DisposableEffect(player) {
+        val listener = object : Player.Listener {
+            override fun onEvents(player: Player, events: Player.Events) {
+                position = player.currentPosition.coerceAtLeast(0L)
+                duration = player.duration.coerceAtLeast(0L)
+                isPlaying = player.isPlaying
+            }
+        }
+
+        player.addListener(listener)
+
+        onDispose {
+            player.removeListener(listener)
+        }
+    }
+
+    LaunchedEffect(player) {
+        while (true) {
+            position = player.currentPosition.coerceAtLeast(0L)
+            duration = player.duration.coerceAtLeast(0L)
+            isPlaying = player.isPlaying
+            kotlinx.coroutines.delay(250)
+        }
+    }
+
+    val state = PlayerState(
+        position = position,
+        duration = duration,
+        bufferedPosition = player.bufferedPosition.coerceAtLeast(0L),
+        isPlaying = isPlaying,
+        isBuffering = player.playbackState == Player.STATE_BUFFERING,
+        isReady = player.playbackState == Player.STATE_READY,
+        hasError = false,
+        errorMessage = null
+    )
+
+    ReDantotsuPlayerController(
+        state = state,
+        title = title,
+        previousEpisode = previousEpisode,
+        nextEpisode = nextEpisode,
+        onPlayPause = {
+            if (player.isPlaying) player.pause() else player.play()
+        },
+        onSeekBack = {
+            player.seekTo(
+                (player.currentPosition - 10_000L).coerceAtLeast(0L)
+            )
+        },
+        onSeekForward = {
+            player.seekTo(
+                (player.currentPosition + 10_000L)
+                    .coerceAtMost(player.duration.coerceAtLeast(0L))
+            )
+        },
+        onSeekTo = { positionMs ->
+            player.seekTo(positionMs.coerceAtLeast(0L))
+        },
+        onPreviousEpisode = onPreviousEpisode,
+        onNextEpisode = onNextEpisode,
+        modifier = modifier
+    )
+}

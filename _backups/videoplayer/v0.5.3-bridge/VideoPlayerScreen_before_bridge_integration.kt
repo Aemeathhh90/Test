@@ -70,9 +70,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.media3.common.MediaItem
-import androidx.media3.common.Player
+import androidx.media3.common.PlaybackParameters
+import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
+import com.kakaanime.app.player.core.PlayerCore
 import com.kakaanime.app.player.core.rememberPlayerController
 import com.kakaanime.app.player.core.rememberPlayerState
 import com.kakaanime.app.player.ui.ReDantotsuPlayerController
@@ -102,12 +104,17 @@ fun VideoPlayerScreen(
     val playerControlStrong = colors.surfaceVariant.copy(alpha = 0.98f)
 
 
-        val playerController = rememberPlayerController(context)
+    // v0.5.0 - PlayerCore owns ExoPlayer lifecycle.
+    val playerCore = remember {
+        PlayerCore(context)
+    }
+
+    val player = playerCore.player
+    val playerController = rememberPlayerController(playerCore)
     val controllerState = rememberPlayerState(playerController)
-    val player = playerController.player
 
     LaunchedEffect(videoUrl) {
-        playerController.setVideo(videoUrl)
+        playerCore.setVideo(videoUrl)
     }
 
         val position = controllerState.position
@@ -141,7 +148,7 @@ fun VideoPlayerScreen(
             },
             onSpeedSelected = {
                 speed = it
-                playerController.setSpeed(it)
+                player.setPlaybackParameters(PlaybackParameters(it))
                 showSpeedMenu = false
             },
             onAutoNext = {
@@ -160,18 +167,18 @@ fun VideoPlayerScreen(
                 playerController.seekForward()
             },
             onProgressChange = { fraction ->
-                if (duration > 0L) {
-                    playerController.seekTo((duration * fraction).toLong())
+                if (player.duration > 0L) {
+                    playerController.seekTo((player.duration * fraction).toLong())
                 }
             },
             onPlayPause = {
                 playerController.togglePlayPause()
             },
             onSkipIntro = {
-                if (introEnd > 0L) playerController.seekTo(introEnd * 1000L)
+                if (introEnd > 0L) player.seekTo(introEnd * 1000L)
             },
             onSkipOutro = {
-                if (outroEnd > 0L) playerController.seekTo(outroEnd * 1000L)
+                if (outroEnd > 0L) player.seekTo(outroEnd * 1000L)
             },
             modifier = modifier
         )
@@ -202,8 +209,8 @@ fun VideoPlayerScreen(
                 playerController.seekForward()
             },
             onProgressChange = { fraction ->
-                if (duration > 0L) {
-                    playerController.seekTo((duration * fraction).toLong())
+                if (player.duration > 0L) {
+                    playerController.seekTo((player.duration * fraction).toLong())
                 }
             },
             onQualityClick = {
@@ -223,7 +230,7 @@ fun VideoPlayerScreen(
 
 @Composable
 private fun PortraitPlayer(
-    player: Player,
+    player: ExoPlayer,
     position: Long,
     duration: Long,
     playing: Boolean,
@@ -531,7 +538,7 @@ private fun PortraitPlayer(
 
 @Composable
 private fun LandscapePlayer(
-    player: Player,
+    player: ExoPlayer,
     position: Long,
     duration: Long,
     playing: Boolean,

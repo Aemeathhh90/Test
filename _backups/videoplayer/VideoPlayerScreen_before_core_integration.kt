@@ -70,12 +70,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.media3.common.MediaItem
-import androidx.media3.common.Player
+import androidx.media3.common.PlaybackParameters
+import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
-import com.kakaanime.app.player.core.rememberPlayerController
-import com.kakaanime.app.player.core.rememberPlayerState
-import com.kakaanime.app.player.ui.ReDantotsuPlayerController
 import kotlinx.coroutines.delay
 
 @Composable
@@ -86,7 +84,6 @@ fun VideoPlayerScreen(
     outroStart: Long = 0L,
     outroEnd: Long = 0L,
     modifier: Modifier = Modifier,
-    onPreviousEpisode: () -> Unit = {},
     onNextEpisode: () -> Unit = {}
 ) {
     val context = LocalContext.current
@@ -101,18 +98,20 @@ fun VideoPlayerScreen(
     val playerControl = colors.surfaceVariant.copy(alpha = 0.92f)
     val playerControlStrong = colors.surfaceVariant.copy(alpha = 0.98f)
 
-
-        val playerController = rememberPlayerController(context)
-    val controllerState = rememberPlayerState(playerController)
-    val player = playerController.player
-
-    LaunchedEffect(videoUrl) {
-        playerController.setVideo(videoUrl)
+    val player = remember(videoUrl) {
+        ExoPlayer.Builder(context)
+            .build()
+            .apply {
+                setMediaItem(MediaItem.fromUri(videoUrl))
+                prepare()
+                playWhenReady = false
+                videoScalingMode = 1
+            }
     }
 
-        val position = controllerState.position
-    val duration = controllerState.duration
-    val playing = controllerState.isPlaying
+    var position by remember { mutableLongStateOf(0L) }
+    var duration by remember { mutableLongStateOf(0L) }
+    var playing by remember { mutableStateOf(false) }
 
     var speed by remember { mutableFloatStateOf(1f) }
     var showSpeedMenu by remember { mutableStateOf(false) }
@@ -123,6 +122,38 @@ fun VideoPlayerScreen(
     var showQualityMenu by remember { mutableStateOf(false) }
 
     var descriptionExpanded by remember { mutableStateOf(false) }
+
+    LaunchedEffect(player) {
+        while (true) {
+            position = player.currentPosition.coerceAtLeast(0L)
+            duration = player.duration.coerceAtLeast(0L)
+            playing = player.isPlaying
+
+            val seconds = position / 1000L
+
+            val insideIntro =
+                introStart > 0L &&
+                introEnd > introStart &&
+                seconds >= introStart &&
+                seconds < introEnd
+
+            val insideOutro =
+                outroStart > 0L &&
+                outroEnd > outroStart &&
+                seconds >= outroStart &&
+                seconds < outroEnd
+
+
+
+            delay(250)
+        }
+    }
+
+    DisposableEffect(player) {
+        onDispose {
+            player.release()
+        }
+    }
 
     if (isLandscape) {
         LandscapePlayer(
@@ -141,7 +172,7 @@ fun VideoPlayerScreen(
             },
             onSpeedSelected = {
                 speed = it
-                playerController.setSpeed(it)
+                player.setPlaybackParameters(PlaybackParameters(it))
                 showSpeedMenu = false
             },
             onAutoNext = {
@@ -154,24 +185,27 @@ fun VideoPlayerScreen(
             onPreviousEpisode = {},
             onNextEpisode = onNextEpisode,
             onSeekBack = {
-                playerController.seekBack()
+                player.seekTo((player.currentPosition - 10_000L).coerceAtLeast(0L))
             },
             onSeekForward = {
-                playerController.seekForward()
+                player.seekTo(
+                    (player.currentPosition + 10_000L)
+                        .coerceAtMost(player.duration.coerceAtLeast(0L))
+                )
             },
             onProgressChange = { fraction ->
-                if (duration > 0L) {
-                    playerController.seekTo((duration * fraction).toLong())
+                if (player.duration > 0L) {
+                    player.seekTo((player.duration * fraction).toLong())
                 }
             },
             onPlayPause = {
-                playerController.togglePlayPause()
+                if (player.isPlaying) player.pause() else player.play()
             },
             onSkipIntro = {
-                if (introEnd > 0L) playerController.seekTo(introEnd * 1000L)
+                if (introEnd > 0L) player.seekTo(introEnd * 1000L)
             },
             onSkipOutro = {
-                if (outroEnd > 0L) playerController.seekTo(outroEnd * 1000L)
+                if (outroEnd > 0L) player.seekTo(outroEnd * 1000L)
             },
             modifier = modifier
         )
@@ -190,20 +224,23 @@ fun VideoPlayerScreen(
                 activity?.requestedOrientation =
                     ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
             },
-            onPreviousEpisode = onPreviousEpisode,
-            onNextEpisode = onNextEpisode,
             onPlayPause = {
-                playerController.togglePlayPause()
+                if (player.isPlaying) player.pause() else player.play()
             },
             onSeekBack = {
-                playerController.seekBack()
+                player.seekTo(
+                    (player.currentPosition - 10_000L).coerceAtLeast(0L)
+                )
             },
             onSeekForward = {
-                playerController.seekForward()
+                player.seekTo(
+                    (player.currentPosition + 10_000L)
+                        .coerceAtMost(player.duration.coerceAtLeast(0L))
+                )
             },
             onProgressChange = { fraction ->
-                if (duration > 0L) {
-                    playerController.seekTo((duration * fraction).toLong())
+                if (player.duration > 0L) {
+                    player.seekTo((player.duration * fraction).toLong())
                 }
             },
             onQualityClick = {
@@ -223,7 +260,7 @@ fun VideoPlayerScreen(
 
 @Composable
 private fun PortraitPlayer(
-    player: Player,
+    player: ExoPlayer,
     position: Long,
     duration: Long,
     playing: Boolean,
@@ -240,8 +277,6 @@ private fun PortraitPlayer(
     onQualityClick: () -> Unit,
     onQualitySelected: (String) -> Unit,
     onDescriptionToggle: () -> Unit,
-    onPreviousEpisode: () -> Unit = {},
-    onNextEpisode: () -> Unit = {},
     modifier: Modifier
 ) {
     val colors = MaterialTheme.colorScheme
@@ -531,7 +566,7 @@ private fun PortraitPlayer(
 
 @Composable
 private fun LandscapePlayer(
-    player: Player,
+    player: ExoPlayer,
     position: Long,
     duration: Long,
     playing: Boolean,
