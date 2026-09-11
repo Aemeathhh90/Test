@@ -7,6 +7,7 @@ object ProviderFactory {
             // Real providers are registered independently so the router can
             // fail over without coupling provider logic to the player.
             register(OtakudesuProvider())
+            register(SamehadakuProvider())
         }
     }
 
