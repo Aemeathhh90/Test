@@ -1,8 +1,14 @@
 package com.kakaanime.app.ui.theme
 
-import androidx.compose.foundation.isSystemInDarkTheme
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.darkColorScheme
+import androidx.compose.material3.lightColorScheme
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.Stable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.Color
 
 enum class KakaAccent(
@@ -10,8 +16,8 @@ enum class KakaAccent(
     val secondary: Color
 ) {
     Blue(
-        Color(0xFF6C63FF),
-        Color(0xFF8B83FF)
+        Color(0xFF2196F3),
+        Color(0xFF64B5F6)
     ),
     Purple(
         Color(0xFF9C6BFF),
@@ -49,11 +55,7 @@ class KakaThemeState(
 }
 
 @Composable
-fun rememberKakaThemeState(): KakaThemeState {
-    return remember {
-        KakaThemeState()
-    }
-}
+fun rememberKakaThemeState(): KakaThemeState = remember { KakaThemeState() }
 
 @Composable
 fun KakaAnimeTheme(
@@ -61,27 +63,23 @@ fun KakaAnimeTheme(
     content: @Composable () -> Unit
 ) {
     val accent = themeState.accent
-
     val colors = if (themeState.darkMode) {
         darkColorScheme(
             primary = accent.primary,
             secondary = accent.secondary,
-            background = Color(0xFF0B0B0F),
-            surface = Color(0xFF141419),
-            surfaceVariant = Color(0xFF1C1C23)
+            background = Color(0xFF090D12),
+            surface = Color(0xFF111820),
+            surfaceVariant = Color(0xFF17212B)
         )
     } else {
         lightColorScheme(
             primary = accent.primary,
             secondary = accent.secondary,
-            background = Color(0xFFF7F7FA),
+            background = Color(0xFFF5F8FC),
             surface = Color.White,
-            surfaceVariant = Color(0xFFEDEDF3)
+            surfaceVariant = Color(0xFFE9F0F7)
         )
     }
 
-    MaterialTheme(
-        colorScheme = colors,
-        content = content
-    )
+    MaterialTheme(colorScheme = colors, content = content)
 }
