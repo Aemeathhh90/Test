@@ -1,5 +1,6 @@
 package com.kakaanime.app.premium
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -27,12 +28,19 @@ import com.kakaanime.app.monetization.MonetizationState
 @Composable
 fun PremiumScreen(
     state: MonetizationState,
+    onBack: () -> Unit,
     onSubscribe: () -> Unit
 ) {
     Column(
         Modifier.padding(20.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
+        Text(
+            "‹ Kembali",
+            modifier = Modifier.clickable { onBack() },
+            color = MaterialTheme.colorScheme.primary,
+            style = MaterialTheme.typography.labelLarge
+        )
         Text("KakaAnime Premium", fontSize = 28.sp, style = MaterialTheme.typography.headlineSmall)
         Text(
             "Nonton tanpa batas dengan fitur premium yang tetap memakai bahasa visual KakaAnime.",
