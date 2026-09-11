@@ -18,7 +18,7 @@ A dedicated adapter is **not** automatically green.
 |---:|---|:---:|---|
 | 1 | Otakudesu | 🟡 | Pending |
 | 2 | Samehadaku | 🟡 | Pending |
-| 3 | AllAnime | 🟡 | Pending |
+| 3 | AllAnime | 🟡 | E2E harness added; not yet passed |
 | 4 | Kuronime | 🟡 | E2E harness added; not yet passed |
 | 5 | Animasu | 🟡 | Pending |
 | 6 | AnimeIndo | 🟡 | Pending |
@@ -57,8 +57,9 @@ The previous batch screenshot reported 10 “dedicated/strong” providers and 1
 
 ## E2E gate
 
-Kuronime now has an instrumentation test at:
+Kuronime and AllAnime now have isolated instrumentation tests at:
 
-`app/src/androidTest/java/com/kakaanime/app/provider/KuronimePlaybackE2eTest.kt`
+- `app/src/androidTest/java/com/kakaanime/app/provider/KuronimePlaybackE2eTest.kt`
+- `app/src/androidTest/java/com/kakaanime/app/provider/AllAnimePlaybackE2eTest.kt`
 
-The test does not turn green merely because a URL exists. It requires a real provider stream to pass runtime validation and then requires Media3/ExoPlayer to reach `onRenderedFirstFrame()`.
+Both tests require a real provider stream to pass runtime validation and then require Media3/ExoPlayer to reach `onRenderedFirstFrame()`. The CI emulator workflow was also corrected after the first run failed before tests because the runner image no longer exposed the requested `Pixel_2` device profile.
