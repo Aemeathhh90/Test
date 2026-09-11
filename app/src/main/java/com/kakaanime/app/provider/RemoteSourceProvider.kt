@@ -74,7 +74,9 @@ class RemoteSourceProvider(
             val root = requestJson(url) ?: continue
             val streams = mutableListOf<ProviderStream>()
             collectStreams(root, streams)
-            streams.distinctBy { it.url }.takeIf { it.isNotEmpty() }?.let { return it }
+            ProviderStreamDeduplicator.deduplicate(streams)
+                .takeIf { it.isNotEmpty() }
+                ?.let { return it }
         }
         return emptyList()
     }
@@ -170,7 +172,7 @@ class RemoteSourceProvider(
     private fun collectStreams(value: Any?, out: MutableList<ProviderStream>, quality: String? = null) {
         when (value) {
             is JSONObject -> {
-                val directKeys = listOf("url", "file", "stream", "streamUrl", "stream_url", "m3u8", "mp4", "source", "videoUrl", "stream_url")
+                val directKeys = listOf("url", "file", "stream", "streamUrl", "stream_url", "m3u8", "mp4", "source", "videoUrl")
                 val nextQuality = value.firstString("quality", "resolution") ?: quality
                 for (key in directKeys) value.optString(key).trim().takeIf { it.startsWith("http", true) }?.let { out += stream(it, nextQuality) }
                 val keys = value.keys()
