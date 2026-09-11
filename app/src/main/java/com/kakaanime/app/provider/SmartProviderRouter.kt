@@ -7,139 +7,85 @@ class SmartProviderRouter(
     suspend fun search(
         query: String
     ): List<ProviderAnime> {
+        if (query.isBlank()) return emptyList()
 
-        val results = mutableListOf<ProviderAnime>()
-
-        for (provider in registry.all()) {
-
-            try {
-
-                val found =
-                    provider.search(query)
-
-                results.addAll(found)
-
-            } catch (_: Exception) {
-                // Provider gagal dilewati.
-                // Provider berikutnya tetap dicoba.
+        return registry.all()
+            .flatMap { provider ->
+                runCatching { provider.search(query.trim()) }
+                    .getOrDefault(emptyList())
+                    .map { it.copy(providerId = provider.id) }
             }
-        }
-
-        return results
-            .distinctBy {
-                it.title.lowercase()
+            .distinctBy { anime ->
+                buildKey(anime.title, anime.year)
             }
     }
 
     suspend fun getAnime(
         animeId: String
     ): ProviderAnime? {
+        if (animeId.isBlank()) return null
 
-        for (provider in registry.all()) {
-
-            try {
-
-                val anime =
-                    provider.getAnime(animeId)
-
-                if (anime != null) {
-                    return anime
-                }
-
-            } catch (_: Exception) {
-                // Fallback otomatis ke provider berikutnya.
-            }
+        return forEachProvider { provider ->
+            provider.getAnime(animeId)?.copy(providerId = provider.id)
         }
-
-        return null
     }
 
     suspend fun getEpisodes(
         animeId: String
     ): List<ProviderEpisode> {
+        if (animeId.isBlank()) return emptyList()
 
-        for (provider in registry.all()) {
-
-            try {
-
-                val episodes =
-                    provider.getEpisodes(animeId)
-
-                if (episodes.isNotEmpty()) {
-                    return episodes
-                }
-
-            } catch (_: Exception) {
-                // Coba provider berikutnya.
-            }
-        }
-
-        return emptyList()
+        return forEachProvider { provider ->
+            val episodes = provider.getEpisodes(animeId)
+            if (episodes.isEmpty()) null
+            else episodes
+                .map { it.copy(providerId = provider.id) }
+                .sortedBy { it.number }
+        } ?: emptyList()
     }
 
     suspend fun getStreams(
         animeId: String,
         episodeNumber: Int
     ): List<ProviderStream> {
+        if (animeId.isBlank() || episodeNumber < 1) return emptyList()
 
-        val candidates =
-            mutableListOf<ProviderStream>()
-
-        for (provider in registry.all()) {
-
-            try {
-
-                val streams =
-                    provider.getStreams(
-                        animeId = animeId,
-                        episodeNumber = episodeNumber
-                    )
-
-                candidates.addAll(streams)
-
-            } catch (_: Exception) {
-                // Provider gagal.
-                // Router otomatis lanjut ke provider berikutnya.
+        return registry.all()
+            .flatMap { provider ->
+                runCatching {
+                    provider.getStreams(animeId, episodeNumber)
+                }.getOrDefault(emptyList())
             }
-        }
-
-        return candidates
+            .filter { it.url.isNotBlank() }
+            .distinctBy { stream ->
+                Triple(stream.providerId, stream.url, stream.quality)
+            }
             .sortedWith(
-                compareByDescending<ProviderStream> {
-                    qualityScore(it.quality)
-                }.thenBy {
-                    it.providerId
-                }
+                compareByDescending<ProviderStream> { qualityScore(it.quality) }
+                    .thenBy { it.providerId }
             )
     }
 
-    private fun qualityScore(
-        quality: String?
-    ): Int {
+    private suspend fun <T> forEachProvider(
+        action: suspend (AnimeProvider) -> T?
+    ): T? {
+        for (provider in registry.all()) {
+            val result = runCatching { action(provider) }.getOrNull()
+            if (result != null) return result
+        }
+        return null
+    }
 
+    private fun buildKey(title: String, year: Int?): String =
+        title.trim().lowercase().replace(Regex("\\s+"), " ") + "|" + (year ?: 0)
+
+    private fun qualityScore(quality: String?): Int {
+        val value = quality?.lowercase() ?: return 0
         return when {
-            quality == null -> 0
-
-            quality.contains(
-                "1080",
-                ignoreCase = true
-            ) -> 1080
-
-            quality.contains(
-                "720",
-                ignoreCase = true
-            ) -> 720
-
-            quality.contains(
-                "480",
-                ignoreCase = true
-            ) -> 480
-
-            quality.contains(
-                "360",
-                ignoreCase = true
-            ) -> 360
-
+            value.contains("1080") -> 1080
+            value.contains("720") -> 720
+            value.contains("480") -> 480
+            value.contains("360") -> 360
             else -> 0
         }
     }
