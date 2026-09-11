@@ -7,6 +7,7 @@ object ProviderFactory {
             // Source-specific adapters.
             register(OtakudesuProvider())
             register(SamehadakuProvider())
+            register(AllAnimeProvider())
 
             // Multi-gateway adapters. Sanka is only a fallback; dedicated
             // gateways are tried first where a known route exists.
@@ -37,7 +38,6 @@ object ProviderFactory {
             register(RemoteSourceProvider("kusonime", "Kusonime", 290, "kusonime"))
             register(RemoteSourceProvider("animekuindo", "Animekuindo", 300, "animekuindo"))
             register(RemoteSourceProvider("animesail", "AnimeSail", 310, "animesail"))
-            register(RemoteSourceProvider("allanime", "AllAnime", 320, "allanime"))
         }
     }
 
