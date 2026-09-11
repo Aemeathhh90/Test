@@ -16,35 +16,35 @@ A dedicated adapter is **not** automatically green.
 
 | # | Provider | Current status | E2E evidence |
 |---:|---|:---:|---|
-| 1 | Otakudesu | 🟡 | Pending |
-| 2 | Samehadaku | 🟡 | Pending |
-| 3 | AllAnime | 🟡 | E2E harness added; not yet passed |
-| 4 | Kuronime | 🟡 | E2E harness added; not yet passed |
-| 5 | Animasu | 🟡 | Pending |
-| 6 | AnimeIndo | 🟡 | Pending |
-| 7 | Zoronime | 🟡 | Pending |
-| 8 | Anoboy | 🟡 | Pending |
-| 9 | AnimeKompi | 🟡 | Pending |
-| 10 | Doronime | 🟡 | Pending |
-| 11 | Hunter no Sekai | 🟡 | Pending |
-| 12 | Gomunime | 🟡 | Pending |
-| 13 | NeoNime | 🟡 | Pending |
-| 14 | YLNime | 🟡 | Pending |
-| 15 | NontonAnimeID | 🟡 | Pending |
-| 16 | Animeisme | 🟡 | Pending |
-| 17 | Animeku | 🟡 | Pending |
-| 18 | Oploverz | 🟡 | Pending |
-| 19 | Kuramanime | 🟡 | Pending |
-| 20 | Wibudesu | 🟡 | Pending |
-| 21 | Meownime | 🟡 | Pending |
-| 22 | Anibatch | 🟡 | Pending |
-| 23 | Nimegami | 🟡 | Pending |
-| 24 | Drivenime | 🟡 | Pending |
-| 25 | Anitoki | 🟡 | Pending |
-| 26 | RiiE | 🟡 | Pending |
-| 27 | Kusonime | 🟡 | Pending |
-| 28 | Animekuindo | 🟡 | Pending |
-| 29 | AnimeSail | 🟡 | Pending |
+| 1 | Otakudesu | 🟡 | Pending CI result |
+| 2 | Samehadaku | 🟡 | Dedicated E2E + all-provider gate pending |
+| 3 | AllAnime | 🟡 | Dedicated E2E + all-provider gate pending |
+| 4 | Kuronime | 🟡 | Dedicated E2E + all-provider gate pending |
+| 5 | Animasu | 🟡 | All-provider gate pending |
+| 6 | AnimeIndo | 🟡 | All-provider gate pending |
+| 7 | Zoronime | 🟡 | All-provider gate pending |
+| 8 | Anoboy | 🟡 | All-provider gate pending |
+| 9 | AnimeKompi | 🟡 | All-provider gate pending |
+| 10 | Doronime | 🟡 | All-provider gate pending |
+| 11 | Hunter no Sekai | 🟡 | All-provider gate pending |
+| 12 | Gomunime | 🟡 | All-provider gate pending |
+| 13 | NeoNime | 🟡 | All-provider gate pending |
+| 14 | YLNime | 🟡 | All-provider gate pending |
+| 15 | NontonAnimeID | 🟡 | All-provider gate pending |
+| 16 | Animeisme | 🟡 | All-provider gate pending |
+| 17 | Animeku | 🟡 | All-provider gate pending |
+| 18 | Oploverz | 🟡 | All-provider gate pending |
+| 19 | Kuramanime | 🟡 | All-provider gate pending |
+| 20 | Wibudesu | 🟡 | All-provider gate pending |
+| 21 | Meownime | 🟡 | All-provider gate pending |
+| 22 | Anibatch | 🟡 | All-provider gate pending |
+| 23 | Nimegami | 🟡 | All-provider gate pending |
+| 24 | Drivenime | 🟡 | All-provider gate pending |
+| 25 | Anitoki | 🟡 | All-provider gate pending |
+| 26 | RiiE | 🟡 | All-provider gate pending |
+| 27 | Kusonime | 🟡 | All-provider gate pending |
+| 28 | Animekuindo | 🟡 | All-provider gate pending |
+| 29 | AnimeSail | 🟡 | All-provider gate pending |
 
 ## Current count
 
@@ -57,9 +57,6 @@ The previous batch screenshot reported 10 “dedicated/strong” providers and 1
 
 ## E2E gate
 
-Kuronime and AllAnime now have isolated instrumentation tests at:
+Dedicated tests currently cover Kuronime, AllAnime, and Samehadaku. In addition, `AllProvidersPlaybackE2eTest.kt` now derives its provider list directly from `ProviderFactory.createRegistry().all()` and runs every registered provider through the complete strict flow. A provider can only be promoted to 🟢 after that run actually reaches Media3 `onRenderedFirstFrame()` with no playback error.
 
-- `app/src/androidTest/java/com/kakaanime/app/provider/KuronimePlaybackE2eTest.kt`
-- `app/src/androidTest/java/com/kakaanime/app/provider/AllAnimePlaybackE2eTest.kt`
-
-Both tests require a real provider stream to pass runtime validation and then require Media3/ExoPlayer to reach `onRenderedFirstFrame()`. The CI emulator workflow was also corrected after the first run failed before tests because the runner image no longer exposed the requested `Pixel_2` device profile.
+The CI workflow now includes an `all-providers-playback` emulator job using API 35 / Pixel 6. This is deliberately separate from the three dedicated provider jobs so failures are attributable while the complete registry is still gated together.
