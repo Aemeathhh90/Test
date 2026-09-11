@@ -4,19 +4,19 @@ object ProviderFactory {
 
     fun createRegistry(): ProviderRegistry {
         return ProviderRegistry().apply {
-            // Source-specific adapters.
+            // Source-specific adapters with verified/documented extraction logic.
             register(OtakudesuProvider())
             register(SamehadakuProvider())
             register(AllAnimeProvider())
+            register(KuronimeProvider())
 
-            // Multi-gateway adapters. Sanka is only a fallback; dedicated
-            // gateways are tried first where a known route exists.
+            // Multi-gateway adapters. Dedicated adapters take precedence.
             register(RemoteSourceProvider("animasu", "Animasu", 30, "animasu"))
             register(RemoteSourceProvider("animeindo", "AnimeIndo", 40, "animeindo"))
             register(RemoteSourceProvider("zoronime", "Zoronime", 50, "zoronime"))
             register(RemoteSourceProvider("anoboy", "Anoboy", 60, "anoboy"))
             register(RemoteSourceProvider("animekompi", "AnimeKompi", 70, "animekompi"))
-            register(RemoteSourceProvider("kuronime", "Kuronime", 80, "kuronime"))
+            // Kuronime has a dedicated adapter above.
             // HiAnime was retired/shut down; intentionally excluded.
             register(RemoteSourceProvider("doronime", "Doronime", 100, "doronime"))
             register(RemoteSourceProvider("hunter-no-sekai", "Hunter no Sekai", 110, "hunter-no-sekai"))
