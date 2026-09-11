@@ -15,7 +15,7 @@ object ProviderFactory {
             register(RemoteSourceProvider("anoboy", "Anoboy", 60, "anoboy"))
             register(RemoteSourceProvider("animekompi", "AnimeKompi", 70, "animekompi"))
             register(RemoteSourceProvider("kuronime", "Kuronime", 80, "kuronime"))
-            register(RemoteSourceProvider("hianime", "HiAnime", 90, "hianime"))
+            // HiAnime was retired/shut down in 2026; do not route playback to it.
             register(RemoteSourceProvider("doronime", "Doronime", 100, "doronime"))
             register(RemoteSourceProvider("hunter-no-sekai", "Hunter no Sekai", 110, "hunter-no-sekai"))
             register(RemoteSourceProvider("gomunime", "Gomunime", 120, "gomunime"))
