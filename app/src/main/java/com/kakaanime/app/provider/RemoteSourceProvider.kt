@@ -20,6 +20,7 @@ class RemoteSourceProvider(
         .connectTimeout(10, TimeUnit.SECONDS)
         .readTimeout(15, TimeUnit.SECONDS)
         .callTimeout(20, TimeUnit.SECONDS)
+        .retryOnConnectionFailure(true)
         .build()
 
     private val sanka = "https://www.sankavollerei.web.id/anime"
@@ -118,31 +119,46 @@ class RemoteSourceProvider(
         runCatching {
             val request = Request.Builder().url(url)
                 .header("User-Agent", "KakaAnime/0.1")
-                .header("Accept", "application/json")
+                .header("Accept", "application/json, text/plain, */*")
                 .build()
             client.newCall(request).execute().use { response ->
                 if (!response.isSuccessful) return@runCatching null
-                response.body?.string()?.takeIf { it.isNotBlank() }?.let(::JSONObject)
+                val body = response.body?.string()?.trim().orEmpty()
+                if (body.isBlank()) return@runCatching null
+                when {
+                    body.startsWith("{") -> JSONObject(body)
+                    body.startsWith("[") -> JSONObject().put("items", JSONArray(body))
+                    else -> null
+                }
             }
         }.getOrNull()
     }
 
     private fun extractItems(root: JSONObject): List<JSONObject> {
-        for (key in listOf("results", "anime", "items", "search", "list", "animeList", "data")) {
-            root.optJSONArray(key)?.let { return it.objects() }
-        }
-        root.optJSONObject("data")?.let { nested ->
-            extractItems(nested).takeIf { it.isNotEmpty() }?.let { return it }
+        val keys = listOf("results", "anime", "items", "search", "list", "animeList", "data")
+        for (key in keys) {
+            root.optJSONArray(key)?.let { array ->
+                val objects = array.objects()
+                if (objects.isNotEmpty()) return objects
+            }
+            root.optJSONObject(key)?.let { nested ->
+                val objects = extractItems(nested)
+                if (objects.isNotEmpty()) return objects
+            }
         }
         return if (root.has("title") || root.has("name") || root.has("judul")) listOf(root) else emptyList()
     }
 
     private fun extractEpisodeItems(root: JSONObject): List<JSONObject> {
-        for (key in listOf("episodes", "episode", "episodeList", "episode_list", "episodeListData")) {
-            root.optJSONArray(key)?.let { return it.objects() }
-        }
-        root.optJSONObject("data")?.let { nested ->
-            extractEpisodeItems(nested).takeIf { it.isNotEmpty() }?.let { return it }
+        for (key in listOf("episodes", "episode", "episodeList", "episode_list", "episodeListData", "data")) {
+            root.optJSONArray(key)?.let { array ->
+                val objects = array.objects()
+                if (objects.isNotEmpty()) return objects
+            }
+            root.optJSONObject(key)?.let { nested ->
+                val objects = extractEpisodeItems(nested)
+                if (objects.isNotEmpty()) return objects
+            }
         }
         return emptyList()
     }
@@ -172,9 +188,13 @@ class RemoteSourceProvider(
     private fun collectStreams(value: Any?, out: MutableList<ProviderStream>, quality: String? = null) {
         when (value) {
             is JSONObject -> {
-                val directKeys = listOf("url", "file", "stream", "streamUrl", "stream_url", "m3u8", "mp4", "source", "videoUrl")
-                val nextQuality = value.firstString("quality", "resolution") ?: quality
-                for (key in directKeys) value.optString(key).trim().takeIf { it.startsWith("http", true) }?.let { out += stream(it, nextQuality) }
+                val directKeys = listOf("url", "file", "stream", "streamUrl", "stream_url", "m3u8", "mp4", "source", "videoUrl", "link")
+                val nextQuality = value.firstString("quality", "resolution", "res") ?: quality
+                for (key in directKeys) {
+                    value.optString(key).trim()
+                        .takeIf { it.startsWith("http", true) }
+                        ?.let { out += stream(it, nextQuality) }
+                }
                 val keys = value.keys()
                 while (keys.hasNext()) {
                     val key = keys.next()
