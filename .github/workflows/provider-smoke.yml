@@ -1,0 +1,44 @@
+name: Provider Smoke Check
+
+on:
+  push:
+    branches:
+      - codespace-didactic-computing-machine-g49vrx9jjjp4hww9v
+  workflow_dispatch:
+
+jobs:
+  provider-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check provider search endpoints
+        shell: bash
+        run: |
+          set -u
+          BASE="https://www.sankavollerei.web.id/anime"
+          QUERY="one%20piece"
+          providers=(
+            otakudesu samehadaku animasu animeindo zoronime anoboy animekompi
+            kuronime hianime doronime hunter-no-sekai gomunime neonime ylnime
+            nontonanimeid animeisme animeku oploverz kura wibudesu meownime
+            anibatch nimegami drivenime anitoki riie kusonime animekuindo
+            animesail allanime
+          )
+
+          failed=0
+          for provider in "${providers[@]}"; do
+            url="$BASE/$provider/search/$QUERY"
+            code=$(curl -L -sS --max-time 20 -o /tmp/provider.json -w '%{http_code}' "$url" || true)
+            bytes=$(wc -c < /tmp/provider.json 2>/dev/null || echo 0)
+            if [[ "$code" == "200" && "$bytes" -gt 20 ]]; then
+              echo "PASS  $provider  HTTP=$code bytes=$bytes"
+            else
+              echo "FAIL  $provider  HTTP=$code bytes=$bytes"
+              failed=1
+            fi
+          done
+
+          if [[ "$failed" -ne 0 ]]; then
+            echo "One or more provider endpoints failed the smoke check."
+            exit 1
+          fi
