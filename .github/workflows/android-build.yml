@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - codespace-didactic-computing-machine-g49vrx9jjjp4hww9v
+      - provider-batch-2026-09-12
       - main
   workflow_dispatch:
 
