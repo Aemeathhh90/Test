@@ -4,9 +4,9 @@ object ProviderFactory {
 
     fun createRegistry(): ProviderRegistry {
         return ProviderRegistry().apply {
-            // Providers are registered independently so the router can
-            // fall back when one source is unavailable.
-            register(DemoProvider())
+            // Real providers are registered independently so the router can
+            // fail over without coupling provider logic to the player.
+            register(OtakudesuProvider())
         }
     }
 
