@@ -7,7 +7,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.Icon
@@ -52,38 +51,29 @@ fun ReDantotsuPlayerController(
         }
     }
 
-    Box(
-        modifier = modifier.fillMaxSize().clickable {
-            if (!locked) visible = !visible
-        }
-    ) {
-        AnimatedVisibility(
-            visible = visible,
-            enter = fadeIn(),
-            exit = fadeOut(),
-            modifier = Modifier.fillMaxSize()
-        ) {
+    Box(modifier = modifier.fillMaxSize().clickable { if (!locked) visible = !visible }) {
+        AnimatedVisibility(visible = visible, enter = fadeIn(), exit = fadeOut(), modifier = Modifier.fillMaxSize()) {
             Box(
                 modifier = Modifier.fillMaxSize().background(
-                    Brush.verticalGradient(
-                        listOf(Color.Black.copy(alpha = 0.58f), Color.Transparent, Color.Black.copy(alpha = 0.78f))
-                    )
+                    Brush.verticalGradient(listOf(Color.Black.copy(alpha = 0.58f), Color.Transparent, Color.Black.copy(alpha = 0.78f)))
                 )
             ) {
-                GlassAction(Icons.Filled.ArrowBack, "Kembali", accent, Modifier.align(Alignment.TopStart).padding(14.dp)) {}
+                IconButton(onClick = {}, modifier = Modifier.align(Alignment.TopStart).padding(14.dp)) {
+                    Icon(Icons.Filled.ArrowBack, "Kembali", tint = Color.White)
+                }
                 androidx.compose.material3.Text(title, color = Color.White, fontSize = 16.sp, modifier = Modifier.align(Alignment.TopCenter).padding(top = 21.dp))
-                GlassAction(Icons.Filled.Lock, if (locked) "Buka kontrol" else "Kunci kontrol", accent, Modifier.align(Alignment.TopEnd).padding(14.dp)) { locked = !locked }
+                IconButton(onClick = { locked = !locked }, modifier = Modifier.align(Alignment.TopEnd).padding(14.dp)) {
+                    Icon(if (locked) Icons.Filled.LockOpen else Icons.Filled.Lock, if (locked) "Buka kontrol" else "Kunci kontrol", tint = Color.White)
+                }
 
                 Row(Modifier.align(Alignment.Center), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
-                    SeekAction(Icons.Filled.FastRewind, "10", accent, onSeekBack)
+                    SeekAction(Icons.Filled.FastRewind, "10", onSeekBack)
                     Spacer(Modifier.width(20.dp))
-                    Box(Modifier.size(72.dp).clip(CircleShape).background(accent.copy(alpha = 0.92f)), contentAlignment = Alignment.Center) {
-                        IconButton(onClick = onPlayPause) {
-                            Icon(if (state.isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow, if (state.isPlaying) "Pause" else "Play", tint = Color.White, modifier = Modifier.size(38.dp))
-                        }
+                    IconButton(onClick = onPlayPause, modifier = Modifier.size(72.dp)) {
+                        Icon(if (state.isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow, if (state.isPlaying) "Pause" else "Play", tint = Color.White, modifier = Modifier.size(48.dp))
                     }
                     Spacer(Modifier.width(20.dp))
-                    SeekAction(Icons.Filled.FastForward, "10", accent, onSeekForward)
+                    SeekAction(Icons.Filled.FastForward, "10", onSeekForward)
                 }
 
                 Column(Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(horizontal = 14.dp, vertical = 12.dp)) {
@@ -93,9 +83,6 @@ fun ReDantotsuPlayerController(
                             onValueChange = { onSeekTo(it.toLong()) },
                             valueRange = 0f..state.duration.toFloat(),
                             modifier = Modifier.fillMaxWidth(),
-                            thumb = {
-                                Box(Modifier.size(7.dp).clip(CircleShape).background(accent))
-                            },
                             colors = SliderDefaults.colors(thumbColor = accent, activeTrackColor = accent, inactiveTrackColor = Color.White.copy(alpha = 0.32f))
                         )
                     }
@@ -107,9 +94,8 @@ fun ReDantotsuPlayerController(
                         if (nextEpisode != null) EpisodeAction(Icons.Filled.SkipNext, nextEpisode, accent, onNextEpisode)
                     }
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                        GlassAction(Icons.Filled.Speed, "Kecepatan", accent, Modifier.size(44.dp), onSpeed)
-                        Spacer(Modifier.width(4.dp))
-                        GlassAction(Icons.Filled.Fullscreen, "Layar penuh", accent, Modifier.size(44.dp), onFullscreen)
+                        IconButton(onClick = onSpeed, modifier = Modifier.size(44.dp)) { Icon(Icons.Filled.Speed, "Kecepatan", tint = Color.White) }
+                        IconButton(onClick = onFullscreen, modifier = Modifier.size(44.dp)) { Icon(Icons.Filled.Fullscreen, "Layar penuh", tint = Color.White) }
                     }
                 }
             }
@@ -118,14 +104,7 @@ fun ReDantotsuPlayerController(
 }
 
 @Composable
-private fun GlassAction(icon: androidx.compose.ui.graphics.vector.ImageVector, description: String, accent: Color, modifier: Modifier = Modifier, onClick: () -> Unit) {
-    IconButton(onClick = onClick, modifier = modifier) {
-        Icon(icon, description, tint = Color.White)
-    }
-}
-
-@Composable
-private fun SeekAction(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, accent: Color, onClick: () -> Unit) {
+private fun SeekAction(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, onClick: () -> Unit) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         IconButton(onClick = onClick) { Icon(icon, "${label} detik", tint = Color.White, modifier = Modifier.size(34.dp)) }
         androidx.compose.material3.Text(label, color = Color.White, fontSize = 10.sp)
@@ -134,7 +113,7 @@ private fun SeekAction(icon: androidx.compose.ui.graphics.vector.ImageVector, la
 
 @Composable
 private fun EpisodeAction(icon: androidx.compose.ui.graphics.vector.ImageVector, text: String, accent: Color, onClick: () -> Unit) {
-    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.clip(RoundedCornerShape(14.dp)).clickable(onClick = onClick).padding(horizontal = 6.dp, vertical = 4.dp)) {
+    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.clickable(onClick = onClick).padding(horizontal = 6.dp, vertical = 4.dp)) {
         Icon(icon, text, tint = accent, modifier = Modifier.size(20.dp))
         Spacer(Modifier.width(4.dp))
         androidx.compose.material3.Text(text, color = Color.White, fontSize = 11.sp)
@@ -142,7 +121,7 @@ private fun EpisodeAction(icon: androidx.compose.ui.graphics.vector.ImageVector,
 }
 
 private fun formatPlayerTime(ms: Long): String {
-    val totalSeconds = (ms.coerceAtLeast(0L) / 1000L)
+    val totalSeconds = ms.coerceAtLeast(0L) / 1000L
     val hours = totalSeconds / 3600L
     val minutes = (totalSeconds % 3600L) / 60L
     val seconds = totalSeconds % 60L
