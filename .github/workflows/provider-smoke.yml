@@ -72,9 +72,10 @@ jobs:
             "https://www.vharasc.my.id/api/v1/animekompi/search/$QUERY" \
             "https://www.sankavollerei.web.id/anime/animekompi/search/$QUERY"
 
-          # Remaining sources use Sanka as the current generic fallback.
+          # Sources without a verified secondary API currently fall back to Sanka.
+          # HiAnime is intentionally excluded: its original service shut down in 2026.
           providers=(
-            otakudesu animasu zoronime kuronime hianime doronime
+            otakudesu animasu animeindo zoronime kuronime doronime
             hunter-no-sekai gomunime neonime ylnime nontonanimeid animeisme
             animeku wibudesu meownime anibatch drivenime anitoki riie
             animekuindo animesail allanime
