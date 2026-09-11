@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - codespace-didactic-computing-machine-g49vrx9jjjp4hww9v
+      - provider-batch-2026-09-12
   workflow_dispatch:
 
 jobs:
@@ -38,7 +39,6 @@ jobs:
             fi
           }
 
-          # Dedicated routes.
           check kuramanime \
             "https://wajik-anime-api.vercel.app/kuramanime/search?q=$QUERY" \
             "https://www.sankavollerei.web.id/anime/kura/search/$QUERY"
@@ -72,8 +72,6 @@ jobs:
             "https://www.vharasc.my.id/api/v1/animekompi/search/$QUERY" \
             "https://www.sankavollerei.web.id/anime/animekompi/search/$QUERY"
 
-          # Remaining sources currently use Sanka as a fallback route.
-          # HiAnime is intentionally excluded because its original service shut down.
           providers=(
             otakudesu animasu zoronime kuronime doronime
             hunter-no-sekai gomunime neonime ylnime nontonanimeid animeisme
