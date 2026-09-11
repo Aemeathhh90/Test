@@ -1,17 +1,27 @@
 package com.kakaanime.app.provider
 
 class SmartProviderRouter(
-    private val registry: ProviderRegistry
+    private val registry: ProviderRegistry,
+    private val failureThreshold: Int = 2,
+    private val cooldownMs: Long = 30_000L
 ) {
+    private data class HealthState(
+        var failures: Int = 0,
+        var unavailableUntil: Long = 0L
+    )
+
+    private val health = mutableMapOf<String, HealthState>()
 
     suspend fun search(
         query: String
     ): List<ProviderAnime> {
         if (query.isBlank()) return emptyList()
 
-        return registry.all()
+        return eligibleProviders()
             .flatMap { provider ->
                 runCatching { provider.search(query.trim()) }
+                    .onSuccess { markSuccess(provider.id) }
+                    .onFailure { markFailure(provider.id) }
                     .getOrDefault(emptyList())
                     .map { it.copy(providerId = provider.id) }
             }
@@ -50,11 +60,15 @@ class SmartProviderRouter(
     ): List<ProviderStream> {
         if (animeId.isBlank() || episodeNumber < 1) return emptyList()
 
-        return registry.all()
+        return eligibleProviders()
             .flatMap { provider ->
                 runCatching {
                     provider.getStreams(animeId, episodeNumber)
-                }.getOrDefault(emptyList())
+                }
+                    .onSuccess { markSuccess(provider.id) }
+                    .onFailure { markFailure(provider.id) }
+                    .getOrDefault(emptyList())
+                    .map { it.copy(providerId = provider.id) }
             }
             .filter { it.url.isNotBlank() }
             .distinctBy { stream ->
@@ -62,6 +76,7 @@ class SmartProviderRouter(
             }
             .sortedWith(
                 compareByDescending<ProviderStream> { qualityScore(it.quality) }
+                    .thenBy { providerPriority(it.providerId) }
                     .thenBy { it.providerId }
             )
     }
@@ -69,12 +84,44 @@ class SmartProviderRouter(
     private suspend fun <T> forEachProvider(
         action: suspend (AnimeProvider) -> T?
     ): T? {
-        for (provider in registry.all()) {
-            val result = runCatching { action(provider) }.getOrNull()
+        for (provider in eligibleProviders()) {
+            val result = runCatching { action(provider) }
+                .onSuccess { if (it != null) markSuccess(provider.id) }
+                .onFailure { markFailure(provider.id) }
+                .getOrNull()
             if (result != null) return result
         }
         return null
     }
+
+    private fun eligibleProviders(): List<AnimeProvider> =
+        registry.all().filter { isEligible(it.id) }
+
+    private fun isEligible(providerId: String): Boolean {
+        val state = health[providerId] ?: return true
+        val now = System.currentTimeMillis()
+        if (state.unavailableUntil <= now) {
+            state.unavailableUntil = 0L
+            state.failures = 0
+            return true
+        }
+        return false
+    }
+
+    private fun markSuccess(providerId: String) {
+        health.remove(providerId)
+    }
+
+    private fun markFailure(providerId: String) {
+        val state = health.getOrPut(providerId) { HealthState() }
+        state.failures++
+        if (state.failures >= failureThreshold) {
+            state.unavailableUntil = System.currentTimeMillis() + cooldownMs
+        }
+    }
+
+    private fun providerPriority(providerId: String): Int =
+        registry.get(providerId)?.priority ?: Int.MAX_VALUE
 
     private fun buildKey(title: String, year: Int?): String =
         title.trim().lowercase().replace(Regex("\\s+"), " ") + "|" + (year ?: 0)
