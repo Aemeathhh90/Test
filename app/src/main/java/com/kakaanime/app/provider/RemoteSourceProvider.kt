@@ -75,9 +75,9 @@ class RemoteSourceProvider(
             val root = requestJson(url) ?: continue
             val streams = mutableListOf<ProviderStream>()
             collectStreams(root, streams)
-            ProviderStreamDeduplicator.deduplicate(streams)
-                .takeIf { it.isNotEmpty() }
-                ?.let { return it }
+            val playable = ProviderStreamDeduplicator.deduplicate(streams)
+                .filter { it.type != StreamType.UNKNOWN }
+            if (playable.isNotEmpty()) return playable
         }
         return emptyList()
     }
@@ -188,11 +188,11 @@ class RemoteSourceProvider(
     private fun collectStreams(value: Any?, out: MutableList<ProviderStream>, quality: String? = null) {
         when (value) {
             is JSONObject -> {
-                val directKeys = listOf("url", "file", "stream", "streamUrl", "stream_url", "m3u8", "mp4", "source", "videoUrl", "link")
+                val directKeys = listOf("url", "file", "stream", "streamUrl", "stream_url", "m3u8", "mpd", "mp4", "source", "videoUrl", "link")
                 val nextQuality = value.firstString("quality", "resolution", "res") ?: quality
                 for (key in directKeys) {
                     value.optString(key).trim()
-                        .takeIf { it.startsWith("http", true) }
+                        .takeIf { isPlayableUrl(it) }
                         ?.let { out += stream(it, nextQuality) }
                 }
                 val keys = value.keys()
@@ -202,8 +202,14 @@ class RemoteSourceProvider(
                 }
             }
             is JSONArray -> for (i in 0 until value.length()) collectStreams(value.opt(i), out, quality)
-            is String -> if (value.startsWith("http", true)) out += stream(value, quality)
+            is String -> if (isPlayableUrl(value.trim())) out += stream(value.trim(), quality)
         }
+    }
+
+    private fun isPlayableUrl(url: String): Boolean {
+        if (!url.startsWith("http", true)) return false
+        val value = url.lowercase()
+        return value.contains(".m3u8") || value.contains(".mpd") || value.contains(".mp4")
     }
 
     private fun stream(url: String, quality: String?): ProviderStream = ProviderStream(
@@ -215,8 +221,7 @@ class RemoteSourceProvider(
         type = when {
             url.contains(".m3u8", true) -> StreamType.HLS
             url.contains(".mpd", true) -> StreamType.DASH
-            url.contains(".mp4", true) -> StreamType.MP4
-            else -> StreamType.UNKNOWN
+            else -> StreamType.MP4
         }
     )
 
