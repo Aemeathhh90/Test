@@ -4,9 +4,12 @@ object ProviderFactory {
 
     fun createRegistry(): ProviderRegistry {
         return ProviderRegistry().apply {
-            // Primary providers.
+            // Primary/source-specific adapters.
             register(OtakudesuProvider())
             register(SamehadakuProvider())
+            register(AnimeSailProvider())
+
+            // Multi-gateway adapters. Each source can fail over to another gateway.
             register(RemoteSourceProvider("animasu", "Animasu", 30, "animasu"))
             register(RemoteSourceProvider("animeindo", "AnimeIndo", 40, "animeindo"))
             register(RemoteSourceProvider("zoronime", "Zoronime", 50, "zoronime"))
@@ -22,8 +25,6 @@ object ProviderFactory {
             register(RemoteSourceProvider("nontonanimeid", "NontonAnimeID", 150, "nontonanimeid"))
             register(RemoteSourceProvider("animeisme", "Animeisme", 160, "animeisme"))
             register(RemoteSourceProvider("animeku", "Animeku", 170, "animeku"))
-
-            // Fallback providers.
             register(RemoteSourceProvider("oploverz", "Oploverz", 200, "oploverz"))
             register(RemoteSourceProvider("kuramanime", "Kuramanime", 210, "kura"))
             register(RemoteSourceProvider("wibudesu", "Wibudesu", 220, "wibudesu"))
@@ -35,14 +36,9 @@ object ProviderFactory {
             register(RemoteSourceProvider("riie", "RiiE", 280, "riie"))
             register(RemoteSourceProvider("kusonime", "Kusonime", 290, "kusonime"))
             register(RemoteSourceProvider("animekuindo", "Animekuindo", 300, "animekuindo"))
-            register(RemoteSourceProvider("animesail", "AnimeSail", 310, "animesail"))
-            register(RemoteSourceProvider("allanime", "AllAnime", 320, "allanime"))
+            register(RemoteSourceProvider("allanime", "AllAnime", 320, "AllAnime",))
         }
     }
 
-    fun createEngine(): ProviderEngine {
-        return ProviderEngine(
-            registry = createRegistry()
-        )
-    }
+    fun createEngine(): ProviderEngine = ProviderEngine(createRegistry())
 }
