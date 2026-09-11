@@ -3,8 +3,8 @@ package com.kakaanime.app.provider
 /**
  * Removes duplicate stream sources before they reach the player.
  *
- * The same URL can be returned by multiple gateways/providers. We keep the
- * best candidate using provider priority, quality and header richness.
+ * The same URL can be returned by multiple gateways/providers. Lower provider
+ * priority numbers are preferred. Signed query parameters are preserved.
  */
 object ProviderStreamDeduplicator {
     fun deduplicate(
@@ -16,15 +16,15 @@ object ProviderStreamDeduplicator {
             .groupBy { canonicalUrl(it.url) }
             .values
             .map { candidates ->
-                candidates.maxWithOrNull(
-                    compareBy<ProviderStream> { providerPriorities[it.providerId] ?: Int.MIN_VALUE }
-                        .thenBy { qualityRank(it.quality) }
-                        .thenBy { it.headers.size }
+                candidates.minWithOrNull(
+                    compareBy<ProviderStream> { providerPriorities[it.providerId] ?: Int.MAX_VALUE }
+                        .thenByDescending { qualityRank(it.quality) }
+                        .thenByDescending { it.headers.size }
                 ) ?: candidates.first()
             }
             .sortedWith(
                 compareByDescending<ProviderStream> { qualityRank(it.quality) }
-                    .thenByDescending { providerPriorities[it.providerId] ?: Int.MIN_VALUE }
+                    .thenBy { providerPriorities[it.providerId] ?: Int.MAX_VALUE }
                     .thenBy { it.providerId }
             )
     }
