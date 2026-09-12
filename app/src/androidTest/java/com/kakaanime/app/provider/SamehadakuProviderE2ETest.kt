@@ -30,21 +30,26 @@ class SamehadakuProviderE2ETest {
         val searchResults = provider.search("One Piece")
         assertFalse("Samehadaku search returned no results", searchResults.isEmpty())
 
+        // Search may return titles such as "One Piece Heroines" before the
+        // canonical series. Do not let a broad contains() match select the wrong anime.
         val anime = searchResults.firstOrNull {
-            it.title.contains("One Piece", ignoreCase = true)
-        } ?: searchResults.first()
+            it.title.trim().equals("One Piece", ignoreCase = true) ||
+                it.id.trimEnd('/').endsWith("/anime/one-piece", ignoreCase = true)
+        }
+        assertNotNull("Samehadaku search did not return the canonical One Piece result", anime)
 
-        val detail = provider.getAnime(anime.id)
-        assertNotNull("Samehadaku detail resolution failed for ${anime.id}", detail)
+        val selectedAnime = anime!!
+        val detail = provider.getAnime(selectedAnime.id)
+        assertNotNull("Samehadaku detail resolution failed for ${selectedAnime.id}", detail)
 
-        val episodes = provider.getEpisodes(anime.id)
-        assertFalse("Samehadaku returned no episodes for ${anime.id}", episodes.isEmpty())
+        val episodes = provider.getEpisodes(selectedAnime.id)
+        assertFalse("Samehadaku returned no episodes for ${selectedAnime.id}", episodes.isEmpty())
 
         val episode = episodes.firstOrNull { it.number == 7 }
-        assertNotNull("Samehadaku episode 7 is not present for ${anime.id}", episode)
+        assertNotNull("Samehadaku episode 7 is not present for ${selectedAnime.id}", episode)
 
         val selectedEpisode = episode!!
-        val streams = provider.getStreams(anime.id, selectedEpisode.number)
+        val streams = provider.getStreams(selectedAnime.id, selectedEpisode.number)
         assertFalse(
             "Samehadaku returned no streams for episode ${selectedEpisode.number}",
             streams.isEmpty()
@@ -57,7 +62,7 @@ class SamehadakuProviderE2ETest {
 
         val selected = stream!!
         println(
-            "E2E_PROVIDER=samehadaku anime=${anime.title} episode=${selectedEpisode.number} " +
+            "E2E_PROVIDER=samehadaku anime=${selectedAnime.title} episode=${selectedEpisode.number} " +
                 "type=${selected.type} quality=${selected.quality} url=${selected.url.take(180)}"
         )
 
