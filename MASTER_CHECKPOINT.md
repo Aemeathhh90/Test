@@ -1606,3 +1606,125 @@ onRenderedFirstFrame()
  ↓
 🟢 PASS
 ```
+ 
+---
+# 6C. 🔵 EXTRACTOR / STREAM SOLVING REFERENSE STACK
+
+**Status:** 🔵 **ARSITEKTUR TERKUNCI — REFERENSI IMPLEMENTASI ANILAB**
+
+- **yt-dlp** — extractor engine dan pola specific extractor → generic fallback.
+- **Anime SDK** — provider abstraction, unified model/provider mapping, retry/rate-limit, dan E2E.
+- **OCE** — resolver pipeline, host extractor, WebView/JS fallback, cache/circuit-breaker, dan validasi media.
+- **CloudStream** — provider/extractor architecture, `loadExtractor()`, server discovery, `ExtractorLink`, dan host resolver.
+- **Media Downloader** — Kotlin registry + typed errors, priority/fallback, dan Media3.
+- **MaxStream** — advanced stream solving, redirect chaining, HLS validation, WebView/network interception, dan generic media fallback.
+- **Anime Nexus HLS Resolver** — protected HLS, session/token, playlist rewriting, dan CDN/auth headers.
+- **Consumet** — provider abstraction.
+- **Hikari** — Android/Media3 dan resolver pattern.
+- **Anime Nexus** — reliability, cache, stale-cache fallback, dan provider rotation.
+
+### 🔵 Struktur target AniLab
+
+```text
+Provider Router
+      ↓
+Server Discovery
+      ↓
+Extractor Registry
+      ↓
+Specific Extractor
+      ↓
+Generic Embed
+      ↓
+Generic Direct
+      ↓
+Redirect / WebView / JS bila perlu
+      ↓
+HLS/DASH validation
+      ↓
+ProviderStream
+      ↓
+Media3
+      ↓
+onRenderedFirstFrame()
+```
+
+### 🔵 Aturan inti
+
+1. Direct media dipakai langsung bila playable.
+2. Specific/host extractor mendapat prioritas sebelum generic fallback.
+3. Generic Embed menangani iframe/player/data-video/source.
+4. Generic Direct menangani `.mp4`, `.m3u8`, `.mpd`.
+5. Redirect resolver memiliki batas chain dan cycle protection.
+6. WebView/JS hanya dipakai bila HTTP parsing tidak cukup.
+7. Referer dan required headers dipertahankan sampai Media3.
+8. Extractor gagal harus failover ke kandidat berikutnya tanpa crash.
+9. URL dan hasil stream dideduplicate.
+10. Hasil akhir selalu dinormalisasi menjadi `ProviderStream`.
+
+### 🔵 Contract
+
+```text
+Provider
+  ↓
+Server Discovery
+  ↓
+ExtractorRegistry.find(url)
+  ↓
+Specific Extractor
+  ↓
+Generic Embed / Generic Direct
+  ↓
+StreamResolver
+  ↓
+ProviderStream
+  ↓
+Media3
+```
+
+### 🔵 Non-negotiable
+
+- Referensi dipakai sebagai pola desain, bukan dependency yang dicopy seluruhnya.
+- Resolver yang reusable tidak boleh ditanam ulang di setiap provider.
+- Protected/signed HLS harus mempertahankan session, token, referer, dan header yang diperlukan.
+- Cache stream/token yang cepat kedaluwarsa tidak boleh dianggap permanen.
+- User tetap hanya melihat `Anime → Episode → Play`.
+- Status provider tetap 🔴 sampai E2E mencapai `onRenderedFirstFrame()`.
+
+### 🔵 Status implementasi saat checkpoint
+
+- 🔵 `StreamExtractor` contract → fondasi sudah ada.
+- 🔵 `ExtractorRegistry` → fondasi sudah ada.
+- 🔵 `StreamResolver` → fondasi sudah ada.
+- 🔵 `GenericDirectExtractor` → fondasi sudah ada.
+- 🔴 `GenericEmbedExtractor` → belum dianggap selesai sebelum audit/E2E.
+- 🔴 Specific host extractors → belum lengkap.
+- 🔴 Redirect/WebView/JS fallback → belum lengkap.
+- 🔴 HLS/DASH validation → belum menjadi gate green.
+- 🔴 Integrasi penuh Provider → Discovery → Extractor → Resolver → Media3 → E2E → pekerjaan P0.
+
+### 🔵 E2E gate
+
+```text
+Search
+ ↓
+Anime Detail
+ ↓
+Episode
+ ↓
+Server Discovery
+ ↓
+Extractor Registry
+ ↓
+Specific / Generic Resolver
+ ↓
+.m3u8 / .mpd / .mp4
+ ↓
+ProviderStream
+ ↓
+Media3
+ ↓
+onRenderedFirstFrame()
+ ↓
+🟢 PASS
+```
