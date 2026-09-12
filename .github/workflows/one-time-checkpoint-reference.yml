@@ -1,0 +1,207 @@
+name: One-time AniLab checkpoint reference
+on:
+  push:
+    branches:
+      - main
+permissions:
+  contents: write
+jobs:
+  append:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Update checkpoint and remove this workflow
+        shell: bash
+        run: |
+          set -e
+          marker="# 6C. 🔵 ANILAB REFERENCE STACK — EXTRACTOR / RESOLVER / PROVIDER"
+          if ! grep -Fq "$marker" MASTER_CHECKPOINT.md; then
+            cat >> MASTER_CHECKPOINT.md <<'EOF'
+
+---
+
+# 6C. 🔵 ANILAB REFERENCE STACK — EXTRACTOR / RESOLVER / PROVIDER
+
+**Status:** 🔵 **REFERENCE & ARCHITECTURE TERKUNCI — TIDAK DI-COPY WHOLESALE**
+
+Referensi tambahan yang sudah disaring untuk AniLab. Yang disimpan di checkpoint adalah **struktur/prinsip yang layak diadopsi**, bukan kode atau dependency project lain.
+
+### 🔵 Ranking referensi inti
+
+1. **yt-dlp — 9.8/10** — extractor registry, URL/site matching, specific-first → generic fallback, modular extractor architecture.
+2. **Anime SDK — 9.7/10** — anime provider abstraction, episode/stream separation, generic HLS extractor, provider mapping, retry/cancellation/concurrency, live E2E validation.
+3. **OCE — 9.6/10** — extractor registry, fallback pipeline, config-driven provider/domain, cache, circuit breaker, M3U8 verification, WebView/JS resolver patterns.
+4. **CloudStream — 9.5/10** — Provider → episode/server discovery → extractor → stream, `loadExtractor()`-style dispatcher, host-specific extractor registry, direct + embed handling.
+5. **Media Downloader — 9.5/10** — Kotlin/Android extractor registry, priority, fallback, typed errors, HLS parsing/testing.
+6. **MaxStream — 9.3/10** — parallel server discovery, host extractors, redirect chaining, cycle protection, WebView interception, HLS validation.
+7. **Anime Nexus HLS Resolver — 9.0/10 untuk HLS** — session/token-aware HLS, signed CDN URL, playlist/token rewriting; hanya conditional reference.
+8. **Consumet — 8.8/10** — provider/service separation and search → detail → episode → stream abstraction.
+9. **Hikari — 8.4/10** — Android-native streaming, Media3/player integration, CloudStream compatibility concepts.
+10. **Anime Nexus — 8.1/10** — cache, stale-cache fallback, provider rotation/recovery; target setelah P0 stabil.
+
+### 🔵 Gabungan arsitektur target AniLab
+
+```text
+                         ANI LAB
+                            │
+                    Provider Router
+                            │
+          ┌─────────────────┼─────────────────┐
+          ▼                 ▼                 ▼
+      Otakudesu          ANIMEIN            Wibuku
+          │                 │                 │
+          └─────────────────┼─────────────────┘
+                            ▼
+                    Server Discovery
+                            ▼
+                   Extractor Registry
+                            │
+             ┌──────────────┼──────────────┐
+             ▼              ▼              ▼
+          Direct         Embed/Iframe   Host Extractor
+             │              │              │
+             └──────────────┼──────────────┘
+                            ▼
+                    Redirect Resolver
+                            ▼
+                     WebView / JS
+                    (jika memang perlu)
+                            ▼
+                    HLS/DASH Validation
+                            ▼
+                     ProviderStream
+                            ▼
+                          Media3
+                            ▼
+                 onRenderedFirstFrame()
+```
+
+### 🔵 Extractor priority model
+
+```text
+Specific host extractor
+        ↓
+Specialized API/JS/WebView resolver
+        ↓
+Generic embed/page extractor
+        ↓
+Generic direct-media extractor
+        ↓
+FAIL — controlled error
+```
+
+- Extractor spesifik selalu mendapat kesempatan sebelum generic fallback.
+- Generic extractor tidak boleh menutupi extractor host yang lebih tepat.
+- Direct `.m3u8/.mpd/.mp4` tetap jalur tercepat.
+- Embed/player URL masuk resolver.
+- Redirect/iframe memakai cycle/depth protection.
+- Semua extractor menghasilkan `ProviderStream`.
+
+### 🔵 Stream Resolver responsibilities
+
+- Direct media detection.
+- Embed/iframe discovery.
+- HTTP redirect handling.
+- Referer dan request-header propagation.
+- Host-specific extraction.
+- WebView/JS fallback bila memang diperlukan.
+- HLS/DASH/direct-media classification.
+- Quality normalization.
+- Timeout dan retry limit.
+- Loop/cycle protection.
+- Controlled resolver errors.
+
+**Provider tidak boleh berubah menjadi resolver monolith.**
+
+### 🔵 Provider responsibilities
+
+```text
+Search
+ ↓
+Anime Detail
+ ↓
+Episode Discovery
+ ↓
+Server / Embed Discovery
+ ↓
+Candidate URLs
+```
+
+Setelah candidate URL ditemukan, provider menyerahkannya ke `StreamResolver` / `ExtractorRegistry`.
+
+### 🔵 Error model target
+
+```text
+NO_MATCH
+NETWORK_ERROR
+HTTP_ERROR
+REDIRECT_ERROR
+EMBED_BLOCKED
+EXTRACTOR_ERROR
+INVALID_STREAM
+HLS_ERROR
+DASH_ERROR
+EXPIRED_STREAM
+TIMEOUT
+```
+
+Detail teknis hanya untuk logging/debugging internal; UI menerima error yang sederhana dan terkendali.
+
+### 🔵 Reliability layer — setelah P0
+
+```text
+Provider failure
+      ↓
+Retry with limit
+      ↓
+Alternate server
+      ↓
+Alternate provider
+      ↓
+Cache/stale cache jika valid
+      ↓
+Controlled failure
+```
+
+Tidak ada infinite retry/loop antar provider.
+
+### 🔵 Protected HLS — conditional
+
+- Signed/tokenized HLS bukan tanggung jawab generic extractor.
+- Jika provider nyata membutuhkan session/token/CDN handling, buat resolver khusus host/provider tersebut.
+- Proxy/rewrite/decrypt layer **tidak** dimasukkan sebelum E2E menunjukkan kebutuhan nyata.
+
+### 🔵 Non-negotiable reference rules
+
+- Tidak copy CloudStream, OCE, yt-dlp, MaxStream, Anime SDK, atau project lain secara wholesale.
+- Tidak menambah dependency hanya karena project referensi menggunakannya.
+- Ambil arsitektur/prinsip yang terbukti berguna lalu implementasikan Kotlin-native sesuai AniLab.
+- Referensi baru hanya masuk baseline jika meningkatkan reliability, maintainability, provider coverage, atau E2E success rate.
+- Jika referensi jelek/tidak relevan, **tidak dimasukkan**.
+- Provider tetap tersembunyi dari user.
+- User tetap melihat `Anime → Episode → Play`.
+- Final gate tetap `ProviderStream → Media3 → onRenderedFirstFrame()`.
+
+### 🔵 Reference implementation status
+
+- 🟢 `StreamExtractor` foundation tersedia.
+- 🟢 `ExtractorRegistry` foundation tersedia.
+- 🟢 `StreamResolver` foundation tersedia.
+- 🟢 `GenericDirectExtractor` tersedia.
+- 🟢 `GenericEmbedExtractor` tersedia.
+- 🟢 Specific-first / generic-last registry ordering tersedia.
+- 🟡 Host-specific extractors ditambahkan berdasarkan kegagalan E2E nyata.
+- 🔴 Protected HLS/token resolver belum diperlukan/diimplementasikan.
+- 🔴 Cache/circuit-breaker reliability layer belum menjadi P0.
+- 🔴 Provider E2E masih menunggu green.
+
+> Referensi ini tidak mengubah status provider menjadi 🟢. E2E playback sampai `onRenderedFirstFrame()` tetap menjadi bukti final.
+EOF
+          fi
+          rm -f .github/workflows/one-time-checkpoint-reference.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add MASTER_CHECKPOINT.md .github/workflows/one-time-checkpoint-reference.yml
+          git commit -m "docs(checkpoint): record AniLab reference stack [skip ci]"
+          git push
