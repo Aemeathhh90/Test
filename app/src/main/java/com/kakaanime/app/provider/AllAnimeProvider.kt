@@ -102,7 +102,13 @@ class AllAnimeProvider : AnimeProvider {
                 .build()
             client.newCall(request).execute().use { response ->
                 if (!response.isSuccessful) return@runCatching null
-                response.body?.string()?.takeIf { it.isNotBlank() }?.let(::JSONObject)
+                val body = response.body?.string()?.trim().orEmpty()
+                if (body.isBlank()) return@runCatching null
+                when {
+                    body.startsWith("[") -> JSONObject().put("items", JSONArray(body))
+                    body.startsWith("{") -> JSONObject(body)
+                    else -> null
+                }
             }
         }.getOrNull()
     }
