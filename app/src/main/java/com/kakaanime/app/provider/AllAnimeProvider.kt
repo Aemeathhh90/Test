@@ -9,7 +9,7 @@ import org.json.JSONObject
 import java.net.URLEncoder
 import java.util.concurrent.TimeUnit
 
-/** Dedicated AllAnime adapter backed by the documented community API. */
+/** Dedicated AllAnime adapter backed by the community API. */
 class AllAnimeProvider : AnimeProvider {
     override val id = "allanime"
     override val name = "AllAnime"
@@ -32,16 +32,19 @@ class AllAnimeProvider : AnimeProvider {
         val root = request("/anime/${encodePath(showId)}") ?: return null
         val data = payload(root)
         val title = firstString(data, "title", "name") ?: return null
-        return ProviderAnime(id = "$id:$showId", title = title, providerId = id, description = firstString(data, "description", "synopsis") ?: "", posterUrl = firstString(data, "poster", "posterUrl", "image", "thumbnail"), backdropUrl = firstString(data, "backdrop", "cover"), genres = stringArray(data, "genres", "genre"), alternativeTitles = stringArray(data, "alternativeTitles", "alternatives"), year = firstString(data, "year", "release", "released")?.let { Regex("\\b(19\\d{2}|20\\d{2})\\b").find(it)?.value?.toIntOrNull() }, status = firstString(data, "status") ?: "UNKNOWN")
+        return ProviderAnime(id = "$id:$showId", title = title, providerId = id, description = firstString(data, "description", "synopsis") ?: "", posterUrl = firstString(data, "poster", "posterUrl", "image", "thumbnail", "thumbnail_url"), backdropUrl = firstString(data, "backdrop", "cover"), genres = stringArray(data, "genres", "genre"), alternativeTitles = stringArray(data, "alternativeTitles", "alternatives", "title_english"), year = firstString(data, "year", "release", "released")?.let { Regex("\\b(19\\d{2}|20\\d{2})\\b").find(it)?.value?.toIntOrNull() }, status = firstString(data, "status") ?: "UNKNOWN")
     }
 
     override suspend fun getEpisodes(animeId: String): List<ProviderEpisode> {
         val showId = animeId.substringAfter(":", animeId)
         val root = request("/episodes/${encodePath(showId)}?mode=sub") ?: return emptyList()
-        return array(root).mapNotNull { item ->
-            val number = when { item.has("episode") -> item.optInt("episode", 0); item.has("number") -> item.optInt("number", 0); else -> item.optString("episodeNumber").toIntOrNull() ?: 0 }
+        return episodeValues(root).mapNotNull { raw ->
+            val number = when (raw) {
+                is JSONObject -> raw.optString("episode").toIntOrNull() ?: raw.optString("number").toIntOrNull() ?: raw.optString("episodeNumber").toIntOrNull()
+                else -> raw.toString().toDoubleOrNull()?.let { if (it > 0) it.toInt() else null }
+            } ?: return@mapNotNull null
             if (number <= 0) return@mapNotNull null
-            ProviderEpisode(id = "$id:$showId:$number", animeId = "$id:$showId", number = number, providerId = id, title = item.optString("title").trim().ifBlank { "Episode $number" })
+            ProviderEpisode(id = "$id:$showId:$number", animeId = "$id:$showId", number = number, providerId = id, title = if (raw is JSONObject) raw.optString("title").trim().ifBlank { "Episode $number" } else "Episode $number")
         }.distinctBy { it.number }.sortedBy { it.number }
     }
 
@@ -78,7 +81,16 @@ class AllAnimeProvider : AnimeProvider {
             root.optJSONArray(key)?.let { return it.objects() }
             root.optJSONObject(key)?.let { nested -> array(nested).takeIf { it.isNotEmpty() }?.let { return it } }
         }
-        return if (root.has("title") || root.has("name") || root.has("episode") || root.has("number")) listOf(root) else emptyList()
+        return if (root.has("title") || root.has("name")) listOf(root) else emptyList()
+    }
+
+    private fun episodeValues(root: JSONObject): List<Any> {
+        root.optJSONArray("episodes")?.let { return it.values() }
+        for (key in listOf("result", "data", "items")) {
+            root.optJSONArray(key)?.let { return it.values() }
+            root.optJSONObject(key)?.let { nested -> episodeValues(nested).takeIf { it.isNotEmpty() }?.let { return it } }
+        }
+        return emptyList()
     }
 
     private fun collectUrls(value: Any?, quality: String, out: MutableList<ProviderStream>) {
@@ -91,8 +103,9 @@ class AllAnimeProvider : AnimeProvider {
 
     private fun stream(url: String, quality: String) = ProviderStream(providerId = id, url = url, quality = quality, language = "Japanese", subtitleLanguage = "Indonesian", type = when { url.contains(".m3u8", true) -> StreamType.HLS; url.contains(".mpd", true) -> StreamType.DASH; url.contains(".mp4", true) -> StreamType.MP4; else -> StreamType.UNKNOWN })
     private fun firstString(root: JSONObject, vararg keys: String): String? = keys.firstNotNullOfOrNull { root.optString(it).trim().ifBlank { null } }
-    private fun stringArray(root: JSONObject, vararg keys: String): List<String> { for (key in keys) root.optJSONArray(key)?.let { return it.strings() }; return emptyList() }
+    private fun stringArray(root: JSONObject, vararg keys: String): List<String> { for (key in keys) { root.optJSONArray(key)?.let { return it.strings() }; root.optString(key).trim().takeIf { it.isNotBlank() }?.let { return listOf(it) } }; return emptyList() }
     private fun JSONArray.objects(): List<JSONObject> = buildList { for (i in 0 until length()) optJSONObject(i)?.let(::add) }
+    private fun JSONArray.values(): List<Any> = buildList { for (i in 0 until length()) opt(i)?.let(::add) }
     private fun JSONArray.strings(): List<String> = buildList { for (i in 0 until length()) optString(i).trim().takeIf { it.isNotBlank() }?.let(::add) }
     private fun encode(value: String): String = URLEncoder.encode(value.trim(), "UTF-8")
     private fun encodePath(value: String): String = encode(value).replace("+", "%20")
