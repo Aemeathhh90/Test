@@ -19,22 +19,33 @@ class ExtractorRegistry(
     extractors: List<StreamExtractor> = emptyList(),
     includeSamehadakuEpisodeExtractor: Boolean = true
 ) {
-    private val extractors = (
-        (
-            listOfNotNull(
-                SamehadakuEpisodeExtractor().takeIf { includeSamehadakuEpisodeExtractor },
+    private val extractors = buildList {
+        if (includeSamehadakuEpisodeExtractor) {
+            // Important: construct this only when enabled. Using
+            // SamehadakuEpisodeExtractor().takeIf { include... } would still
+            // invoke its constructor when disabled and recursively construct
+            // another registry.
+            add(SamehadakuEpisodeExtractor())
+        }
+
+        addAll(
+            listOf(
                 OtakudesuServerExtractor(),
                 KrakenFilesExtractor(),
                 PixelDrainExtractor(),
                 JavascriptMediaExtractor()
-            ) + extractors
+            )
         )
-            .distinctBy { it.id }
-            .sortedByDescending { it.priority } +
-        GenericEmbedExtractor() +
-        GenericDirectExtractor()
-        )
-        .distinctBy { it.id }
+        addAll(extractors)
+
+        val specific = distinctBy { it.id }
+            .sortedByDescending { it.priority }
+
+        clear()
+        addAll(specific)
+        add(GenericEmbedExtractor())
+        add(GenericDirectExtractor())
+    }.distinctBy { it.id }
 
     fun find(url: String): List<StreamExtractor> =
         extractors.filter { extractor ->
