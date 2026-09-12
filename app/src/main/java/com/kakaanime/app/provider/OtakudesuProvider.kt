@@ -12,9 +12,8 @@ import java.util.concurrent.TimeUnit
 /**
  * Otakudesu provider adapter.
  *
- * Uses qrtzanim as the primary source and keeps the legacy Otakudesu API as
- * a fallback. Provider-specific slug differences are normalized before
- * resolving anime details and episodes.
+ * Uses qrtzanim as the primary source, direct Otakudesu HTML as a detail/
+ * episode fallback, and the legacy JSON API as a final fallback.
  */
 class OtakudesuProvider : AnimeProvider {
 
@@ -62,9 +61,6 @@ class OtakudesuProvider : AnimeProvider {
             if (primary != null) return primary.toProviderAnime(candidate)
         }
 
-        // qrtzanim can disappear independently of the actual Otakudesu site.
-        // Read the provider's public anime page directly before falling back
-        // to the older JSON API.
         for (candidate in animeSlugCandidates(slug)) {
             val web = requestWebAnime(candidate)
             if (web != null) return web.toWebProviderAnime(candidate)
@@ -159,10 +155,17 @@ class OtakudesuProvider : AnimeProvider {
             val html = runCatching {
                 val request = Request.Builder()
                     .url("$base/anime/${encodePath(slug)}/")
-                    .header("User-Agent", "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 Chrome/124.0.0.0 Mobile Safari/537.36")
+                    .header(
+                        "User-Agent",
+                        "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 Chrome/124.0.0.0 Mobile Safari/537.36"
+                    )
                     .header("Accept-Language", "id-ID,id;q=0.9,en-US;q=0.8")
-                    .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
+                    .header(
+                        "Accept",
+                        "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
+                    )
                     .build()
+
                 client.newCall(request).execute().use { response ->
                     if (!response.isSuccessful) null else response.body?.string()
                 }
@@ -176,26 +179,49 @@ class OtakudesuProvider : AnimeProvider {
     }
 
     private fun String.toWebProviderAnime(fallbackId: String): ProviderAnime {
-        val title = Regex("<h1[^>]*>(.*?)</h1>", setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL))
+        val title = Regex(
+            "<h1[^>]*>(.*?)</h1>",
+            setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL)
+        )
             .find(this)
             ?.groupValues
             ?.getOrNull(1)
             ?.stripHtml()
-            ?.replace(Regex("\\s*(Subtitle\\s+Indonesia|Sub\\s*Indo).*", RegexOption.IGNORE_CASE), "")
+            ?.replace(
+                Regex("\\s*(Subtitle\\s+Indonesia|Sub\\s*Indo).*", RegexOption.IGNORE_CASE),
+                ""
+            )
             ?.trim()
             ?.ifBlank { null }
             ?: "Unknown Anime"
 
         val episodes = toWebProviderEpisodeList(fallbackId)
 
+        val description = Regex(
+            "<div[^>]+class=[\"'][^\"']*(?:sinopsis|sinopc)[^\"']*[\"'][^>]*>(.*?)</div>",
+            setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL)
+        )
+            .find(this)
+            ?.groupValues
+            ?.getOrNull(1)
+            ?.stripHtml()
+            ?.trim()
+            ?: ""
+
         return ProviderAnime(
             id = "$id:$fallbackId",
             title = title,
             providerId = id,
-            posterUrl = Regex("<img[^>]+(?:src|data-original)=[\"']([^\"']+)[\"']", setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL))
-                .find(this)?.groupValues?.getOrNull(1)?.trim()?.ifBlank { null },
-            description = Regex("<div[^>]+class=[\"'][^\"']*(?:sinopsis|sinopc)[^\"']*[\"'][^>]*>(.*?)</div>", setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL))
-                .find(this)?.groupValues?.getOrNull(1)?.stripHtml()?.trim(),
+            posterUrl = Regex(
+                "<img[^>]+(?:src|data-original)=[\"']([^\"']+)[\"']",
+                setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL)
+            )
+                .find(this)
+                ?.groupValues
+                ?.getOrNull(1)
+                ?.trim()
+                ?.ifBlank { null },
+            description = description,
             status = if (contains("Ongoing", ignoreCase = true)) "Ongoing" else "UNKNOWN",
             latestEpisode = episodes.maxOfOrNull { it.number }
         )
@@ -213,6 +239,7 @@ class OtakudesuProvider : AnimeProvider {
                 val text = match.groupValues.getOrNull(2)?.stripHtml()?.trim().orEmpty()
                 val endpoint = normalizeEpisodeSlug(href)
                 val number = extractEpisodeNumber(text, endpoint) ?: return@mapNotNull null
+
                 ProviderEpisode(
                     id = "$id:$endpoint",
                     animeId = "$id:$animeSlug",
@@ -223,6 +250,7 @@ class OtakudesuProvider : AnimeProvider {
             }
             .distinctBy { it.number }
             .sortedBy { it.number }
+            .toList()
     }
 
     private fun String.stripHtml(): String =
@@ -239,6 +267,7 @@ class OtakudesuProvider : AnimeProvider {
         val title = optString("title").ifBlank {
             metadata?.optString("judul").orEmpty()
         }.ifBlank { "Unknown Anime" }
+
         val episodeList = optJSONArray("episodeList")
         val synopsis = optJSONArray("synopsis")?.toStringList()?.joinToString("\n")
             ?: optString("synopsis")
@@ -294,6 +323,7 @@ class OtakudesuProvider : AnimeProvider {
             val item = optJSONObject(index) ?: continue
             val slug = normalizeAnimeSlug(item.optString("slug"))
             if (slug.isBlank()) continue
+
             add(
                 ProviderAnime(
                     id = "$id:$slug",
@@ -312,6 +342,7 @@ class OtakudesuProvider : AnimeProvider {
             val item = optJSONObject(index) ?: continue
             val slug = normalizeAnimeSlug(item.optString("endpoint"))
             if (slug.isBlank()) continue
+
             add(
                 ProviderAnime(
                     id = "$id:$slug",
@@ -366,10 +397,12 @@ class OtakudesuProvider : AnimeProvider {
     private fun JSONObject.toQrtzStreams(): List<ProviderStream> {
         val streams = mutableListOf<ProviderStream>()
         val streamArray = optJSONArray("streams") ?: JSONArray()
+
         for (index in 0 until streamArray.length()) {
             val item = streamArray.optJSONObject(index) ?: continue
             val url = item.optString("embedUrl").trim()
             if (url.isBlank()) continue
+
             streams += streamFromUrl(
                 url = url,
                 quality = item.optString("resolution").ifBlank { null }
@@ -426,14 +459,28 @@ class OtakudesuProvider : AnimeProvider {
 
     private fun extractEpisodeNumber(title: String, slug: String): Int? {
         val value = "$title $slug"
-        return Regex("(?:episode|eps)[^0-9]*(\\d+(?:\\.\\d+)?)", RegexOption.IGNORE_CASE)
-            .find(value)?.groupValues?.getOrNull(1)?.toDoubleOrNull()?.toInt()
+        return Regex(
+            "(?:episode|eps)[^0-9]*(\\d+(?:\\.\\d+)?)",
+            RegexOption.IGNORE_CASE
+        )
+            .find(value)
+            ?.groupValues
+            ?.getOrNull(1)
+            ?.toDoubleOrNull()
+            ?.toInt()
             ?: Regex("(?:^|-)e?(\\d+)(?:-|$)", RegexOption.IGNORE_CASE)
-                .find(slug)?.groupValues?.getOrNull(1)?.toIntOrNull()
+                .find(slug)
+                ?.groupValues
+                ?.getOrNull(1)
+                ?.toIntOrNull()
     }
 
     private fun extractYear(value: String): Int? =
-        Regex("\\b(19\\d{2}|20\\d{2})\\b").find(value)?.groupValues?.getOrNull(1)?.toIntOrNull()
+        Regex("\\b(19\\d{2}|20\\d{2})\\b")
+            .find(value)
+            ?.groupValues
+            ?.getOrNull(1)
+            ?.toIntOrNull()
 
     private fun String?.ifNullOrBlank(fallback: String): String =
         if (this.isNullOrBlank()) fallback else this
@@ -448,7 +495,8 @@ class OtakudesuProvider : AnimeProvider {
         }
     }
 
-    private fun encode(value: String): String = URLEncoder.encode(value.trim(), "UTF-8")
+    private fun encode(value: String): String =
+        URLEncoder.encode(value.trim(), "UTF-8")
 
     private fun encodePath(value: String): String =
         value.trim('/').split('/').joinToString("/") { encode(it) }
