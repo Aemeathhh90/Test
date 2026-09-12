@@ -18,6 +18,18 @@
 ### Home & Library
 - 🟡 Home UI — Saikou-inspired direction
 - ⚪ Anime search and discovery polish
+- ⚪ AniList metadata integration
+  - Poster, banner, synopsis, genres, year, status, rating, and alternative titles from AniList.
+  - Use AniList as the canonical anime identity/metadata layer.
+- ⚪ Provider availability mapping
+  - Match one AniList anime to multiple streaming providers without showing duplicate anime entries.
+  - Keep provider-specific episode and stream data separate from AniList metadata.
+- ⚪ Multi-provider fallback
+  - If a provider does not contain the anime or its episodes, automatically try other registered providers.
+  - Prefer an available provider without requiring the user to manually switch sources.
+- ⚪ Unavailable streaming state
+  - If AniList has the anime but no registered provider has playable episodes, keep the anime visible.
+  - Show a clear "Streaming belum tersedia" state instead of fake episodes or a broken watch button.
 - ⚪ Favorite — single Favorite list
 - ⚪ Watching / episode progress integration
 - ⚪ New Updates for anime receiving new episodes
