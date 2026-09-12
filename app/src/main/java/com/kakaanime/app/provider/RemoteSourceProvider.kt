@@ -9,7 +9,7 @@ import org.json.JSONObject
 import java.net.URLEncoder
 import java.util.concurrent.TimeUnit
 
-/** Multi-gateway adapter. Sanka is a fallback, not the single point of failure. */
+/** Multi-gateway adapter with native gateways first and a documented direct-playback fallback. */
 class RemoteSourceProvider(
     override val id: String,
     override val name: String,
@@ -21,6 +21,7 @@ class RemoteSourceProvider(
     private val wajik = "https://wajik-anime-api.vercel.app"
     private val kumanime = "https://kumanime.vercel.app/api"
     private val vharasc = "https://www.vharasc.my.id/api/v1"
+    private val verified = "https://123anime-api.mdtahseen7378.workers.dev"
 
     override suspend fun search(query: String): List<ProviderAnime> {
         for (url in searchUrls(query)) {
@@ -28,7 +29,7 @@ class RemoteSourceProvider(
             val result = extractItems(root).mapNotNull { it.toAnime() }
             if (result.isNotEmpty()) return result
         }
-        return emptyList()
+        return verifiedSearch(query)
     }
 
     override suspend fun getAnime(animeId: String): ProviderAnime? {
@@ -38,7 +39,7 @@ class RemoteSourceProvider(
             root.toAnime(slug)?.let { return it }
             extractItems(root).firstOrNull()?.toAnime(slug)?.let { return it }
         }
-        return null
+        return verifiedDetail(slug)
     }
 
     override suspend fun getEpisodes(animeId: String): List<ProviderEpisode> {
@@ -52,7 +53,7 @@ class RemoteSourceProvider(
             }.distinctBy { it.number }.sortedBy { it.number }
             if (episodes.isNotEmpty()) return episodes
         }
-        return emptyList()
+        return verifiedEpisodes(slug)
     }
 
     override suspend fun getStreams(animeId: String, episodeNumber: Int): List<ProviderStream> {
@@ -65,7 +66,41 @@ class RemoteSourceProvider(
             val playable = ProviderStreamDeduplicator.deduplicate(streams).filter { it.type != StreamType.UNKNOWN }
             if (playable.isNotEmpty()) return playable
         }
-        return emptyList()
+        return verifiedStreams(slug, episodeNumber)
+    }
+
+    private suspend fun verifiedSearch(query: String): List<ProviderAnime> {
+        val root = requestJson("$verified/search?keyword=${encode(query)}") ?: return emptyList()
+        return extractItems(root).mapNotNull { item ->
+            val rawId = item.firstString("id", "slug", "animeId") ?: return@mapNotNull null
+            val title = item.firstString("title", "name") ?: return@mapNotNull null
+            ProviderAnime(id = "$id:$rawId", title = title, providerId = id, posterUrl = item.firstString("poster", "posterUrl", "image", "thumbnail"), latestEpisode = item.firstString("episodes", "episodeCount", "totalEpisodes")?.toIntOrNull())
+        }
+    }
+
+    private suspend fun verifiedDetail(slug: String): ProviderAnime? {
+        val root = requestJson("$verified/anime/${encodePath(slug)}") ?: return null
+        val data = payload(root)
+        val title = data.firstString("title", "name") ?: return null
+        return ProviderAnime(id = "$id:$slug", title = title, providerId = id, description = data.firstString("description", "synopsis") ?: "", posterUrl = data.firstString("poster", "posterUrl", "image", "thumbnail"), backdropUrl = data.firstString("backdrop", "cover"), genres = extractStrings(data, "genres", "genre"), status = data.firstString("status") ?: "UNKNOWN")
+    }
+
+    private suspend fun verifiedEpisodes(slug: String): List<ProviderEpisode> {
+        val root = requestJson("$verified/api/v2/anime/${encodePath(slug)}/episodes") ?: return emptyList()
+        return extractEpisodeItems(root).mapNotNull { item ->
+            val number = item.episodeNumber() ?: item.optString("number").toIntOrNull() ?: return@mapNotNull null
+            ProviderEpisode(id = "$id:$slug:$number", animeId = "$id:$slug", number = number, providerId = id, title = "Episode $number")
+        }.distinctBy { it.number }.sortedBy { it.number }
+    }
+
+    private suspend fun verifiedStreams(slug: String, episodeNumber: Int): List<ProviderStream> {
+        val root = requestJson("$verified/episode-stream?id=${encode(slug)}&ep=$episodeNumber")
+        val urls = mutableListOf<String>()
+        collectHttpUrls(root, urls)
+        val direct = urls.filter { it.contains(".m3u8", true) || it.contains(".mp4", true) }
+        if (direct.isNotEmpty()) return direct.map { stream(it, "best") }
+        val play = "$verified/play?id=${encode(slug)}&ep=$episodeNumber"
+        return listOf(stream(play, "best"))
     }
 
     private fun searchUrls(query: String): List<String> = buildList {
@@ -120,11 +155,25 @@ class RemoteSourceProvider(
     }
 
     private fun extractEpisodeItems(root: JSONObject): List<JSONObject> {
-        for (key in listOf("episodes", "episode", "episodeList", "episode_list", "episodeListData", "data", "result")) {
+        for (key in listOf("episodes", "episode", "episodeList", "episode_list", "episodeListData", "data", "result", "items")) {
             root.optJSONArray(key)?.let { array -> array.objects().takeIf { it.isNotEmpty() }?.let { return it } }
             root.optJSONObject(key)?.let { nested -> extractEpisodeItems(nested).takeIf { it.isNotEmpty() }?.let { return it } }
         }
         return emptyList()
+    }
+
+    private fun collectHttpUrls(value: Any?, out: MutableList<String>) {
+        when (value) {
+            is JSONObject -> { val keys = value.keys(); while (keys.hasNext()) collectHttpUrls(value.opt(keys.next()), out) }
+            is JSONArray -> for (i in 0 until value.length()) collectHttpUrls(value.opt(i), out)
+            is String -> if (value.startsWith("http", true)) out += value
+        }
+    }
+
+    private fun payload(root: JSONObject): JSONObject {
+        if (root.has("title") || root.has("name")) return root
+        for (key in listOf("data", "result", "anime")) root.optJSONObject(key)?.let { return payload(it) }
+        return root
     }
 
     private fun JSONObject.toAnime(fallbackId: String? = null): ProviderAnime? {
@@ -149,7 +198,6 @@ class RemoteSourceProvider(
     }
 
     private fun isPlayableUrl(url: String): Boolean { if (!url.startsWith("http", true)) return false; val value = url.lowercase(); return value.contains(".m3u8") || value.contains(".mpd") || value.contains(".mp4") }
-
     private fun stream(url: String, quality: String?): ProviderStream = ProviderStream(providerId = id, url = url, quality = quality?.ifBlank { null }, language = "Japanese", subtitleLanguage = "Indonesian", type = when { url.contains(".m3u8", true) -> StreamType.HLS; url.contains(".mpd", true) -> StreamType.DASH; else -> StreamType.MP4 })
     private fun JSONObject.firstString(vararg keys: String): String? = keys.firstNotNullOfOrNull { key -> optString(key).trim().ifBlank { null } }
     private fun JSONObject.episodeNumber(): Int? = firstString("episode", "episodeNumber", "number", "episodeNum")?.toIntOrNull() ?: Regex("(?:episode|eps|ep)[^0-9]*(\\d+)", RegexOption.IGNORE_CASE).find(firstString("title", "name", "slug", "endpoint", "id", "judul").orEmpty())?.groupValues?.getOrNull(1)?.toIntOrNull()
