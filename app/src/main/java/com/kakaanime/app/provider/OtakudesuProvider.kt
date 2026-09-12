@@ -69,14 +69,10 @@ class OtakudesuProvider : AnimeProvider {
         return direct.ifEmpty { gateway.getEpisodes(animeId) }
     }
 
-    override suspend fun getStreams(
-        animeId: String,
-        episodeNumber: Int
-    ): List<ProviderStream> {
+    override suspend fun getStreams(animeId: String, episodeNumber: Int): List<ProviderStream> {
         val episodes = getEpisodes(animeId)
         val episode = episodes.firstOrNull { it.number == episodeNumber }
         if (episode == null) return gateway.getStreams(animeId, episodeNumber)
-
         val endpoint = episode.id.removePrefix("$id:")
         val root = requestJson("$baseUrl/episode/${encodePath(endpoint)}")
         val detail = root?.optJSONObject("episode_detail")
@@ -96,25 +92,20 @@ class OtakudesuProvider : AnimeProvider {
                 if (link.isNotBlank()) streams += streamFromUrl(link, quality)
             }
         }
-
-        val directStreams = streams.distinctBy { it.url }
-        return directStreams.ifEmpty { gateway.getStreams(animeId, episodeNumber) }
+        return streams.distinctBy { it.url }.ifEmpty { gateway.getStreams(animeId, episodeNumber) }
     }
 
     private suspend fun requestJson(url: String): JSONObject? = withContext(Dispatchers.IO) {
         runCatching {
-            val request = Request.Builder()
-                .url(url)
+            val request = Request.Builder().url(url)
                 .header("User-Agent", "KakaAnime/0.1")
                 .header("Accept", "application/json")
                 .build()
             client.newCall(request).execute().use { response ->
                 if (!response.isSuccessful) return@runCatching null
                 val body = response.body?.string().orEmpty()
-                if (body.isBlank()) null else when {
-                    body.trimStart().startsWith("[") -> JSONObject().put("items", JSONArray(body))
-                    else -> JSONObject(body)
-                }
+                if (body.isBlank()) null else if (body.trimStart().startsWith("["))
+                    JSONObject().put("items", JSONArray(body)) else JSONObject(body)
             }
         }.getOrNull()
     }
@@ -123,21 +114,14 @@ class OtakudesuProvider : AnimeProvider {
         val title = optString("title").ifBlank { "Unknown Anime" }
         val episodeList = optJSONArray("episode_list")
         return ProviderAnime(
-            id = "$id:$fallbackId",
-            title = title,
-            providerId = id,
-            posterUrl = optString("thumb").ifBlank { null },
-            description = optString("synopsis"),
-            year = extractYear(optString("release")),
-            status = optString("status").ifBlank { "UNKNOWN" },
-            rating = optDoubleOrNull("skor"),
-            latestEpisode = episodeList?.let { array ->
-                (0 until array.length())
-                    .mapNotNull { index ->
-                        val item = array.optJSONObject(index) ?: return@mapNotNull null
-                        extractEpisodeNumber(item.optString("title"), item.optString("endpoint"))
-                    }
-                    .maxOrNull()
+            id = "$id:$fallbackId", title = title, providerId = id,
+            posterUrl = optString("thumb").ifBlank { null }, description = optString("synopsis"),
+            year = extractYear(optString("release")), status = optString("status").ifBlank { "UNKNOWN" },
+            rating = optDoubleOrNull("skor"), latestEpisode = episodeList?.let { array ->
+                (0 until array.length()).mapNotNull { index ->
+                    val item = array.optJSONObject(index) ?: return@mapNotNull null
+                    extractEpisodeNumber(item.optString("title"), item.optString("endpoint"))
+                }.maxOrNull()
             }
         )
     }
@@ -147,52 +131,39 @@ class OtakudesuProvider : AnimeProvider {
             val item = optJSONObject(i) ?: continue
             val slug = normalizeSlug(item.optString("endpoint").trim())
             if (slug.isBlank()) continue
-            add(
-                ProviderAnime(
-                    id = "$id:$slug",
-                    title = item.optString("title").ifBlank { "Unknown Anime" },
-                    providerId = id,
-                    posterUrl = item.optString("thumb").ifBlank { null },
-                    genres = item.optJSONArray("genres").toStringList(),
-                    status = item.optString("status").ifBlank { "UNKNOWN" },
-                    rating = item.optDoubleOrNull("rating")
-                )
-            )
+            add(ProviderAnime(
+                id = "$id:$slug", title = item.optString("title").ifBlank { "Unknown Anime" },
+                providerId = id, posterUrl = item.optString("thumb").ifBlank { null },
+                genres = item.optJSONArray("genres").toStringList(),
+                status = item.optString("status").ifBlank { "UNKNOWN" }, rating = item.optDoubleOrNull("rating")
+            ))
         }
     }
 
-    private fun streamFromUrl(url: String, quality: String? = null): ProviderStream =
-        ProviderStream(
-            providerId = id,
-            url = url,
-            quality = quality?.ifBlank { null },
-            language = "Japanese",
-            subtitleLanguage = "Indonesian",
-            type = when {
-                url.contains(".m3u8", ignoreCase = true) -> StreamType.HLS
-                url.contains(".mpd", ignoreCase = true) -> StreamType.DASH
-                url.contains(".mp4", ignoreCase = true) -> StreamType.MP4
-                else -> StreamType.UNKNOWN
-            }
-        )
+    private fun streamFromUrl(url: String, quality: String? = null) = ProviderStream(
+        providerId = id, url = url, quality = quality?.ifBlank { null },
+        language = "Japanese", subtitleLanguage = "Indonesian",
+        type = when {
+            url.contains(".m3u8", true) -> StreamType.HLS
+            url.contains(".mpd", true) -> StreamType.DASH
+            url.contains(".mp4", true) -> StreamType.MP4
+            else -> StreamType.UNKNOWN
+        }
+    )
 
     private fun extractEpisodeNumber(title: String, endpoint: String): Int? {
         val value = "$title $endpoint"
-        return Regex("(?:episode|eps)[^0-9]*(\\d+)", RegexOption.IGNORE_CASE)
-            .find(value)?.groupValues?.getOrNull(1)?.toIntOrNull()
-            ?: Regex("(?:^|-)e?(\\d+)(?:-|$)", RegexOption.IGNORE_CASE)
-                .find(endpoint)?.groupValues?.getOrNull(1)?.toIntOrNull()
+        return Regex("(?:episode|eps)[^0-9]*(\\d+)", RegexOption.IGNORE_CASE).find(value)?.groupValues?.getOrNull(1)?.toIntOrNull()
+            ?: Regex("(?:^|-)e?(\\d+)(?:-|$)", RegexOption.IGNORE_CASE).find(endpoint)?.groupValues?.getOrNull(1)?.toIntOrNull()
     }
 
-    private fun extractYear(value: String): Int? =
-        Regex("\\b(19\\d{2}|20\\d{2})\\b").find(value)?.groupValues?.getOrNull(1)?.toIntOrNull()
+    private fun extractYear(value: String): Int? = Regex("\\b(19\\d{2}|20\\d{2})\\b").find(value)?.groupValues?.getOrNull(1)?.toIntOrNull()
 
     private fun normalizeSlug(value: String): String {
         val raw = value.trim()
-        if (!raw.startsWith("http", ignoreCase = true)) return raw.trim('/')
-        return runCatching {
-            URI(raw).path.substringAfter("/anime/", "").trim('/').ifBlank { raw.substringAfterLast('/').trim('/') }
-        }.getOrDefault(raw.substringAfterLast('/').trim('/'))
+        if (!raw.startsWith("http", true)) return raw.trim('/')
+        return runCatching { URI(raw).path.substringAfter("/anime/", "").trim('/').ifBlank { raw.substringAfterLast('/').trim('/') } }
+            .getOrDefault(raw.substringAfterLast('/').trim('/'))
     }
 
     private fun JSONObject.optDoubleOrNull(key: String): Double? =
@@ -200,12 +171,7 @@ class OtakudesuProvider : AnimeProvider {
 
     private fun JSONArray?.toStringList(): List<String> {
         if (this == null) return emptyList()
-        return buildList {
-            for (i in 0 until length()) {
-                val value = optString(i).trim()
-                if (value.isNotBlank()) add(value)
-            }
-        }
+        return buildList { for (i in 0 until length()) { val value = optString(i).trim(); if (value.isNotBlank()) add(value) } }
     }
 
     private fun encode(value: String): String = URLEncoder.encode(value.trim(), "UTF-8")
