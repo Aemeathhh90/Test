@@ -11,11 +11,11 @@ import java.net.URI
 import java.util.concurrent.TimeUnit
 
 /**
- * Best-effort resolver for embed/player pages.
+ * Generic final-stage player resolver.
  *
- * It intentionally stays generic: discover direct media URLs or a small iframe
- * chain, then hand the final media URL back as ProviderStream. Host-specific
- * decryptors can be added later without changing provider code.
+ * Specific provider/host extractors should run before this class. This layer
+ * handles common static player patterns, iframe chains and JWPlayer-style
+ * configuration without pretending to execute arbitrary JavaScript.
  */
 class GenericEmbedExtractor : StreamExtractor {
     override val id = "generic-embed"
@@ -26,13 +26,12 @@ class GenericEmbedExtractor : StreamExtractor {
         .followSslRedirects(true)
         .connectTimeout(10, TimeUnit.SECONDS)
         .readTimeout(15, TimeUnit.SECONDS)
-        .callTimeout(20, TimeUnit.SECONDS)
+        .callTimeout(25, TimeUnit.SECONDS)
         .build()
 
     override fun canHandle(url: String): Boolean {
         val value = url.trim()
-        if (value.isBlank() || !value.startsWith("http", ignoreCase = true)) return false
-        return !value.isDirectMediaUrl()
+        return value.startsWith("http", ignoreCase = true) && !value.isDirectMediaUrl()
     }
 
     override suspend fun extract(url: String, referer: String?): List<ProviderStream> =
@@ -50,10 +49,7 @@ class GenericEmbedExtractor : StreamExtractor {
 
         val request = Request.Builder()
             .url(url)
-            .header(
-                "User-Agent",
-                "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 Chrome/124.0.0.0 Mobile Safari/537.36"
-            )
+            .header("User-Agent", UA)
             .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
             .apply { if (!referer.isNullOrBlank()) header("Referer", referer) }
             .build()
@@ -65,59 +61,61 @@ class GenericEmbedExtractor : StreamExtractor {
             val body = it.body?.string().orEmpty()
             if (body.isBlank()) return emptyList()
 
-            val direct = extractMediaUrls(body)
-                .map { mediaUrl ->
-                    ProviderStream(
-                        providerId = "resolver",
-                        url = mediaUrl,
-                        type = mediaUrl.toStreamType(),
-                        headers = mapOf("Referer" to finalUrl)
-                    )
-                }
-            if (direct.isNotEmpty()) return direct.distinctBy { stream -> stream.url }
+            val direct = extractMediaUrls(body, finalUrl).map { media ->
+                ProviderStream(
+                    providerId = "resolver",
+                    url = media,
+                    type = media.toStreamType(),
+                    headers = mapOf("Referer" to finalUrl)
+                )
+            }
+            if (direct.isNotEmpty()) return direct.distinctBy { it.url }
 
-            val iframeUrls = extractIframeUrls(body, finalUrl)
-            for (iframeUrl in iframeUrls) {
-                val nested = resolvePage(iframeUrl, finalUrl, depth + 1, visited)
+            extractIframeUrls(body, finalUrl).forEach { iframe ->
+                val nested = resolvePage(iframe, finalUrl, depth + 1, visited)
                 if (nested.isNotEmpty()) return nested
             }
         }
-
         return emptyList()
     }
 
-    private fun extractMediaUrls(html: String): List<String> = buildList {
+    private fun extractMediaUrls(html: String, baseUrl: String): List<String> {
+        val urls = linkedSetOf<String>()
         val patterns = listOf(
-            Regex("<source[^>]+src=[\\\"']([^\\\"']+)[\\\"']", RegexOption.IGNORE_CASE),
-            Regex("(?:file|src|source|hls|m3u8|videoUrl|video_url)\\s*[=:]\\s*[\\\"'](https?://[^\\\"']+)[\\\"']", RegexOption.IGNORE_CASE),
-            Regex("https?://[^\\s\\\"'<>]+\\.(?:m3u8|mpd|mp4|mkv|webm)(?:\\?[^\\s\\\"'<>]*)?", RegexOption.IGNORE_CASE)
+            Regex("<(?:source|video)[^>]+(?:src|data-src)=[\\\"']([^\\\"']+)[\\\"']", RegexOption.IGNORE_CASE),
+            Regex("(?:file|src|source|hls|m3u8|videoUrl|video_url|playlist|contentUrl)\\s*[=:]\\s*[\\\"']([^\\\"']+)[\\\"']", RegexOption.IGNORE_CASE),
+            Regex("https?://[^\\s\\\"'<>]+\\.(?:m3u8|mpd|mp4|mkv|webm)(?:\\?[^\\s\\\"'<>]*)?", RegexOption.IGNORE_CASE),
+            Regex("(?:https?:)?//[^\\s\\\"'<>]+\\.(?:m3u8|mpd|mp4|mkv|webm)(?:\\?[^\\s\\\"'<>]*)?", RegexOption.IGNORE_CASE)
         )
 
         for (pattern in patterns) {
             for (match in pattern.findAll(html)) {
-                val raw = match.groupValues.getOrNull(1)?.ifBlank { match.value }.orEmpty()
-                val normalized = decodeHtml(raw).trim()
-                if (normalized.startsWith("http", ignoreCase = true) && normalized.isDirectMediaUrl()) {
-                    add(normalized)
-                }
+                val raw = match.groupValues.getOrNull(1)?.ifBlank { match.value } ?: continue
+                val normalized = normalizeCandidate(raw)
+                val absolute = resolveUrl(baseUrl, normalized) ?: continue
+                if (absolute.isDirectMediaUrl()) urls += absolute
             }
         }
+        return urls.toList()
     }
 
     private fun extractIframeUrls(html: String, baseUrl: String): List<String> {
         val pattern = Regex(
-            "<iframe[^>]+src=[\\\"']([^\\\"']+)[\\\"']",
+            "<iframe[^>]+(?:src|data-src)=[\\\"']([^\\\"']+)[\\\"']",
             RegexOption.IGNORE_CASE
         )
         return pattern.findAll(html)
-            .mapNotNull { match ->
-                val raw = decodeHtml(match.groupValues[1].trim())
-                resolveUrl(baseUrl, raw)
-            }
+            .mapNotNull { resolveUrl(baseUrl, normalizeCandidate(it.groupValues[1])) }
             .filter { it.startsWith("http", ignoreCase = true) }
             .distinct()
             .toList()
     }
+
+    private fun normalizeCandidate(value: String): String =
+        decodeHtml(value.trim())
+            .replace("\\/", "/")
+            .replace("\\u0026", "&")
+            .replace("\\u003d", "=")
 
     private fun resolveUrl(baseUrl: String, candidate: String): String? =
         runCatching { URI(baseUrl).resolve(candidate).toString() }.getOrNull()
@@ -140,12 +138,12 @@ class GenericEmbedExtractor : StreamExtractor {
         return when {
             clean.endsWith(".m3u8") -> StreamType.HLS
             clean.endsWith(".mpd") -> StreamType.DASH
-            clean.endsWith(".mp4") || clean.endsWith(".mkv") || clean.endsWith(".webm") -> StreamType.MP4
-            else -> StreamType.UNKNOWN
+            else -> StreamType.MP4
         }
     }
 
     private companion object {
-        const val MAX_DEPTH = 2
+        const val MAX_DEPTH = 4
+        const val UA = "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 Chrome/124.0.0.0 Mobile Safari/537.36"
     }
 }
