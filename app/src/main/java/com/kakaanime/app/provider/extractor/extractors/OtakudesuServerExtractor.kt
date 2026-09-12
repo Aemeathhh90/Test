@@ -134,13 +134,15 @@ class OtakudesuServerExtractor : StreamExtractor {
 
     private suspend fun resolveRedirect(url: String, referer: String): String? = withContext(Dispatchers.IO) {
         runCatching {
-            Request.Builder().url(url).header("User-Agent", UA).header("Referer", referer).build().let(client.newCall(it)::execute).use { it.request.url.toString() }
+            val request = Request.Builder().url(url).header("User-Agent", UA).header("Referer", referer).build()
+            client.newCall(request).execute().use { response -> response.request.url.toString() }
         }.getOrNull()
     }
 
     private suspend fun get(url: String, referer: String?): String? = withContext(Dispatchers.IO) {
         runCatching {
-            Request.Builder().url(url).header("User-Agent", UA).header("Accept-Language", "id-ID,id;q=0.9,en-US;q=0.8").apply { if (!referer.isNullOrBlank()) header("Referer", referer) }.build().let(client.newCall(it)::execute).use { if (it.isSuccessful) it.body?.string() else null }
+            val request = Request.Builder().url(url).header("User-Agent", UA).header("Accept-Language", "id-ID,id;q=0.9,en-US;q=0.8").apply { if (!referer.isNullOrBlank()) header("Referer", referer) }.build()
+            client.newCall(request).execute().use { response -> if (response.isSuccessful) response.body?.string() else null }
         }.getOrNull()
     }
 
