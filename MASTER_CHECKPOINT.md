@@ -118,6 +118,57 @@ Bitrise `provider_e2e` sekarang menjalankan:
 
 ---
 
+## 🧭 Klasifikasi Temuan & Aturan Perbaikan — LOCKED
+
+Setiap error/temuan **wajib diklasifikasikan sebelum kode diubah**. Jangan langsung menambal hanya supaya test hijau.
+
+| Status | Arti | Tindakan |
+|---|---|---|
+| 🔴 **BUG** | Implementasi/logic/configuration kita memang salah | Cari akar masalah lalu **fix** |
+| 🟡 **WORKAROUND / TAMBALAN** | Solusi sementara agar sistem tetap berjalan | Boleh sementara, tetapi **bukan solusi final**; cari pengganti yang lebih sehat |
+| 🟢 **ENHANCEMENT** | Sistem sudah bekerja, tetapi masih dapat ditingkatkan | Tidak wajib; lakukan bila ada manfaat teknis/UX yang jelas |
+| ⚪ **LOCKED / SUDAH BENAR** | Sudah terbukti bekerja dan perubahan tidak diperlukan | **Jangan disentuh** tanpa alasan teknis yang kuat |
+| ⚫ **BLOCKED / MENTOK** | Pendekatan saat ini benar-benar mentok atau ada batasan eksternal | Jangan memaksa dengan tambalan; lakukan eskalasi dan cari referensi/pendekatan alternatif |
+
+### Prosedur saat mentok (⚫ BLOCKED)
+
+```text
+FAIL
+ ↓
+Pastikan bukan BUG
+ ↓
+Cari akar masalah
+ ↓
+Audit kode + log + request/response + dependency/config
+ ↓
+Cari referensi solusi yang sudah terbukti
+   ├─ CloudStream / extension
+   ├─ extractor/provider open-source
+   ├─ dokumentasi/library
+   ├─ aplikasi sejenis
+   └─ implementasi/versi provider lain yang relevan
+ ↓
+Bandingkan beberapa pendekatan
+ ↓
+Pilih solusi paling sehat
+ ↓
+Implementasi native AniLab
+ ↓
+E2E / validasi nyata
+ ↓
+Jika tetap mustahil karena batasan eksternal → tetap ⚫ BLOCKED
+```
+
+**Aturan penting:**
+- Jangan menyebut sesuatu sebagai “nggak bisa diperbaiki” sebelum akar masalah dan referensi alternatif diperiksa.
+- Jangan menambal bug berulang kali jika akar masalahnya belum diselesaikan.
+- Referensi eksternal digunakan untuk menemukan **pola solusi**, bukan untuk membuat AniLab bergantung pada proyek lain tanpa alasan.
+- Jika solusi sementara dipakai, harus jelas bahwa itu 🟡 WORKAROUND dan dicatat untuk diganti bila solusi final ditemukan.
+- Jika sebuah bagian sudah terbukti benar, terutama yang sudah mencapai `onRenderedFirstFrame()`, perlakukan sebagai ⚪ LOCKED agar tidak dibongkar tanpa alasan.
+- Setiap perubahan kode/config/arsitektur yang nyata harus dicatat dalam checkpoint/addendum.
+
+---
+
 ## 🔵 Backend
 
 **Status:** Fondasi tersedia; detail backend dipisahkan dari MASTER dan perlu diaudit terhadap source terbaru sebelum diberi status production/green.
@@ -133,11 +184,12 @@ Bitrise `provider_e2e` sekarang menjalankan:
 
 1. Jalankan ulang Samehadaku E2E setelah perubahan HTML-first.
 2. Jika search lolos, lanjut audit detail → episode 7 → stream → first frame.
-3. Jika FAIL, gunakan titik failure aktual sebagai dasar perbaikan berikutnya.
-4. Sahkan Samehadaku hanya jika benar-benar first-frame PASS.
-5. Audit backend dari source `main`, lalu isi `BACKEND_CHECKPOINT.md` dengan fakta aktual.
-6. Setelah provider stabil, lanjut provider berikutnya.
-7. Target akhir P0: **29/29 provider E2E PASS**.
+3. Jika FAIL, klasifikasikan dulu: 🔴 BUG / 🟡 WORKAROUND / 🟢 ENHANCEMENT / ⚪ LOCKED / ⚫ BLOCKED.
+4. Jika ⚫ BLOCKED, cari dan bandingkan referensi/pendekatan alternatif sebelum memutuskan tidak bisa.
+5. Sahkan Samehadaku hanya jika benar-benar first-frame PASS.
+6. Audit backend dari source `main`, lalu isi `BACKEND_CHECKPOINT.md` dengan fakta aktual.
+7. Setelah provider stabil, lanjut provider berikutnya.
+8. Target akhir P0: **29/29 provider E2E PASS**.
 
 ---
 
@@ -166,3 +218,5 @@ Bitrise `provider_e2e` sekarang menjalankan:
 - Jangan mengubah arsitektur yang sudah terbukti tanpa alasan teknis yang jelas.
 - Jangan mengarang endpoint/status backend; verifikasi source `main` terlebih dahulu.
 - CloudStream adalah referensi utama untuk pola provider/extractor; implementasi AniLab tetap native dan tidak bergantung pada CloudStream.
+- **Wajib klasifikasikan temuan sebelum memperbaiki:** 🔴 BUG / 🟡 WORKAROUND / 🟢 ENHANCEMENT / ⚪ LOCKED / ⚫ BLOCKED.
+- **Jika mentok, eskalasi dan cari referensi/pendekatan alternatif terlebih dahulu; jangan langsung menyerah atau menumpuk tambalan.**
