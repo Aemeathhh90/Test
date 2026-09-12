@@ -665,6 +665,68 @@ Menampilkan anime yang mendapatkan episode baru berdasarkan anime yang diikuti/d
 
 ---
 
+# 16A. 🔵 EPISODE ACCESS — AUTOMATIC DIAMOND CONSUMPTION
+
+**Status:** 🔵 **KEPUTUSAN FLOW TERKUNCI — IMPLEMENTASI BELUM SELESAI**
+
+- Non-Premium access ditentukan oleh jumlah Diamond yang tersedia.
+- Jika Diamond ≥ 1 saat episode ditekan:
+  - otomatis konsumsi 1 Diamond
+  - unlock episode
+  - langsung mulai playback
+  - tanpa popup/confirmation.
+- Jika Diamond = 0:
+  - jalankan flow Tonton Iklan.
+- Rewarded Ad tersedia:
+  - tampilkan AdMob Rewarded Ad
+  - reward +2 Diamond
+  - otomatis gunakan 1 Diamond
+  - unlock episode
+  - langsung playback.
+- Rewarded Ad tidak tersedia/gagal load:
+  - gunakan fallback timer 30 detik
+  - setelah timer selesai +2 Diamond
+  - otomatis gunakan 1 Diamond
+  - unlock episode
+  - langsung playback.
+- Premium:
+  - Diamond = `UNLIMITED`
+  - tidak ada pengurangan Diamond
+  - tidak ada iklan
+  - tidak ada timer
+  - episode langsung playback.
+- Tidak menggunakan popup konfirmasi Diamond.
+- Flow harus tetap minimal dan mengikuti UX ReDantotsu.
+
+### 🔵 Flow Final
+
+```text
+TAP EPISODE
+    ↓
+Premium?
+ ├─ YA → Unlimited Diamond → langsung PLAY
+ │
+ └─ TIDAK
+      ↓
+   Diamond ≥ 1?
+    ├─ YA → otomatis -1 Diamond → UNLOCK → langsung PLAY
+    │
+    └─ TIDAK → tampilkan "Tonton Iklan"
+              ↓
+         AdMob tersedia?
+          ├─ YA → tonton Rewarded Ad
+          │       → +2 Diamond
+          │       → otomatis -1 Diamond
+          │       → UNLOCK → PLAY
+          │
+          └─ TIDAK → timer 30 detik
+                    → +2 Diamond
+                    → otomatis -1 Diamond
+                    → UNLOCK → PLAY
+```
+
+---
+
 # 17. 🔴 P3 — PREMIUM / SUBSCRIPTION
 
 ### Entitlement model
@@ -674,6 +736,8 @@ Menampilkan anime yang mendapatkan episode baru berdasarkan anime yang diikuti/d
 - 🟢 Auto Skip Intro = Premium.
 - 🟢 Auto Skip Outro = Premium.
 - 🟢 Download = Premium.
+- 🔵 Premium memiliki Diamond `UNLIMITED` untuk akses episode.
+- 🔵 Premium tidak melakukan konsumsi Diamond saat playback.
 
 ### Belum selesai
 
@@ -994,6 +1058,8 @@ Release build
 - Provider architecture foundation
 - 29-provider target
 - Diamond rules
+- **Automatic Diamond Consumption flow**
+- **Premium Diamond = UNLIMITED**
 - Premium entitlement model
 - AdMob test integration
 - AniLab product direction
@@ -1004,9 +1070,7 @@ Release build
 - Episode Watch Progress target
 - Google Login + Backup/Restore target
 - **Episode Access / Locked Watch Flow target**
-- **Provider Engine dynamic architecture direction**
-- **Direct Stream + Embed Source architecture direction**
-- **Dynamic Domain / Endpoint configuration direction**
+- **Provider Engine — Dynamic Provider & Domain Architecture**
 
 ### 🔴 Fokus pengerjaan berikutnya
 
