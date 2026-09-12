@@ -1,0 +1,166 @@
+name: checkpoint-architecture-once
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  update-checkpoint:
+    if: ${{ !contains(github.event.head_commit.message, 'docs: add extractor reference architecture') }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Append architecture reference
+        shell: bash
+        run: |
+          cat >> MASTER_CHECKPOINT.md <<'EOF'
+
+---
+
+# 6C. 🔵 EXTRACTOR / STREAM SOLVING REFERENCE STACK
+
+**Status:** 🔵 **ARSITEKTUR TERKUNCI — REFERENSI IMPLEMENTASI ANILAB**
+
+Referensi teknis berikut digunakan untuk membentuk arsitektur extractor/resolver AniLab. Referensi dipakai sebagai pola desain dan sumber ide, bukan untuk menyalin framework atau dependency secara utuh.
+
+### 🔵 Referensi teknis yang dikunci
+
+- **yt-dlp** — extractor engine dan pola `specific extractor → generic fallback`.
+- **Anime SDK** — provider abstraction, unified model/provider mapping, retry/rate-limit, dan E2E.
+- **OCE** — resolver pipeline, host extractor, WebView/JS fallback, cache/circuit-breaker, dan validasi media.
+- **CloudStream** — provider/extractor architecture, `loadExtractor()`, server discovery, `ExtractorLink`, dan host resolver.
+- **Media Downloader** — Kotlin `MediaExtractor`/registry, priority + fallback, typed errors, dan Media3.
+- **MaxStream** — advanced stream solving, redirect chaining, HLS validation, WebView/network interception, dan generic media fallback.
+- **Anime Nexus HLS Resolver** — session/token-aware protected HLS, playlist rewriting, dan CDN/auth headers.
+- **Consumet** — provider abstraction dan pemisahan provider dari consumer/player.
+- **Hikari** — Android + Media3, extractor/resolver compatibility, dan WebView resolver pattern.
+- **Anime Nexus** — reliability, cache, stale-cache fallback, dan provider rotation.
+
+### 🔵 Struktur target AniLab
+
+```text
+Provider Router
+      ↓
+Server Discovery
+      ↓
+Extractor Registry
+      ↓
+Specific Extractor
+      ↓
+Generic Embed
+      ↓
+Generic Direct
+      ↓
+Redirect / WebView / JS bila perlu
+      ↓
+HLS/DASH validation
+      ↓
+ProviderStream
+      ↓
+Media3
+      ↓
+onRenderedFirstFrame()
+```
+
+### 🔵 Aturan prioritas extractor
+
+1. Direct media dikenali dan dipakai langsung bila playable.
+2. Host-specific/specific extractor mendapat prioritas sebelum generic fallback.
+3. Generic Embed menangani iframe/player/data-video/source yang belum memiliki extractor khusus.
+4. Generic Direct menangani `.mp4`, `.m3u8`, `.mpd` dan format direct media lain yang didukung.
+5. Redirect resolver mengikuti redirect dengan batas dan perlindungan loop/cycle.
+6. WebView/JS hanya digunakan bila HTTP parsing biasa tidak cukup.
+7. HLS/DASH divalidasi sebelum stream diteruskan ke player bila validator tersedia.
+8. Referer dan required headers harus dipertahankan dari discovery sampai Media3.
+9. Extractor gagal tidak boleh membuat provider crash; registry/resolver mencoba kandidat berikutnya.
+10. Hasil akhir selalu dinormalisasi menjadi `ProviderStream` sebelum masuk Media3.
+
+### 🔵 Registry / Resolver contract
+
+```text
+Provider
+  ↓
+ServerDiscovery
+  ↓
+ExtractorRegistry.find(url)
+  ↓
+Specific Extractor(s)
+  ↓
+Generic Embed / Generic Direct fallback
+  ↓
+StreamResolver
+  ↓
+ProviderStream
+```
+
+`ExtractorRegistry` harus bersifat reusable lintas provider. Logic host tidak boleh ditanam ulang di setiap provider jika dapat menjadi extractor bersama.
+
+### 🔵 Reliability & safety guard
+
+- Deduplicate URL dan hasil stream.
+- Batasi redirect chain.
+- Deteksi redirect cycle.
+- Timeout dan error harus typed/terkontrol.
+- Provider/host yang gagal dapat di-failover tanpa crash.
+- Cache dapat dipakai untuk metadata/discovery yang aman, tetapi stream/token yang cepat kedaluwarsa tidak boleh dianggap permanen.
+- Signed/protected HLS harus mempertahankan session, token, referer, dan header yang diperlukan.
+
+### 🔵 Non-negotiable
+
+- **Jangan copy seluruh yt-dlp, CloudStream, OCE, MaxStream, atau project referensi lain ke AniLab.**
+- Ambil pola arsitekturnya, implementasikan versi Kotlin/Android yang sesuai kebutuhan AniLab.
+- Provider Router, Server Discovery, Extractor Registry, Specific Extractor, Generic Embed, Generic Direct, Redirect/WebView/JS, validation, `ProviderStream`, dan Media3 tetap menjadi satu pipeline internal.
+- User tetap hanya melihat `Anime → Episode → Play`.
+- Status provider tetap 🔴 sampai E2E mencapai `onRenderedFirstFrame()`.
+
+### 🔵 Pemetaan status implementasi saat checkpoint ini
+
+- 🔵 `StreamExtractor` contract → fondasi sudah ada.
+- 🔵 `ExtractorRegistry` → fondasi sudah ada.
+- 🔵 `StreamResolver` → fondasi sudah ada.
+- 🔵 `GenericDirectExtractor` → fondasi sudah ada.
+- 🔴 `GenericEmbedExtractor` → belum boleh dianggap selesai sebelum diaudit/diuji di main.
+- 🔴 Specific host extractors → belum boleh dianggap lengkap.
+- 🔴 Redirect/WebView/JS fallback → belum boleh dianggap lengkap.
+- 🔴 HLS/DASH validation → belum menjadi gate green provider.
+- 🔴 Integrasi penuh Provider → Discovery → Extractor → Resolver → Media3 → E2E → masih menjadi pekerjaan P0.
+
+### 🔵 E2E gate tetap sama
+
+```text
+Search
+ ↓
+Anime Detail
+ ↓
+Episode
+ ↓
+Server Discovery
+ ↓
+Extractor Registry
+ ↓
+Specific / Generic Resolver
+ ↓
+.m3u8 / .mpd / .mp4
+ ↓
+ProviderStream
+ ↓
+Media3
+ ↓
+onRenderedFirstFrame()
+ ↓
+🟢 PASS
+```
+
+---
+EOF
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add MASTER_CHECKPOINT.md
+          git commit -m "docs: add extractor reference architecture"
+          git push
