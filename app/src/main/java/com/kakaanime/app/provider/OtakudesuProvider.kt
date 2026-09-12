@@ -14,10 +14,9 @@ import java.util.concurrent.TimeUnit
 /**
  * Otakudesu provider.
  *
- * Architecture follows the proven provider/extractor split: this class finds
- * anime, episodes and server/embed pages; StreamResolver owns playable-media
- * extraction. The HTML site is the primary detail/episode source, while APIs
- * are optional fallbacks.
+ * Detail/episode discovery stays HTML-first. Stream resolution is delegated to
+ * the shared extractor engine, whose Otakudesu-specific resolver understands
+ * mirrorstream AJAX, download servers and host-specific mirrors.
  */
 class OtakudesuProvider : AnimeProvider {
     override val id = "otakudesu"
@@ -55,9 +54,6 @@ class OtakudesuProvider : AnimeProvider {
 
     override suspend fun getAnime(animeId: String): ProviderAnime? {
         val slug = normalizeAnimeSlug(animeId)
-
-        // HTML-first: current Otakudesu mirrors are the source of truth for
-        // detail/episode pages. This avoids depending on stale API deployments.
         val web = webSource.getAnime(slug)
         if (web != null) {
             return ProviderAnime(
@@ -77,7 +73,6 @@ class OtakudesuProvider : AnimeProvider {
 
     override suspend fun getEpisodes(animeId: String): List<ProviderEpisode> {
         val slug = normalizeAnimeSlug(animeId)
-
         val web = webSource.getAnime(slug)
         if (web != null) {
             val episodes = webSource.getEpisodes(web)
@@ -117,29 +112,24 @@ class OtakudesuProvider : AnimeProvider {
             ?: return emptyList()
 
         val episodeRef = episode.id.removePrefix("$id:")
-
-        // Web episode -> server/embed discovery -> shared extractor registry.
         if (episodeRef.startsWith("http", ignoreCase = true)) {
-            val html = webSource.getEpisodePage(
-                OtakudesuWebSource.WebEpisode(
-                    url = episodeRef,
-                    number = episode.number,
-                    title = episode.title ?: "Episode ${episode.number}"
-                )
+            // Important: pass the episode page itself through the registry.
+            // OtakudesuServerExtractor then performs server discovery and host
+            // resolution before GenericEmbed/Direct are considered.
+            val resolved = streamResolver.resolve(
+                urls = listOf(episodeRef),
+                referer = null
             )
-            if (!html.isNullOrBlank()) {
-                val candidates = webSource.discoverPlaybackUrls(html, episodeRef)
-                val resolved = streamResolver.resolve(candidates, referer = episodeRef)
-                if (resolved.isNotEmpty()) return resolved
-            }
+            if (resolved.isNotEmpty()) return resolved.map { it.copy(providerId = id) }
         }
 
+        // API remains a fallback only; it is not the primary stream strategy.
         val episodeSlug = normalizeEpisodeSlug(episodeRef)
         val primary = requestJson("$baseUrl/episode/${encodePath(episodeSlug)}")
         if (primary != null) {
             val candidates = primary.optJSONObject("data")?.streamCandidates().orEmpty()
             val resolved = streamResolver.resolve(candidates, referer = episodeRef)
-            if (resolved.isNotEmpty()) return resolved
+            if (resolved.isNotEmpty()) return resolved.map { it.copy(providerId = id) }
         }
 
         val legacy = requestJson("$legacyUrl/episode/${encodePath(episodeSlug)}")
@@ -150,7 +140,7 @@ class OtakudesuProvider : AnimeProvider {
             .orEmpty()
         if (streamUrl.isNotBlank()) {
             val resolved = streamResolver.resolve(listOf(streamUrl), referer = episodeRef)
-            if (resolved.isNotEmpty()) return resolved
+            if (resolved.isNotEmpty()) return resolved.map { it.copy(providerId = id) }
         }
 
         return emptyList()
