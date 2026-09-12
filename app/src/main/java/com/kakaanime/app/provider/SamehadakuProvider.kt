@@ -19,6 +19,7 @@ class SamehadakuProvider : AnimeProvider {
         .connectTimeout(10, TimeUnit.SECONDS)
         .readTimeout(15, TimeUnit.SECONDS)
         .callTimeout(20, TimeUnit.SECONDS)
+        .retryOnConnectionFailure(true)
         .build()
 
     private val primary = "https://www.keyrafara.com/streaming/samehadaku"
@@ -98,8 +99,9 @@ class SamehadakuProvider : AnimeProvider {
         runCatching {
             val request = Request.Builder()
                 .url(url)
-                .header("User-Agent", "KakaAnime/0.1")
-                .header("Accept", "application/json")
+                .header("User-Agent", "Mozilla/5.0 (Linux; Android 15) AppleWebKit/537.36 Chrome/140 Mobile Safari/537.36 KakaAnime/0.1")
+                .header("Accept", "application/json, text/plain, */*")
+                .header("Referer", "https://www.keyrafara.com/")
                 .build()
             client.newCall(request).execute().use { response ->
                 if (!response.isSuccessful) null else {
@@ -133,21 +135,21 @@ class SamehadakuProvider : AnimeProvider {
     }
 
     private fun extractAnimeArray(root: JSONObject): List<JSONObject> {
-        for (key in listOf("results", "anime", "items", "search", "data")) root.optJSONArray(key)?.let { return it.objects() }
-        root.optJSONObject("data")?.let { nested -> extractAnimeArray(nested).takeIf { it.isNotEmpty() }?.let { return it } }
-        return if (root.has("title") || root.has("animeTitle") || root.has("judul")) listOf(root) else emptyList()
+        for (key in listOf("results", "anime", "items", "search", "data", "result")) root.optJSONArray(key)?.let { return it.objects() }
+        for (key in listOf("data", "result")) root.optJSONObject(key)?.let { nested -> extractAnimeArray(nested).takeIf { it.isNotEmpty() }?.let { return it } }
+        return if (root.has("title") || root.has("animeTitle") || root.has("judul") || root.has("name")) listOf(root) else emptyList()
     }
 
     private fun extractEpisodeArray(root: JSONObject): List<JSONObject> {
-        for (key in listOf("episodes", "episodeList", "episode_list", "episode", "items")) root.optJSONArray(key)?.let { return it.objects() }
-        root.optJSONObject("data")?.let { nested -> extractEpisodeArray(nested).takeIf { it.isNotEmpty() }?.let { return it } }
+        for (key in listOf("episodes", "episodeList", "episode_list", "episode", "items", "result")) root.optJSONArray(key)?.let { return it.objects() }
+        for (key in listOf("data", "result")) root.optJSONObject(key)?.let { nested -> extractEpisodeArray(nested).takeIf { it.isNotEmpty() }?.let { return it } }
         return emptyList()
     }
 
     private fun collectUrls(value: Any?, out: MutableList<ProviderStream>, quality: String? = null) {
         when (value) {
             is JSONObject -> {
-                val directKeys = listOf("url", "file", "stream", "streamUrl", "stream_url", "m3u8", "mp4", "source", "videoUrl")
+                val directKeys = listOf("url", "file", "stream", "streamUrl", "stream_url", "m3u8", "mp4", "source", "videoUrl", "link")
                 val nextQuality = value.firstString("quality", "resolution") ?: quality
                 for (key in directKeys) value.optString(key).trim().takeIf { it.startsWith("http", true) }?.let { out += streamFromUrl(it, nextQuality) }
                 val keys = value.keys()
