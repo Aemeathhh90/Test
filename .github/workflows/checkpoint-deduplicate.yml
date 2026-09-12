@@ -1,0 +1,21 @@
+name: checkpoint-deduplicate
+on:
+  push:
+    branches: [main]
+permissions:
+  contents: write
+jobs:
+  deduplicate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Remove duplicate reference section
+        shell: bash
+        run: |
+          python3 -c "from pathlib import Path; p=Path('MASTER_CHECKPOINT.md'); s=p.read_text(); marker='---\\n# 6C. 🔵 EXTRACTOR / STREAM SOLVING REFERENCE STACK'; a=s.find(marker); b=s.find(marker, a+1) if a >= 0 else -1; print('first',a,'second',b); p.write_text(s[:b].rstrip()+'\\n') if b >= 0 else None"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add MASTER_CHECKPOINT.md
+          git diff --cached --quiet && exit 0
+          git commit -m 'docs: deduplicate extractor reference section'
+          git push
