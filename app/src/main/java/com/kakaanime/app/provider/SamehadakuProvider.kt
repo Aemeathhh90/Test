@@ -238,7 +238,7 @@ class SamehadakuProvider : AnimeProvider {
                 providerId = id,
                 title = "Episode $number"
             )
-        }.distinctBy { it.number }.sortedBy { it.number }
+        }.distinctBy { it.number }.sortedBy { it.number }.toList()
     }
 
     private fun extractPlayerUrls(html: String, pageUrl: String): List<String> {
@@ -362,32 +362,58 @@ class SamehadakuProvider : AnimeProvider {
     }
 
     private fun extractEpisodeArray(root: JSONObject): List<JSONObject> {
-        for (key in listOf("episodes", "episodeList", "episode_list", "episode")) root.optJSONArray(key)?.let { return it.objects() }
+        for (key in listOf("episodes", "episode", "results", "data", "items")) root.optJSONArray(key)?.let { return it.objects() }
         root.optJSONObject("data")?.let { nested -> extractEpisodeArray(nested).takeIf { it.isNotEmpty() }?.let { return it } }
         return emptyList()
     }
 
-    private fun collectUrls(value: Any?, out: MutableList<ProviderStream>, quality: String? = null) {
+    private fun collectUrls(value: Any?, output: MutableList<ProviderStream>) {
         when (value) {
             is JSONObject -> {
-                val directKeys = listOf("url", "file", "stream", "streamUrl", "stream_url", "m3u8", "mp4", "source", "videoUrl")
-                val nextQuality = value.firstString("quality", "resolution") ?: quality
-                for (key in directKeys) value.optString(key).trim().takeIf { it.startsWith("http", true) }?.let { out += streamFromUrl(it, baseUrl) }
                 val keys = value.keys()
                 while (keys.hasNext()) {
                     val key = keys.next()
-                    if (key !in directKeys) collectUrls(value.opt(key), out, nextQuality)
+                    val child = value.opt(key)
+                    if (child is String && child.startsWith("http", true)) {
+                        if (child.contains(".m3u8", true) || child.contains(".mpd", true) || child.contains(".mp4", true) || child.contains("stream", true)) {
+                            output += streamFromUrl(child, referer = baseUrl)
+                        }
+                    } else collectUrls(child, output)
                 }
             }
-            is JSONArray -> for (i in 0 until value.length()) collectUrls(value.opt(i), out, quality)
-            is String -> if (value.startsWith("http", true)) out += streamFromUrl(value, baseUrl)
+            is JSONArray -> {
+                for (i in 0 until value.length()) collectUrls(value.opt(i), output)
+            }
         }
     }
 
-    private fun JSONObject.firstString(vararg keys: String): String? = keys.firstNotNullOfOrNull { optString(it).trim().ifBlank { null } }
-    private fun JSONObject.episodeNumber(): Int? = firstString("episode", "episodeNumber", "number", "episodeNum")?.toIntOrNull()
-        ?: Regex("(?:episode|eps|ep)[^0-9]*(\\d+)", RegexOption.IGNORE_CASE).find(firstString("title", "name", "slug", "id", "judul").orEmpty())?.groupValues?.getOrNull(1)?.toIntOrNull()
-    private fun extractStringArray(root: JSONObject, vararg keys: String): List<String> = keys.firstNotNullOfOrNull { key -> root.optJSONArray(key)?.let { array -> buildList { for (i in 0 until array.length()) array.optString(i).trim().takeIf { it.isNotBlank() }?.let(::add) } } } ?: emptyList()
-    private fun JSONArray.objects(): List<JSONObject> = buildList { for (i in 0 until length()) optJSONObject(i)?.let(::add) }
-    private fun String.slugify(): String = trim().lowercase().replace(Regex("[^a-z0-9]+"), "-").trim('-')
+    private fun JSONArray.objects(): List<JSONObject> = buildList {
+        for (i in 0 until length()) optJSONObject(i)?.let(::add)
+    }
+
+    private fun JSONObject.firstString(vararg keys: String): String? = keys.asSequence()
+        .mapNotNull { key -> optString(key, "").takeIf { it.isNotBlank() } }
+        .firstOrNull()
+
+    private fun JSONObject.episodeNumber(): Int? {
+        val value = firstString("episode", "episodeNumber", "number", "ep", "num", "title") ?: return null
+        return Regex("(?:episode|eps|ep)?[^0-9]*(\\d+)", RegexOption.IGNORE_CASE)
+            .find(value)?.groupValues?.getOrNull(1)?.toIntOrNull()
+    }
+
+    private fun extractStringArray(root: JSONObject, vararg keys: String): List<String> {
+        for (key in keys) {
+            root.optJSONArray(key)?.let { array ->
+                return buildList {
+                    for (i in 0 until array.length()) array.optString(i).takeIf { it.isNotBlank() }?.let(::add)
+                }
+            }
+            root.optString(key, "").takeIf { it.isNotBlank() }?.let { return it.split(',').map(String::trim).filter(String::isNotBlank) }
+        }
+        return emptyList()
+    }
+
+    private fun String.slugify(): String = lowercase()
+        .replace(Regex("[^a-z0-9]+"), "-")
+        .trim('-')
 }
