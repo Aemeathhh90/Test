@@ -4,7 +4,6 @@ import com.kakaanime.app.provider.extractor.extractors.GenericDirectExtractor
 import com.kakaanime.app.provider.extractor.extractors.GenericEmbedExtractor
 import com.kakaanime.app.provider.extractor.extractors.JavascriptMediaExtractor
 import com.kakaanime.app.provider.extractor.extractors.KrakenFilesExtractor
-import com.kakaanime.app.provider.extractor.extractors.OtakudesuQrtzExtractor
 import com.kakaanime.app.provider.extractor.extractors.OtakudesuServerExtractor
 import com.kakaanime.app.provider.extractor.extractors.PixelDrainExtractor
 
@@ -22,7 +21,6 @@ class ExtractorRegistry(
         (
             listOf(
                 OtakudesuServerExtractor(),
-                OtakudesuQrtzExtractor(),
                 KrakenFilesExtractor(),
                 PixelDrainExtractor(),
                 JavascriptMediaExtractor()
