@@ -1,0 +1,22 @@
+name: Runner Health
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - provider-batch-2026-09-12
+
+jobs:
+  runner-health:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Prove hosted runner execution
+        shell: bash
+        run: |
+          set -euxo pipefail
+          echo "GitHub hosted runner is executing steps."
+          echo "Runner: ${RUNNER_NAME}"
+          echo "OS: ${RUNNER_OS}"
+          uname -a
+          printf 'runner-health-ok\n'
