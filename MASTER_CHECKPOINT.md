@@ -1486,7 +1486,7 @@ Semua feature baru harus ditambahkan di atas checkpoint ini. Jangan mengganti pl
 
 **Status keseluruhan AniLab saat checkpoint ini:** 🔴 **V1 BELUM SELESAI — P0 PROVIDER E2E MASIH MENJADI GATE UTAMA. CI/Bitrise SUDAH GREEN.** 
 ---
-# 6C. 🔵 EXTRACTOR / STREAM SOLVING REFERENSE STACK
+# 6C. 🔵 EXTRACTOR / STREAM SOLVING REFERENCE STACK
 
 **Status:** 🔵 **ARSITEKTUR TERKUNCI — REFERENSI IMPLEMENTASI ANILAB**
 
@@ -1608,7 +1608,7 @@ onRenderedFirstFrame()
 ```
  
 ---
-# 6C. 🔵 EXTRACTOR / STREAM SOLVING REFERENSE STACK
+# 6C. 🔵 EXTRACTOR / STREAM SOLVING REFERENCE STACK
 
 **Status:** 🔵 **ARSITEKTUR TERKUNCI — REFERENSI IMPLEMENTASI ANILAB**
 
