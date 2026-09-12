@@ -188,6 +188,227 @@ Endpoint `/play` diperlakukan sebagai jalur yang cocok untuk player, tetapi teta
 
 ---
 
+# 6A. 🔵 PROVIDER ENGINE — DYNAMIC PROVIDER & DOMAIN ARCHITECTURE
+
+**Status arsitektur:** 🔵 **LOCKED DIRECTION**
+
+- Provider Engine menjadi fondasi utama untuk seluruh provider AniLab.
+- Setiap provider dibuat sebagai adapter/provider terpisah sehingga perubahan satu provider tidak merusak provider lainnya.
+- Provider Engine tidak mengekspos detail provider, domain, API, embed, resolver, atau host kepada user.
+- Setiap provider memiliki:
+  - `providerId`
+  - nama provider
+  - priority
+  - search handler
+  - anime detail handler
+  - episode handler
+  - stream handler
+  - resolver handler bila diperlukan.
+
+### 🔵 Dynamic Domain / Endpoint
+
+- Domain provider tidak boleh menjadi ketergantungan permanen yang sulit diubah di APK.
+- Endpoint/domain yang memungkinkan harus dapat dikonfigurasi secara remote.
+- Jika domain provider berpindah tetapi struktur API/parser tetap kompatibel:
+  - konfigurasi domain dapat diperbarui dari server/remote config
+  - AniLab menggunakan domain baru secara otomatis
+  - tidak perlu update APK.
+- Provider dapat memiliki:
+  - primary domain
+  - secondary/fallback domain
+  - API endpoint
+  - stream endpoint
+  - resolver endpoint.
+- Jika primary domain gagal, Provider Engine dapat mencoba fallback yang tersedia.
+- Perubahan konfigurasi domain tidak boleh membutuhkan perubahan source code APK jika hanya berupa perubahan endpoint.
+
+### 🔵 Provider Resolution Flow
+
+```text
+User
+ ↓
+Search Anime
+ ↓
+Provider Engine
+ ↓
+Provider Adapter
+ ↓
+Anime Detail
+ ↓
+Episode
+ ↓
+Stream Discovery
+ ↓
+┌─────────────────────┐
+│ Direct Stream       │
+│ .mp4 / .m3u8 / .mpd │
+└──────────┬──────────┘
+           │
+           │ direct
+           ↓
+        Media3
+
+atau
+
+┌─────────────────────┐
+│ Embed Source        │
+│ iframe / player URL │
+└──────────┬──────────┘
+           ↓
+     Embed Resolver
+           ↓
+    Direct Media URL
+           ↓
+         Media3
+```
+
+- Direct stream dan Embed Source dianggap sebagai dua jalur streaming resmi.
+- Embed tidak ditampilkan sebagai pilihan teknis kepada user.
+- Provider Engine otomatis menentukan apakah URL merupakan:
+  - HLS
+  - DASH
+  - MP4
+  - Embed.
+- Jika Embed:
+  - otomatis diteruskan ke Embed Resolver
+  - resolver mencari direct playable media
+  - hasil akhirnya diberikan ke Media3.
+- User tidak perlu memilih resolver secara manual.
+
+### 🔵 Resolver Architecture
+
+- Resolver dibuat terpisah dari Provider Adapter.
+- Satu resolver dapat digunakan oleh beberapa provider jika format host/embed-nya sama.
+- Resolver dapat memiliki fallback resolver.
+- Provider tidak boleh mengandung logic resolver yang terlalu spesifik jika logic tersebut bisa digunakan provider lain.
+- Jika satu host embed berubah, logic resolver diperbaiki sekali dan dapat digunakan kembali oleh provider lain yang memakai host tersebut.
+
+### 🔵 Provider Failover
+
+- Jika provider utama gagal, Provider Engine dapat mencoba fallback yang tersedia.
+- Kegagalan provider tidak boleh membuat aplikasi crash.
+- Error provider harus dikembalikan dalam bentuk status yang terkontrol.
+- Provider Engine membedakan:
+  - domain unavailable
+  - API unavailable
+  - anime tidak ditemukan
+  - episode tidak ditemukan
+  - stream tidak ditemukan
+  - resolver gagal
+  - direct stream gagal.
+- Jika satu source gagal, Engine dapat mencoba source/resolver lain sebelum memberikan kegagalan kepada player.
+
+### 🔵 Remote Configuration
+
+- Konfigurasi provider yang aman untuk diekspos ke client dapat diperbarui secara remote.
+- Remote configuration dapat mengatur:
+  - domain
+  - endpoint
+  - priority
+  - provider enabled/disabled
+  - fallback domain
+  - resolver mapping
+  - timeout tertentu.
+- Perubahan konfigurasi tidak membutuhkan update APK selama logic provider tetap kompatibel.
+- Secret/API key sensitif tidak disimpan di Remote Config client.
+
+### 🔵 Provider Normalization
+
+- Semua provider harus menghasilkan model data internal AniLab yang sama.
+- Provider tidak boleh memaksa UI memahami format data masing-masing website.
+- Data dinormalisasi menjadi:
+  - Anime
+  - Episode
+  - Stream
+  - Download
+  - Metadata.
+- UI AniLab tetap sama walaupun sumber/provider berbeda.
+
+### 🔵 Provider Router
+
+- Provider Router memilih provider berdasarkan:
+  - availability
+  - priority
+  - kemampuan provider
+  - hasil pencarian
+  - keberhasilan resolver.
+- Router dapat berpindah provider/source secara internal tanpa meminta user memilih secara manual.
+- Provider yang gagal tidak boleh memblokir provider lain.
+- Tidak menampilkan istilah teknis seperti API, iframe, resolver, host, atau endpoint kepada user.
+
+### 🔵 Provider E2E Gate
+
+Setiap provider baru dianggap 🟢 selesai hanya setelah:
+
+```text
+Search
+ ↓
+Anime Detail
+ ↓
+Episode
+ ↓
+Resolve Stream
+ ↓
+Direct / Embed Resolver
+ ↓
+.m3u8 / .mpd / .mp4
+ ↓
+Media3
+ ↓
+onRenderedFirstFrame()
+ ↓
+🟢 PASS
+```
+
+- Build/compile sukses saja belum cukup.
+- Provider harus benar-benar mampu menghasilkan playback.
+- Target akhir: 29/29 provider E2E 🟢.
+
+### 🔵 Domain Change Policy
+
+- Domain berubah, struktur tetap kompatibel → 🟢 remote configuration.
+- Domain + endpoint berubah → 🟢 remote configuration jika parameter yang dibutuhkan sudah didukung.
+- Format API berubah → 🟡 evaluasi adapter.
+- HTML/parser berubah → 🔴 perlu perbaikan provider.
+- Metode embed/stream berubah → 🔴 perlu perbaikan resolver/provider.
+- Update APK hanya diperlukan jika perubahan membutuhkan logic baru di dalam aplikasi.
+
+### 🔵 User Experience Rule
+
+- Semua kompleksitas provider berada di belakang layar.
+- User hanya melihat:
+
+```text
+Anime
+ ↓
+Episode
+ ↓
+▶ Play
+```
+
+- User tidak melihat:
+  - Provider
+  - API
+  - iframe
+  - resolver
+  - host
+  - endpoint.
+- Provider Engine harus membuat AniLab terasa seperti satu layanan streaming meskipun sumber di belakangnya terdiri dari banyak provider.
+
+### 🔵 Status Provider Engine
+
+- Provider Engine architecture → 🔵 LOCKED DIRECTION
+- Dynamic domain configuration → 🔵 LOCKED DIRECTION
+- Direct Stream + Embed Source → 🔵 LOCKED DIRECTION
+- Embed Resolver → 🔵 LOCKED DIRECTION
+- Provider Failover → 🔵 LOCKED DIRECTION
+- Provider Normalization → 🔵 LOCKED DIRECTION
+- Provider Router → 🔵 LOCKED DIRECTION
+- Provider E2E Gate → 🔵 LOCKED DIRECTION
+- Target provider → 29 provider E2E 🟢
+
+---
+
 # 7. 🔴 P0 — STREAMING FOUNDATION
 
 ### Target
@@ -783,6 +1004,9 @@ Release build
 - Episode Watch Progress target
 - Google Login + Backup/Restore target
 - **Episode Access / Locked Watch Flow target**
+- **Provider Engine dynamic architecture direction**
+- **Direct Stream + Embed Source architecture direction**
+- **Dynamic Domain / Endpoint configuration direction**
 
 ### 🔴 Fokus pengerjaan berikutnya
 
