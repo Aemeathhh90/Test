@@ -1,6 +1,7 @@
 package com.kakaanime.app.provider
 
-import android.os.Looper
+import android.os.Handler
+import android.os.HandlerThread
 import androidx.media3.common.MediaItem
 import androidx.media3.datasource.DefaultDataSource
 import androidx.media3.datasource.DefaultHttpDataSource
@@ -74,117 +75,76 @@ class OtakudesuProviderE2ETest {
         var failureMessage: String? = null
         var player: ExoPlayer? = null
 
-        val mainThread = HandlerThreadRunner()
+        val playerThread = HandlerThread("AniLab-Media3-E2E").apply { start() }
+        val handler = Handler(playerThread.looper)
+
         try {
-            mainThread.run {
-                val httpFactory = DefaultHttpDataSource.Factory()
-                    .setUserAgent("KakaAnime/0.1")
-                    .setDefaultRequestProperties(stream.headers)
+            val created = CountDownLatch(1)
+            handler.post {
+                try {
+                    val httpFactory = DefaultHttpDataSource.Factory()
+                        .setUserAgent("KakaAnime/0.1")
+                        .setDefaultRequestProperties(stream.headers)
 
-                val dataSourceFactory = DefaultDataSource.Factory(context, httpFactory)
-                val mediaSourceFactory = DefaultMediaSourceFactory(dataSourceFactory)
+                    val dataSourceFactory = DefaultDataSource.Factory(context, httpFactory)
+                    val mediaSourceFactory = DefaultMediaSourceFactory(dataSourceFactory)
 
-                player = ExoPlayer.Builder(context)
-                    .setMediaSourceFactory(mediaSourceFactory)
-                    .build()
-                    .also { exoPlayer ->
-                        exoPlayer.addAnalyticsListener(object : AnalyticsListener {
-                            override fun onRenderedFirstFrame(
-                                eventTime: AnalyticsListener.EventTime,
-                                output: Any,
-                                renderTimeMs: Long
-                            ) {
-                                rendered.countDown()
-                            }
+                    player = ExoPlayer.Builder(context)
+                        .setMediaSourceFactory(mediaSourceFactory)
+                        .build()
+                        .also { exoPlayer ->
+                            exoPlayer.addAnalyticsListener(object : AnalyticsListener {
+                                override fun onRenderedFirstFrame(
+                                    eventTime: AnalyticsListener.EventTime,
+                                    output: Any,
+                                    renderTimeMs: Long
+                                ) {
+                                    rendered.countDown()
+                                }
 
-                            override fun onPlayerError(
-                                eventTime: AnalyticsListener.EventTime,
-                                error: androidx.media3.common.PlaybackException
-                            ) {
-                                failureMessage = error.message ?: error.errorCodeName
-                                failed.countDown()
-                            }
-                        })
+                                override fun onPlayerError(
+                                    eventTime: AnalyticsListener.EventTime,
+                                    error: androidx.media3.common.PlaybackException
+                                ) {
+                                    failureMessage = error.message ?: error.errorCodeName
+                                    failed.countDown()
+                                }
+                            })
 
-                        exoPlayer.setMediaItem(MediaItem.fromUri(stream.url))
-                        exoPlayer.prepare()
-                        exoPlayer.playWhenReady = true
-                    }
+                            exoPlayer.setMediaItem(MediaItem.fromUri(stream.url))
+                            exoPlayer.prepare()
+                            exoPlayer.playWhenReady = true
+                        }
+                } finally {
+                    created.countDown()
+                }
             }
+
+            assertTrue("Media3 player setup timed out", created.await(10, TimeUnit.SECONDS))
 
             val renderedInTime = rendered.await(90, TimeUnit.SECONDS)
-            if (!renderedInTime) {
-                assertTrue(
+            if (!renderedInTime && failed.count == 0L) {
+                throw AssertionError(
                     "Media3 did not render the first frame within 90s. " +
-                        "Playback error=${failureMessage ?: "none reported"}",
-                    failed.count == 0L
+                        "Playback error=${failureMessage ?: "none reported"}"
                 )
             }
-            assertTrue("Media3 never reached onRenderedFirstFrame", renderedInTime)
+            assertTrue(
+                "Media3 playback failed before onRenderedFirstFrame: ${failureMessage ?: "unknown error"}",
+                renderedInTime
+            )
         } finally {
-            mainThread.run {
-                player?.release()
-            }
-            mainThread.close()
-        }
-    }
-
-    private class HandlerThreadRunner {
-        private val latch = CountDownLatch(1)
-        private val thread = Thread {
-            Looper.prepare()
-            latch.countDown()
-            Looper.loop()
-        }
-        private var handler: android.os.Handler? = null
-
-        init {
-            thread.start()
-            assertTrue("Media3 test looper failed to start", latch.await(5, TimeUnit.SECONDS))
-            handler = android.os.Handler(thread.looper())
-        }
-
-        fun run(block: () -> Unit) {
-            val done = CountDownLatch(1)
-            var thrown: Throwable? = null
-            handler!!.post {
+            val released = CountDownLatch(1)
+            handler.post {
                 try {
-                    block()
-                } catch (t: Throwable) {
-                    thrown = t
+                    player?.release()
                 } finally {
-                    done.countDown()
+                    released.countDown()
                 }
             }
-            assertTrue("Media3 main thread task timed out", done.await(10, TimeUnit.SECONDS))
-            thrown?.let { throw it }
-        }
-
-        fun close() {
-            handler?.post { Looper.myLooper()?.quitSafely() }
-            thread.join(5_000)
-        }
-
-        private fun Thread.looper(): Looper =
-            Looper.getMainLooper().let { main ->
-                if (Thread.currentThread() === thread) main else LooperHolder.looper(thread)
-            }
-
-        private object LooperHolder {
-            fun looper(thread: Thread): Looper {
-                var looper: Looper? = null
-                val ready = CountDownLatch(1)
-                val probe = Thread {
-                    Looper.prepare()
-                    looper = Looper.myLooper()
-                    ready.countDown()
-                    Looper.loop()
-                }
-                probe.start()
-                ready.await(5, TimeUnit.SECONDS)
-                probe.interrupt()
-                return looper ?: Looper.getMainLooper()
-            }
+            released.await(10, TimeUnit.SECONDS)
+            playerThread.quitSafely()
+            playerThread.join(5_000)
         }
     }
 }
