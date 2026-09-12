@@ -2,13 +2,24 @@ name: Provider E2E Playback
 
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - provider-batch-2026-09-12
-      - provider-e2e-dedicated-2026-09-12
+    inputs:
+      suite:
+        description: E2E suite to run
+        required: true
+        type: choice
+        default: all-providers
+        options:
+          - kuronime
+          - allanime
+          - samehadaku
+          - all-providers
 
-# Keep provider E2E on one hosted runner while runner provisioning is unstable.
-# This avoids four simultaneous Android Emulator runner allocations.
+# Provider E2E is intentionally manual: Android emulator runs are the expensive gate.
+# Run the smallest suite that proves the provider currently being changed.
+concurrency:
+  group: provider-e2e-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   provider-playback-e2e:
     runs-on: ubuntu-latest
@@ -36,7 +47,7 @@ jobs:
           java -version
           ./gradlew --version
 
-      - name: Run provider playback E2E on one Android emulator
+      - name: Run selected provider playback E2E on one Android emulator
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: 35
@@ -47,18 +58,36 @@ jobs:
           disable-animations: true
           pre-emulator-launch-script: sudo chmod 666 /dev/kvm || true
           emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim
-          script: >-
-            ./gradlew :app:connectedDebugAndroidTest
-            -Pandroid.testInstrumentationRunnerArguments.class=com.kakaanime.app.provider.KuronimePlaybackE2eTest
-            --stacktrace
-            && ./gradlew :app:connectedDebugAndroidTest
-            -Pandroid.testInstrumentationRunnerArguments.class=com.kakaanime.app.provider.AllAnimePlaybackE2eTest
-            --stacktrace
-            && ./gradlew :app:connectedDebugAndroidTest
-            -Pandroid.testInstrumentationRunnerArguments.class=com.kakaanime.app.provider.SamehadakuPlaybackE2eTest
-            --stacktrace
-            && ./gradlew :app:connectedDebugAndroidTest
-            -Pandroid.testInstrumentationRunnerArguments.class=com.kakaanime.app.provider.AllProvidersPlaybackE2eTest
-            --stacktrace
+          script: |
+            set -euo pipefail
+            run_test() {
+              local test_class="$1"
+              echo "=== Running ${test_class} ==="
+              ./gradlew :app:connectedDebugAndroidTest \
+                -Pandroid.testInstrumentationRunnerArguments.class="${test_class}" \
+                --stacktrace
+            }
+
+            case "${{ inputs.suite }}" in
+              kuronime)
+                run_test com.kakaanime.app.provider.KuronimePlaybackE2eTest
+                ;;
+              allanime)
+                run_test com.kakaanime.app.provider.AllAnimePlaybackE2eTest
+                ;;
+              samehadaku)
+                run_test com.kakaanime.app.provider.SamehadakuPlaybackE2eTest
+                ;;
+              all-providers)
+                run_test com.kakaanime.app.provider.KuronimePlaybackE2eTest
+                run_test com.kakaanime.app.provider.AllAnimePlaybackE2eTest
+                run_test com.kakaanime.app.provider.SamehadakuPlaybackE2eTest
+                run_test com.kakaanime.app.provider.AllProvidersPlaybackE2eTest
+                ;;
+              *)
+                echo "Unknown suite: ${{ inputs.suite }}"
+                exit 2
+                ;;
+            esac
 
 # Provider E2E gate: source changes must prove native playback through first rendered frame.
