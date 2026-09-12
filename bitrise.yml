@@ -5,24 +5,30 @@ project_type: android
 workflows:
   provider_e2e:
     steps:
-      - avd-manager@1: {}
+      - avd-manager@1:
+          inputs:
+            - profile: pixel
+            - api_level: '34'
+            - tag: google_apis
+            - abi: x86_64
+            - disable_animations: 'yes'
+            - headless_mode: 'yes'
       - git-clone@8: {}
+      - install-missing-android-tools@3: {}
       - android-build-for-ui-testing@0:
           inputs:
             - project_location: "$BITRISE_SOURCE_DIR"
             - module: app
             - variant: debug
             - cache_level: all
-      - wait-for-android-emulator@1: {}
+      - wait-for-android-emulator@1:
+          inputs:
+            - emulator_serial: "$BITRISE_EMULATOR_SERIAL"
+            - boot_timeout: '300'
       - android-instrumented-test@0:
           inputs:
             - test_runner_class: androidx.test.runner.AndroidJUnitRunner
             - main_apk_path: "$BITRISE_APK_PATH"
             - test_apk_path: "$BITRISE_TEST_APK_PATH"
             - additional_testing_options: "class com.kakaanime.app.provider.OtakudesuProviderE2ETest#onePieceEpisodeOneRendersFirstFrame"
-      - custom-test-results-export@0:
-          inputs:
-            - search_pattern: "*.xml"
-            - base_path: "$BITRISE_SOURCE_DIR/app/build/outputs/androidTest-results"
-            - test_name: "Otakudesu Provider E2E"
       - deploy-to-bitrise-io@2: {}
