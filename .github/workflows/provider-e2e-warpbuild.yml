@@ -1,6 +1,9 @@
 name: Provider E2E WarpBuild
 
 on:
+  push:
+    branches:
+      - main
   workflow_dispatch:
 
 concurrency:
@@ -9,6 +12,7 @@ concurrency:
 
 jobs:
   otakudesu-e2e:
+    if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[e2e]')
     name: Otakudesu E2E playback
     runs-on: warp-ubuntu-latest-x64-4x;nested-virtualization.enabled=true
     timeout-minutes: 20
