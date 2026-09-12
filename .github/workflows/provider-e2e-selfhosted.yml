@@ -1,0 +1,55 @@
+name: Provider E2E Self-Hosted
+
+on:
+  workflow_dispatch:
+
+# This workflow intentionally targets a self-hosted runner so Android Emulator E2E
+# does not consume GitHub-hosted Actions minutes.
+jobs:
+  provider-playback-e2e:
+    runs-on: [self-hosted, linux, x64, android-e2e]
+    timeout-minutes: 75
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Verify self-hosted runner
+        shell: bash
+        run: |
+          set -euxo pipefail
+          echo "Self-hosted runner: ${RUNNER_NAME}"
+          echo "OS: ${RUNNER_OS}"
+          uname -a
+          java -version
+          ./gradlew --version
+
+      - name: Make Gradle executable
+        run: chmod +x ./gradlew
+
+      - name: Run provider playback E2E on Android emulator
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          target: google_apis
+          arch: x86_64
+          profile: pixel_6
+          disable-linux-hw-accel: false
+          disable-animations: true
+          pre-emulator-launch-script: sudo chmod 666 /dev/kvm || true
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim
+          script: >-
+            ./gradlew :app:connectedDebugAndroidTest
+            -Pandroid.testInstrumentationRunnerArguments.class=com.kakaanime.app.provider.KuronimePlaybackE2eTest
+            --stacktrace
+            && ./gradlew :app:connectedDebugAndroidTest
+            -Pandroid.testInstrumentationRunnerArguments.class=com.kakaanime.app.provider.AllAnimePlaybackE2eTest
+            --stacktrace
+            && ./gradlew :app:connectedDebugAndroidTest
+            -Pandroid.testInstrumentationRunnerArguments.class=com.kakaanime.app.provider.SamehadakuPlaybackE2eTest
+            --stacktrace
+            && ./gradlew :app:connectedDebugAndroidTest
+            -Pandroid.testInstrumentationRunnerArguments.class=com.kakaanime.app.provider.AllProvidersPlaybackE2eTest
+            --stacktrace
+
+# Green gate remains unchanged: a provider is green only after Media3 reaches
+# onRenderedFirstFrame() with a real playable stream.
