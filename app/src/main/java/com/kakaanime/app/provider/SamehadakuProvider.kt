@@ -113,7 +113,7 @@ class SamehadakuProvider : AnimeProvider {
                     title = item.firstString("title", "name") ?: "Episode $number",
                     isNew = item.optBoolean("isNew", false)
                 )
-            }.distinctBy { it.number }.sortedBy { it.number }
+            }.distinctBy { it.number }.sortedBy { it.number }.toList()
             if (episodes.isNotEmpty()) return episodes
         }
         return emptyList()
