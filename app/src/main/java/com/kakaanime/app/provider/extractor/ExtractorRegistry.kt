@@ -2,19 +2,29 @@ package com.kakaanime.app.provider.extractor
 
 import com.kakaanime.app.provider.extractor.extractors.GenericDirectExtractor
 import com.kakaanime.app.provider.extractor.extractors.GenericEmbedExtractor
+import com.kakaanime.app.provider.extractor.extractors.KrakenFilesExtractor
+import com.kakaanime.app.provider.extractor.extractors.OtakudesuServerExtractor
+import com.kakaanime.app.provider.extractor.extractors.PixelDrainExtractor
 
 /**
- * Extractor registry inspired by the proven specific-first/generic-last model.
+ * Central extractor registry.
  *
- * Host-specific extractors always get a chance before generic page/direct
- * extraction. Generic extractors are the final fallback instead of competing
- * with a specialized resolver.
+ * Ordering follows the proven specific-first/generic-last model:
+ * provider/server resolver -> host-specific resolver -> generic embed -> direct.
  */
 class ExtractorRegistry(
     extractors: List<StreamExtractor> = emptyList()
 ) {
     private val extractors = (
-        extractors.distinctBy { it.id }.sortedByDescending { it.priority } +
+        (
+            listOf(
+                OtakudesuServerExtractor(),
+                KrakenFilesExtractor(),
+                PixelDrainExtractor()
+            ) + extractors
+        )
+            .distinctBy { it.id }
+            .sortedByDescending { it.priority } +
             GenericEmbedExtractor() +
             GenericDirectExtractor()
         )
