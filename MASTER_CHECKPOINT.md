@@ -589,6 +589,58 @@ Menampilkan anime yang mendapatkan episode baru berdasarkan anime yang diikuti/d
    - Target sinkronisasi/backup: Favorite, History, Episode progress, Watched state, pengaturan player, dan theme/tampilan.
    - Login kembali pada perangkat lain dapat memulihkan data.
 
+---
+
+# 24. 🆕 ANI LAB — EPISODE ACCESS / LOCKED WATCH FLOW
+
+**Status:** 🔴 **TARGET — BELUM DIIMPLEMENTASIKAN**
+
+Fitur yang direferensikan dari video user ditambahkan sebagai target terpisah tanpa menghapus aturan Diamond/Premium yang sudah ada.
+
+### Aturan akses
+
+- 🔵 Episode yang belum memiliki entitlement watch tetap terlihat sebagai episode **locked**.
+- 🔵 User dapat membuka episode melalui entitlement gratis (Diamond/rewarded ad) sesuai aturan monetisasi yang sudah dikunci, atau melalui **Premium**.
+- 🔵 Episode yang entitlement-nya sudah diperoleh menjadi **unlocked** dan dapat diputar.
+- 🔵 State lock/unlock harus konsisten dengan watched/entitlement state dan persistence.
+- 🔴 Belum ada implementasi nyata.
+
+### UI / UX
+
+- 🔵 Visual, typography/font, spacing, iconography, bottom sheet/dialog, transition, animation, gesture dan interaction pattern mengikuti **arah desain ReDantotsu**.
+- 🔵 Tampilan harus terasa native dengan AniLab, bukan copy-paste UI ReDantotsu.
+- 🔵 Lock indicator dibuat subtle dan tidak mengganggu daftar episode.
+- 🔵 Unlock flow harus jelas tetapi tetap minimal: user tahu apa yang dibutuhkan untuk menonton tanpa dibombardir popup.
+- 🔵 Gesture dan animasi harus halus, cepat, dan konsisten dengan player/app navigation AniLab.
+- 🔴 Detail visual final menunggu implementasi UI dan validasi device nyata.
+
+### Integrasi monetisasi
+
+- 🔵 Free user: gunakan Diamond/rewarded-ad flow yang sudah ditetapkan.
+- 🔵 Premium: bypass entitlement Diamond untuk episode yang termasuk Premium.
+- 🔴 Validasi end-to-end ad/reward → unlock → playback belum dilakukan.
+
+### Integrasi playback
+
+```text
+Episode locked
+    ↓
+User tap episode
+    ↓
+AniLab cek entitlement
+    ├── Premium → Unlock → Resolve → Play
+    └── Free → Diamond / Rewarded Ad → Unlock → Resolve → Play
+```
+
+### Non-negotiable UX
+
+- 🔵 Tidak menampilkan provider/source kepada user.
+- 🔵 Tidak menambahkan manual source switcher.
+- 🔵 Tidak memaksa user memahami resolver/embed/host.
+- 🔵 Semua kompleksitas source tetap ditangani AniLab di belakang layar.
+
+---
+
 ### 🟡 Masih Dipertimbangkan
 
 - **Recently Added / Recently Watched**
@@ -604,7 +656,7 @@ Menampilkan anime yang mendapatkan episode baru berdasarkan anime yang diikuti/d
 
 ---
 
-# 24. 🔵 PRINSIP UX ANI LAB
+# 25. 🔵 PRINSIP UX ANI LAB
 
 > **User cukup nonton, AniLab yang mengurus sisanya.**
 
@@ -632,7 +684,7 @@ Provider/source bukan keputusan manual user.
 
 ---
 
-# 25. 🔴 STATUS IMPLEMENTASI FITUR BARU
+# 26. 🔴 STATUS IMPLEMENTASI FITUR BARU
 
 Semua fitur baru masih **🔴 BELUM DIKERJAKAN**, kecuali hanya menjadi target/keputusan roadmap.
 
@@ -646,11 +698,12 @@ Semua fitur baru masih **🔴 BELUM DIKERJAKAN**, kecuali hanya menjadi target/k
 6. 🔴 Sleep Timer
 7. 🔴 Report Broken
 8. 🔴 Google Login + Backup/Restore
-9. 🟡 Recently Added/Watched — keputusan final belakangan
+9. 🔴 Episode Access / Locked Watch Flow
+10. 🟡 Recently Added/Watched — keputusan final belakangan
 
 ---
 
-# 26. 🔴 P5 — FINAL DEVICE VALIDATION
+# 27. 🔴 P5 — FINAL DEVICE VALIDATION
 
 Setelah P0–P4 stabil:
 
@@ -671,7 +724,7 @@ Setelah P0–P4 stabil:
 
 ---
 
-# 27. 🔴 FINAL RELEASE
+# 28. 🔴 FINAL RELEASE
 
 Target akhir:
 
@@ -729,6 +782,7 @@ Release build
 - Smart Auto-Fallback target
 - Episode Watch Progress target
 - Google Login + Backup/Restore target
+- **Episode Access / Locked Watch Flow target**
 
 ### 🔴 Fokus pengerjaan berikutnya
 
