@@ -926,6 +926,87 @@ AniLab cek entitlement
 
 ---
 
+# 24A. 🔴 ANI LAB — SMART WATCHING FEATURES
+
+**Status:** 🔴 **ROADMAP DIKUNCI — IMPLEMENTASI BELUM SELESAI**
+
+Fitur berikut ditambahkan sebagai target AniLab di atas checkpoint yang sudah ada. Fitur ini **tidak diimplementasikan sekarang** dan tidak mengubah prioritas P0 Provider E2E. **Subtitle + Audio Preference tidak masuk target** sesuai keputusan sebelumnya.
+
+## 24A.1 🔴 Continue Watching
+
+- Menampilkan anime yang sedang ditonton dan belum selesai.
+- Menyimpan episode terakhir yang sedang ditonton.
+- Menyimpan progress playback terakhir.
+- Tap item langsung membuka episode dan melanjutkan playback.
+- Continue Watching tidak menggantikan Favorite, History, atau New Updates; masing-masing memiliki fungsi berbeda.
+- Progress harus tersimpan secara lokal/persistence dan tetap tersedia setelah aplikasi ditutup.
+
+## 24A.2 🔴 Smart Episode Resume
+
+- Menyimpan timestamp terakhir playback per episode.
+- Saat episode dibuka kembali, player dapat melanjutkan dari posisi terakhir.
+- Resume point tidak boleh membuat episode yang sudah selesai kembali dianggap sedang ditonton.
+- Resume state harus tahan terhadap app restart dan player recreation.
+- Fitur ini memperluas target **Episode Watch Progress** yang sudah ada dan tidak menggantikannya.
+
+## 24A.3 🔴 Smart Opening / Ending Skip
+
+- Auto Skip Intro tetap **Premium-only** sesuai keputusan subscription yang sudah dikunci.
+- Auto Skip Outro tetap **Premium-only** sesuai keputusan subscription yang sudah dikunci.
+- Target pengembangan: skip berbasis timestamp intro/outro, bukan hanya skip manual 10 detik.
+- Timestamp dapat disediakan oleh metadata/provider/konfigurasi yang kompatibel.
+- Jika timestamp tidak tersedia atau tidak valid, player tidak boleh crash dan kembali ke perilaku normal.
+- User tidak perlu mengatur timestamp secara manual untuk penggunaan normal.
+
+## 24A.4 🔴 Smart Auto Next
+
+- Setelah episode selesai, AniLab mendeteksi episode berikutnya yang tersedia.
+- Jika Auto Next aktif, tampilkan countdown singkat sebelum episode berikutnya dimainkan.
+- Target default countdown: **5 detik**.
+- User dapat membatalkan Auto Next selama countdown.
+- Jika episode berikutnya tidak tersedia, playback berhenti normal.
+- Auto Next harus tetap terintegrasi dengan Episode Access/Diamond/Premium flow; episode berikutnya tetap melewati entitlement yang berlaku.
+
+## 24A.5 🔴 Enhanced Watch History
+
+- History menyimpan anime, episode, progress, dan waktu terakhir ditonton.
+- History dapat membuka kembali episode dari posisi terakhir jika resume point masih valid.
+- User dapat menghapus satu item history.
+- User dapat menghapus seluruh history.
+- History tidak boleh menghapus Favorite atau status New Updates.
+- Persistence history harus aman terhadap app restart.
+
+## 24A.6 🔴 Smart Search + Provider Deduplication
+
+- Search tetap memakai Provider Engine/Router yang sudah dikunci.
+- Hasil dari beberapa provider harus dinormalisasi ke model AniLab yang sama.
+- Anime yang sama dari beberapa provider harus dapat dideteksi dan digabung menjadi satu hasil user-facing.
+- Deduplication dapat menggunakan kombinasi slug/title normalization, year, metadata, dan identifier yang tersedia.
+- Provider/source tetap tersembunyi dari user.
+- Search tidak menampilkan daftar provider sebagai filter/source switcher manual.
+- Jika satu hasil memiliki beberapa provider di belakang layar, Provider Router memilih source terbaik secara internal.
+- Fitur ini **bukan** Global Search + Provider Filter manual yang sudah dicoret.
+
+## 24A.7 🔴 Smart Provider Recovery
+
+- Jika provider/source utama gagal saat Search, Detail, Episode, Resolve Stream, atau Playback, AniLab mencoba fallback yang tersedia.
+- Recovery mengikuti Provider Router dan Provider Failover yang sudah dikunci.
+- Error dapat diklasifikasikan secara internal: domain/API unavailable, anime/episode tidak ditemukan, stream gagal, resolver gagal, atau direct playback gagal.
+- User tidak perlu memilih provider secara manual.
+- Jika fallback berhasil, user langsung melanjutkan ke hasil yang tersedia tanpa melihat detail kegagalan source sebelumnya.
+- Jika seluruh source gagal, AniLab menampilkan error yang singkat dan terkendali tanpa crash.
+- Recovery harus memiliki timeout agar tidak membuat user menunggu tanpa batas.
+- Fitur ini memperluas target **Smart Auto-Fallback** yang sudah ada dan tidak menggantikannya.
+
+### 🔵 Non-negotiable
+
+- Subtitle + Audio Preference tidak masuk target.
+- Fitur-fitur di atas tidak boleh membatalkan atau mengganti keputusan Provider Engine, Diamond, Premium, Player, dan UX yang sudah dikunci.
+- Semua fitur baru harus divalidasi setelah fondasi streaming/provider stabil.
+- Penambahan roadmap ini tidak menjadi bagian dari Provider E2E saat ini.
+
+---
+
 ### 🟡 Masih Dipertimbangkan
 
 - **Recently Added / Recently Watched**
@@ -985,6 +1066,18 @@ Semua fitur baru masih **🔴 BELUM DIKERJAKAN**, kecuali hanya menjadi target/k
 8. 🔴 Google Login + Backup/Restore
 9. 🔴 Episode Access / Locked Watch Flow
 10. 🟡 Recently Added/Watched — keputusan final belakangan
+
+### Roadmap Smart Watching yang baru dicatat
+
+- 🔴 Continue Watching
+- 🔴 Smart Episode Resume
+- 🔴 Smart Opening / Ending Skip berbasis timestamp
+- 🔴 Smart Auto Next + countdown 5 detik
+- 🔴 Enhanced Watch History
+- 🔴 Smart Search + Provider Deduplication otomatis
+- 🔴 Smart Provider Recovery
+
+**Catatan:** daftar di atas hanya roadmap. Tidak ada implementasi fitur-fitur tersebut pada checkpoint commit ini.
 
 ---
 
@@ -1071,6 +1164,7 @@ Release build
 - Google Login + Backup/Restore target
 - **Episode Access / Locked Watch Flow target**
 - **Provider Engine — Dynamic Provider & Domain Architecture**
+- **AniLab Smart Watching roadmap: 7 fitur baru dicatat, implementasi belum dimulai**
 
 ### 🔴 Fokus pengerjaan berikutnya
 
@@ -1087,6 +1181,7 @@ Build CI sudah 🟢. Sekarang gate berikutnya adalah membuktikan provider nyata 
 - Subtitle Manager
 - Manual Source Switcher
 - Global Search + Provider Filter
+- Subtitle + Audio Preference
 
 ---
 
