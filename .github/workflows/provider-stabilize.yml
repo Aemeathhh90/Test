@@ -1,0 +1,41 @@
+name: Provider Stabilizer
+
+on:
+  push:
+    branches:
+      - provider-batch-2026-09-12
+
+permissions:
+  contents: write
+
+jobs:
+  stabilize:
+    if: ${{ !contains(github.event.head_commit.message, 'stabilize provider source') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Deduplicate provider imports
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('app/src/main/java/com/kakaanime/app/provider/OtakudesuProvider.kt')
+          s = p.read_text()
+          lines = s.splitlines()
+          seen_uri = False
+          out = []
+          for line in lines:
+              if line == 'import java.net.URI':
+                  if seen_uri:
+                      continue
+                  seen_uri = True
+              out.append(line)
+          p.write_text('\n'.join(out) + '\n')
+          PY
+      - name: Commit stabilized source
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add app/src/main/java/com/kakaanime/app/provider/OtakudesuProvider.kt
+          git diff --cached --quiet && exit 0
+          git commit -m 'fix(provider): stabilize provider source; normalize Otakudesu search URLs before detail lookup; cleanup duplicate provider imports'
+          git push
