@@ -29,13 +29,35 @@ class OtakudesuProvider : AnimeProvider {
         .build()
 
     private val baseUrl = "https://qrtzanim.vercel.app/api"
+    private val legacySearchUrl = "https://otakudesu-api-jade.vercel.app/api"
 
     override suspend fun search(query: String): List<ProviderAnime> {
-        val root = requestJson("$baseUrl/search?q=${encode(query)}&page=1") ?: return emptyList()
-        return root.optJSONObject("data")
+        val normalizedQuery = query.trim()
+        if (normalizedQuery.isBlank()) return emptyList()
+
+        // Primary: qrtzanim. Its documented response is { ok, data: { results } }.
+        val primary = requestJson(
+            "$baseUrl/search?q=${encode(normalizedQuery)}&page=1"
+        )
+        val primaryResults = primary
+            ?.optJSONObject("data")
             ?.optJSONArray("results")
             ?.toProviderAnimeList()
-            ?: emptyList()
+            .orEmpty()
+
+        if (primaryResults.isNotEmpty()) return primaryResults
+
+        // Fallback: keep the provider usable if the primary wrapper is
+        // temporarily unavailable. The fallback returns Otakudesu slugs,
+        // which remain compatible with the qrtzanim detail/episode routes.
+        val fallback = requestJson(
+            "$legacySearchUrl/search/${encodePath(normalizedQuery)}"
+        )
+        val fallbackResults = fallback?.optJSONArray("search_results")
+            ?.toLegacyProviderAnimeList()
+            .orEmpty()
+
+        return fallbackResults
     }
 
     override suspend fun getAnime(animeId: String): ProviderAnime? {
@@ -160,6 +182,26 @@ class OtakudesuProvider : AnimeProvider {
                     posterUrl = item.optString("thumbnail").ifBlank { null },
                     status = item.optString("status").ifBlank { "UNKNOWN" },
                     rating = item.optString("score").toDoubleOrNull()
+                )
+            )
+        }
+    }
+
+    private fun JSONArray.toLegacyProviderAnimeList(): List<ProviderAnime> = buildList {
+        for (index in 0 until length()) {
+            val item = optJSONObject(index) ?: continue
+            val slug = item.optString("endpoint")
+                .trim()
+                .trim('/')
+            if (slug.isBlank()) continue
+            add(
+                ProviderAnime(
+                    id = "$id:$slug",
+                    title = item.optString("title").ifBlank { "Unknown Anime" },
+                    providerId = id,
+                    posterUrl = item.optString("thumb").ifBlank { null },
+                    status = item.optString("status").ifBlank { "UNKNOWN" },
+                    rating = item.optString("rating").toDoubleOrNull()
                 )
             )
         }
