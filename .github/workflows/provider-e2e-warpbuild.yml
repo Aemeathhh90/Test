@@ -17,6 +17,15 @@ jobs:
     runs-on: warp-ubuntu-latest-x64-8x;nested-virtualization.enabled=true
     timeout-minutes: 20
     steps:
+      - name: Probe WarpBuild runner
+        run: |
+          echo "runner=$RUNNER_NAME"
+          echo "os=$RUNNER_OS"
+          echo "arch=$RUNNER_ARCH"
+          nproc
+          free -h
+          ls -l /dev/kvm || true
+
       - name: Checkout
         uses: actions/checkout@v4
 
