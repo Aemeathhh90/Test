@@ -34,6 +34,7 @@ class SamehadakuProvider : AnimeProvider {
         for (url in urls) {
             val root = requestJson(url) ?: continue
             val result = extractAnimeArray(root).mapNotNull { it.toProviderAnime() }
+                .filterNot { it.title.matches(Regex(".*(?:episode|eps|ep)\\s*\\d+.*", RegexOption.IGNORE_CASE)) }
             if (result.isNotEmpty()) return result
         }
         return gateway.search(query)
@@ -73,7 +74,7 @@ class SamehadakuProvider : AnimeProvider {
             }.distinctBy { it.number }.sortedBy { it.number }
             if (episodes.isNotEmpty()) return episodes
         }
-        return gateway.getEpisodes(animeId)
+        return gateway.getEpisodes("$id:$slug")
     }
 
     override suspend fun getStreams(animeId: String, episodeNumber: Int): List<ProviderStream> {
@@ -92,7 +93,7 @@ class SamehadakuProvider : AnimeProvider {
             val unique = streams.distinctBy { it.url }
             if (unique.isNotEmpty()) return unique
         }
-        return gateway.getStreams(animeId, episodeNumber)
+        return gateway.getStreams("$id:$slug", episodeNumber)
     }
 
     private suspend fun requestJson(url: String): JSONObject? = withContext(Dispatchers.IO) {
@@ -182,7 +183,7 @@ class SamehadakuProvider : AnimeProvider {
         ?: Regex("(?:episode|eps|ep)[^0-9]*(\\d+)", RegexOption.IGNORE_CASE).find(firstString("title", "name", "slug", "id", "judul").orEmpty())?.groupValues?.getOrNull(1)?.toIntOrNull()
     private fun extractStringArray(root: JSONObject, vararg keys: String): List<String> = keys.firstNotNullOfOrNull { key -> root.optJSONArray(key)?.let { array -> buildList { for (i in 0 until array.length()) array.optString(i).trim().takeIf { it.isNotBlank() }?.let(::add) } } } ?: emptyList()
     private fun JSONArray.objects(): List<JSONObject> = buildList { for (i in 0 until length()) optJSONObject(i)?.let(::add) }
-    private fun normalizeAnimeId(value: String): String = value.removePrefix("$id:").trim('/')
+    private fun normalizeAnimeId(value: String): String = value.removePrefix("$id:").trim('/').replace(Regex("(?:-episode|-ep|-eps)-\\d+(?:-.*)?$", RegexOption.IGNORE_CASE), "")
     private fun String.slugify(): String = trim().lowercase().replace(Regex("[^a-z0-9]+"), "-").trim('-')
     private fun encode(value: String): String = URLEncoder.encode(value.trim(), "UTF-8")
     private fun encodePath(value: String): String = value.split('/').joinToString("/") { encode(it) }
