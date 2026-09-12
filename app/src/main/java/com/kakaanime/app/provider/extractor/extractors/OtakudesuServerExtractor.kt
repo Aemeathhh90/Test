@@ -61,8 +61,8 @@ class OtakudesuServerExtractor : StreamExtractor {
                 }
             }
 
-            // Keep a final generic pass for player/embed markup not covered by
-            // Otakudesu's server blocks.
+            // Final static-media fallback for pages that expose a player
+            // without a recognizable server block.
             if (results.isEmpty()) {
                 extractInlineMedia(html, url).forEach { media ->
                     results.putIfAbsent(
@@ -70,7 +70,6 @@ class OtakudesuServerExtractor : StreamExtractor {
                         ProviderStream(
                             providerId = "otakudesu",
                             url = media,
-                            quality = null,
                             type = media.toStreamType(),
                             headers = mapOf("Referer" to url)
                         )
@@ -106,12 +105,18 @@ class OtakudesuServerExtractor : StreamExtractor {
             "(?:data-content|data-video|data-src)\\s*=\\s*[\\\"']([^\\\"']+)[\\\"']",
             RegexOption.IGNORE_CASE
         ).findAll(html)
-            .mapNotNull { decodeBase64(it.groupValues[1]) }
-            .flatMap { parseMirrorEntries(it).asSequence() }
+            .mapNotNull { rawMatch ->
+                val raw = decodeHtml(rawMatch.groupValues[1])
+                decodeBase64(raw)?.let { decoded ->
+                    parseMirrorEntries(decoded)
+                }?.takeIf { it.isNotEmpty() }
+                    ?: parseMirrorEntries(raw)
+            }
+            .flatMap { it.asSequence() }
             .toList()
 
         val results = linkedSetOf<String>()
-        for (entry in mirrorEntries) {
+        for (entry in mirrorEntries.distinctBy { "${it.id}|${it.i}|${it.q}" }) {
             val response = postAjax(
                 "$host/wp-admin/admin-ajax.php",
                 mapOf(
@@ -139,7 +144,7 @@ class OtakudesuServerExtractor : StreamExtractor {
         for (li in liPattern.findAll(html)) {
             val block = li.groupValues[1]
             if (!block.contains("href=", ignoreCase = true)) continue
-            val quality = Regex("(\\d{3,4})\\s*[pP]").find(block)?.groupValues?.getOrNull(1)?.toIntOrNull()?.toString()
+            val quality = Regex("(\\d{3,4})\\s*[pP]").find(block)?.groupValues?.getOrNull(1)
             Regex("href\\s*=\\s*[\\\"']([^\\\"']+)[\\\"']", RegexOption.IGNORE_CASE)
                 .findAll(block)
                 .forEach { match ->
@@ -218,9 +223,7 @@ class OtakudesuServerExtractor : StreamExtractor {
                 .header("Accept-Language", "id-ID,id;q=0.9,en-US;q=0.8")
                 .header("Referer", referer)
                 .build()
-            client.newCall(request).execute().use { response ->
-                response.request.url.toString()
-            }
+            client.newCall(request).execute().use { response -> response.request.url.toString() }
         }.getOrNull()
     }
 
