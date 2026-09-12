@@ -124,4 +124,4 @@ jobs:
             -Pandroid.testInstrumentationRunnerArguments.class=com.kakaanime.app.provider.AllProvidersPlaybackE2eTest
             --stacktrace
 
-# Keep push-triggered provider verification explicit for each provider-fix commit.
+# Provider E2E gate: source changes must prove native playback through first rendered frame.
