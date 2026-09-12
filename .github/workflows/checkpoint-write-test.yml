@@ -1,0 +1,11 @@
+name: checkpoint-write-test
+on:
+  push:
+    branches: [main]
+permissions:
+  contents: write
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo checkpoint-test
