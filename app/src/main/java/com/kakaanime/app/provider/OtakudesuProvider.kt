@@ -175,7 +175,7 @@ class OtakudesuProvider : AnimeProvider {
             type = when {
                 url.contains(".m3u8", ignoreCase = true) -> StreamType.HLS
                 url.contains(".mpd", ignoreCase = true) -> StreamType.DASH
-                url.contains(".mp4", ignoreCase = true) -> StreamType.PROGRESSIVE
+                url.contains(".mp4", ignoreCase = true) -> StreamType.MP4
                 else -> StreamType.UNKNOWN
             }
         )
