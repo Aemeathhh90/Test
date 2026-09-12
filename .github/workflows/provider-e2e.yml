@@ -7,22 +7,36 @@ on:
       - provider-batch-2026-09-12
       - provider-e2e-dedicated-2026-09-12
 
+# Keep provider E2E on one hosted runner while runner provisioning is unstable.
+# This avoids four simultaneous Android Emulator runner allocations.
 jobs:
-  kuronime-playback:
-    runs-on: ubuntu-22.04
-    timeout-minutes: 20
+  provider-playback-e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
       - name: Set up JDK 17
         uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '17'
           cache: gradle
+
       - name: Make Gradle executable
         run: chmod +x ./gradlew
-      - name: Run Kuronime playback E2E on Android emulator
+
+      - name: Verify hosted runner
+        run: |
+          set -euxo pipefail
+          echo "Runner: ${RUNNER_NAME}"
+          echo "OS: ${RUNNER_OS}"
+          uname -a
+          java -version
+          ./gradlew --version
+
+      - name: Run provider playback E2E on one Android emulator
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: 35
@@ -30,99 +44,20 @@ jobs:
           arch: x86_64
           profile: pixel_6
           disable-linux-hw-accel: false
+          disable-animations: true
           pre-emulator-launch-script: sudo chmod 666 /dev/kvm || true
           emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim
           script: >-
             ./gradlew :app:connectedDebugAndroidTest
             -Pandroid.testInstrumentationRunnerArguments.class=com.kakaanime.app.provider.KuronimePlaybackE2eTest
             --stacktrace
-
-  allanime-playback:
-    runs-on: ubuntu-22.04
-    timeout-minutes: 20
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-      - name: Set up JDK 17
-        uses: actions/setup-java@v5
-        with:
-          distribution: temurin
-          java-version: '17'
-          cache: gradle
-      - name: Make Gradle executable
-        run: chmod +x ./gradlew
-      - name: Run AllAnime playback E2E on Android emulator
-        uses: reactivecircus/android-emulator-runner@v2
-        with:
-          api-level: 35
-          target: google_apis
-          arch: x86_64
-          profile: pixel_6
-          disable-linux-hw-accel: false
-          pre-emulator-launch-script: sudo chmod 666 /dev/kvm || true
-          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim
-          script: >-
-            ./gradlew :app:connectedDebugAndroidTest
+            && ./gradlew :app:connectedDebugAndroidTest
             -Pandroid.testInstrumentationRunnerArguments.class=com.kakaanime.app.provider.AllAnimePlaybackE2eTest
             --stacktrace
-
-  samehadaku-playback:
-    runs-on: ubuntu-22.04
-    timeout-minutes: 20
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-      - name: Set up JDK 17
-        uses: actions/setup-java@v5
-        with:
-          distribution: temurin
-          java-version: '17'
-          cache: gradle
-      - name: Make Gradle executable
-        run: chmod +x ./gradlew
-      - name: Run Samehadaku playback E2E on Android emulator
-        uses: reactivecircus/android-emulator-runner@v2
-        with:
-          api-level: 35
-          target: google_apis
-          arch: x86_64
-          profile: pixel_6
-          disable-linux-hw-accel: false
-          disable-animations: true
-          pre-emulator-launch-script: sudo chmod 666 /dev/kvm || true
-          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim
-          script: >-
-            ./gradlew :app:connectedDebugAndroidTest
+            && ./gradlew :app:connectedDebugAndroidTest
             -Pandroid.testInstrumentationRunnerArguments.class=com.kakaanime.app.provider.SamehadakuPlaybackE2eTest
             --stacktrace
-
-  all-providers-playback:
-    runs-on: ubuntu-22.04
-    timeout-minutes: 35
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-      - name: Set up JDK 17
-        uses: actions/setup-java@v5
-        with:
-          distribution: temurin
-          java-version: '17'
-          cache: gradle
-      - name: Make Gradle executable
-        run: chmod +x ./gradlew
-      - name: Run every registered provider through strict playback E2E
-        uses: reactivecircus/android-emulator-runner@v2
-        with:
-          api-level: 35
-          target: google_apis
-          arch: x86_64
-          profile: pixel_6
-          disable-linux-hw-accel: false
-          disable-animations: true
-          pre-emulator-launch-script: sudo chmod 666 /dev/kvm || true
-          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim
-          script: >-
-            ./gradlew :app:connectedDebugAndroidTest
+            && ./gradlew :app:connectedDebugAndroidTest
             -Pandroid.testInstrumentationRunnerArguments.class=com.kakaanime.app.provider.AllProvidersPlaybackE2eTest
             --stacktrace
 
