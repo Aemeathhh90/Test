@@ -2,10 +2,8 @@ name: Runner Health
 
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - provider-batch-2026-09-12
 
+# Diagnostic only. Do not spend Actions minutes on every provider source commit.
 jobs:
   runner-health:
     runs-on: ubuntu-latest
