@@ -1,16 +1,14 @@
 name: Provider Smoke Check
 
 on:
-  push:
-    branches:
-      - codespace-didactic-computing-machine-g49vrx9jjjp4hww9v
-      - provider-batch-2026-09-12
   workflow_dispatch:
 
+# Smoke checks are cheap compared with emulator E2E, but remain manual so normal
+# provider source edits do not consume hosted Actions minutes automatically.
 jobs:
   provider-smoke:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 10
     steps:
       - name: Check provider search endpoints with gateway fallback
         shell: bash
