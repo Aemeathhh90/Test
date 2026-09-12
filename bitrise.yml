@@ -33,5 +33,5 @@ workflows:
             - test_runner_class: androidx.test.runner.AndroidJUnitRunner
             - main_apk_path: "$BITRISE_APK_PATH"
             - test_apk_path: "$BITRISE_TEST_APK_PATH"
-            - additional_testing_options: "class com.kakaanime.app.provider.OtakudesuProviderE2ETest#onePieceEpisodeOneRendersFirstFrame"
+            - additional_testing_options: "class com.kakaanime.app.provider.SamehadakuProviderE2ETest#onePieceEpisodeSevenRendersFirstFrame"
       - deploy-to-bitrise-io@2: {}
