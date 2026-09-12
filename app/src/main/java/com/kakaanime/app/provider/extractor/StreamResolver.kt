@@ -20,7 +20,7 @@ class StreamResolver(
         urls: List<String>,
         referer: String? = null
     ): List<ProviderStream> = supervisorScope {
-        urls.map(String::trim)
+        val extracted = urls.map(String::trim)
             .filter(String::isNotBlank)
             .distinct()
             .flatMap { url ->
@@ -33,19 +33,19 @@ class StreamResolver(
                     }
                 }.awaitAll().flatten()
             }
-            .let { extracted ->
-                extracted
-                    .filter { it.url.startsWith("http", ignoreCase = true) }
-                    .distinctBy { it.url }
-            }
-            .let { extracted ->
-                extracted.map { stream ->
-                    async {
-                        validator.validate(stream)
-                    }
-                }.awaitAll()
-                    .filterNotNull()
-                    .distinctBy { it.url }
-            }
+            .filter { it.url.startsWith("http", ignoreCase = true) }
+            .distinctBy { it.url }
+
+        if (extracted.isEmpty()) return@supervisorScope emptyList()
+
+        val validated = extracted.map { stream ->
+            async { validator.validate(stream) }
+        }.awaitAll()
+            .filterNotNull()
+            .distinctBy { it.url }
+
+        // Validation is a reliability signal, not a hard dependency. Some
+        // signed/CDN URLs reject lightweight probes but still work in Media3.
+        if (validated.isNotEmpty()) validated else extracted
     }
 }
