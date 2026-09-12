@@ -9,7 +9,7 @@ import org.json.JSONObject
 import java.net.URLEncoder
 import java.util.concurrent.TimeUnit
 
-/** Samehadaku adapter with primary wrapper plus Wajik gateway fallback. */
+/** Samehadaku adapter with dedicated wrappers plus a provider-scoped gateway fallback. */
 class SamehadakuProvider : AnimeProvider {
     override val id = "samehadaku"
     override val name = "Samehadaku"
@@ -23,6 +23,7 @@ class SamehadakuProvider : AnimeProvider {
 
     private val primary = "https://www.keyrafara.com/streaming/samehadaku"
     private val wajik = "https://wajik-anime-api.vercel.app/samehadaku"
+    private val gateway = RemoteSourceProvider(id, name, priority, "samehadaku")
 
     override suspend fun search(query: String): List<ProviderAnime> {
         val urls = listOf(
@@ -34,7 +35,7 @@ class SamehadakuProvider : AnimeProvider {
             val result = extractAnimeArray(root).mapNotNull { it.toProviderAnime() }
             if (result.isNotEmpty()) return result
         }
-        return emptyList()
+        return gateway.search(query)
     }
 
     override suspend fun getAnime(animeId: String): ProviderAnime? {
@@ -47,7 +48,7 @@ class SamehadakuProvider : AnimeProvider {
             root.toProviderAnime()?.let { return it }
             extractAnimeArray(root).firstOrNull()?.toProviderAnime()?.let { return it }
         }
-        return null
+        return gateway.getAnime(animeId)
     }
 
     override suspend fun getEpisodes(animeId: String): List<ProviderEpisode> {
@@ -71,7 +72,7 @@ class SamehadakuProvider : AnimeProvider {
             }.distinctBy { it.number }.sortedBy { it.number }
             if (episodes.isNotEmpty()) return episodes
         }
-        return emptyList()
+        return gateway.getEpisodes(animeId)
     }
 
     override suspend fun getStreams(animeId: String, episodeNumber: Int): List<ProviderStream> {
@@ -90,7 +91,7 @@ class SamehadakuProvider : AnimeProvider {
             val unique = streams.distinctBy { it.url }
             if (unique.isNotEmpty()) return unique
         }
-        return emptyList()
+        return gateway.getStreams(animeId, episodeNumber)
     }
 
     private suspend fun requestJson(url: String): JSONObject? = withContext(Dispatchers.IO) {
