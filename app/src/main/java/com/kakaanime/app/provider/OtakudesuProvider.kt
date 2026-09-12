@@ -6,6 +6,7 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.json.JSONArray
 import org.json.JSONObject
+import java.net.URI
 import java.net.URLEncoder
 import java.util.concurrent.TimeUnit
 
@@ -36,14 +37,14 @@ class OtakudesuProvider : AnimeProvider {
             ?: gateway.search(query)
 
     override suspend fun getAnime(animeId: String): ProviderAnime? {
-        val slug = animeId.removePrefix("$id:")
+        val slug = normalizeSlug(animeId.removePrefix("$id:"))
         val root = requestJson("$baseUrl/anime/${encodePath(slug)}")
         val detail = root?.optJSONObject("anime_detail")
         return detail?.toProviderAnime(slug) ?: gateway.getAnime(animeId)
     }
 
     override suspend fun getEpisodes(animeId: String): List<ProviderEpisode> {
-        val slug = animeId.removePrefix("$id:")
+        val slug = normalizeSlug(animeId.removePrefix("$id:"))
         val root = requestJson("$baseUrl/anime/${encodePath(slug)}")
         val detail = root?.optJSONObject("anime_detail")
         val episodes = detail?.optJSONArray("episode_list")
@@ -144,7 +145,7 @@ class OtakudesuProvider : AnimeProvider {
     private fun JSONArray.toProviderAnimeList(): List<ProviderAnime> = buildList {
         for (i in 0 until length()) {
             val item = optJSONObject(i) ?: continue
-            val slug = item.optString("endpoint").trim().trim('/')
+            val slug = normalizeSlug(item.optString("endpoint").trim())
             if (slug.isBlank()) continue
             add(
                 ProviderAnime(
@@ -185,6 +186,14 @@ class OtakudesuProvider : AnimeProvider {
 
     private fun extractYear(value: String): Int? =
         Regex("\\b(19\\d{2}|20\\d{2})\\b").find(value)?.groupValues?.getOrNull(1)?.toIntOrNull()
+
+    private fun normalizeSlug(value: String): String {
+        val raw = value.trim()
+        if (!raw.startsWith("http", ignoreCase = true)) return raw.trim('/')
+        return runCatching {
+            URI(raw).path.substringAfter("/anime/", "").trim('/').ifBlank { raw.substringAfterLast('/').trim('/') }
+        }.getOrDefault(raw.substringAfterLast('/').trim('/'))
+    }
 
     private fun JSONObject.optDoubleOrNull(key: String): Double? =
         if (!has(key) || isNull(key)) null else optString(key).toDoubleOrNull() ?: optDouble(key, Double.NaN).takeUnless { it.isNaN() }
