@@ -12,9 +12,9 @@ import java.util.concurrent.TimeUnit
 /**
  * Otakudesu provider adapter.
  *
- * The previous jade wrapper is no longer returning the detail payload needed
- * by the provider. This adapter uses the current qrtzanim Otakudesu REST
- * wrapper and keeps the rest of AniLab provider-agnostic.
+ * Uses qrtzanim as the primary source and keeps the legacy Otakudesu API as
+ * a fallback. Provider-specific slug differences are normalized before
+ * resolving anime details and episodes.
  */
 class OtakudesuProvider : AnimeProvider {
 
@@ -35,20 +35,15 @@ class OtakudesuProvider : AnimeProvider {
         val normalizedQuery = query.trim()
         if (normalizedQuery.isBlank()) return emptyList()
 
-        val primary = requestJson(
-            "$baseUrl/search?q=${encode(normalizedQuery)}&page=1"
-        )
+        val primary = requestJson("$baseUrl/search?q=${encode(normalizedQuery)}&page=1")
         val primaryResults = primary
             ?.optJSONObject("data")
             ?.optJSONArray("results")
             ?.toProviderAnimeList()
             .orEmpty()
-
         if (primaryResults.isNotEmpty()) return primaryResults
 
-        val fallback = requestJson(
-            "$legacySearchUrl/search/${encodePath(normalizedQuery)}"
-        )
+        val fallback = requestJson("$legacySearchUrl/search/${encodePath(normalizedQuery)}")
         return fallback?.optJSONArray("search_results")
             ?.toLegacyProviderAnimeList()
             .orEmpty()
@@ -57,26 +52,40 @@ class OtakudesuProvider : AnimeProvider {
     override suspend fun getAnime(animeId: String): ProviderAnime? {
         val slug = normalizeAnimeSlug(animeId)
 
-        val primary = requestData("$baseUrl/anime/${encodePath(slug)}")
-        if (primary != null) return primary.toProviderAnime(slug)
+        for (candidate in animeSlugCandidates(slug)) {
+            val primary = requestData("$baseUrl/anime/${encodePath(candidate)}")
+            if (primary != null) return primary.toProviderAnime(candidate)
+        }
 
-        return requestLegacyAnime(slug)?.toLegacyProviderAnime(slug)
+        for (candidate in animeSlugCandidates(slug)) {
+            val legacy = requestLegacyAnime(candidate)
+            if (legacy != null) return legacy.toLegacyProviderAnime(candidate)
+        }
+
+        return null
     }
 
     override suspend fun getEpisodes(animeId: String): List<ProviderEpisode> {
         val slug = normalizeAnimeSlug(animeId)
 
-        val primary = requestData("$baseUrl/anime/${encodePath(slug)}")
-        val primaryEpisodes = primary?.optJSONArray("episodeList")
-            ?.toProviderEpisodeList(slug)
-            .orEmpty()
-        if (primaryEpisodes.isNotEmpty()) return primaryEpisodes
+        for (candidate in animeSlugCandidates(slug)) {
+            val primary = requestData("$baseUrl/anime/${encodePath(candidate)}")
+            val episodes = primary?.optJSONArray("episodeList")
+                ?.toProviderEpisodeList(candidate)
+                .orEmpty()
+            if (episodes.isNotEmpty()) return episodes
+        }
 
-        val legacyDetail = requestLegacyAnime(slug) ?: return emptyList()
-        val animeDetail = legacyDetail.optJSONObject("anime_detail") ?: legacyDetail
-        return animeDetail.optJSONArray("episode_list")
-            ?.toLegacyProviderEpisodeList(slug)
-            .orEmpty()
+        for (candidate in animeSlugCandidates(slug)) {
+            val legacyDetail = requestLegacyAnime(candidate) ?: continue
+            val animeDetail = legacyDetail.optJSONObject("anime_detail") ?: legacyDetail
+            val episodes = animeDetail.optJSONArray("episode_list")
+                ?.toLegacyProviderEpisodeList(candidate)
+                .orEmpty()
+            if (episodes.isNotEmpty()) return episodes
+        }
+
+        return emptyList()
     }
 
     override suspend fun getStreams(
@@ -85,7 +94,7 @@ class OtakudesuProvider : AnimeProvider {
     ): List<ProviderStream> {
         val episodes = getEpisodes(animeId)
         val episode = episodes.firstOrNull { it.number == episodeNumber } ?: return emptyList()
-        val episodeSlug = episode.id.removePrefix("$id:").trim('/')
+        val episodeSlug = normalizeEpisodeSlug(episode.id)
 
         val primary = requestData("$baseUrl/episode/${encodePath(episodeSlug)}")
         if (primary != null) {
@@ -175,10 +184,7 @@ class OtakudesuProvider : AnimeProvider {
             latestEpisode = episodes?.let { array ->
                 (0 until array.length()).mapNotNull { index ->
                     val item = array.optJSONObject(index) ?: return@mapNotNull null
-                    extractEpisodeNumber(
-                        item.optString("title"),
-                        item.optString("endpoint")
-                    )
+                    extractEpisodeNumber(item.optString("title"), item.optString("endpoint"))
                 }.maxOrNull()
             }
         )
@@ -187,7 +193,7 @@ class OtakudesuProvider : AnimeProvider {
     private fun JSONArray.toProviderAnimeList(): List<ProviderAnime> = buildList {
         for (index in 0 until length()) {
             val item = optJSONObject(index) ?: continue
-            val slug = item.optString("slug").trim().trim('/')
+            val slug = normalizeAnimeSlug(item.optString("slug"))
             if (slug.isBlank()) continue
             add(
                 ProviderAnime(
@@ -296,10 +302,21 @@ class OtakudesuProvider : AnimeProvider {
 
     private fun normalizeAnimeSlug(value: String): String {
         val raw = value.removePrefix("$id:").trim()
-        return raw.substringAfter("/anime/", raw)
+        val slug = raw.substringAfter("/anime/", raw)
             .substringBefore("?")
             .trim('/')
+
+        return when (slug.lowercase()) {
+            "1piece-sub-indo", "onepiece-sub-indo" -> "one-piece-sub-indo"
+            else -> slug
+        }
     }
+
+    private fun animeSlugCandidates(slug: String): List<String> =
+        when (slug.lowercase()) {
+            "one-piece-sub-indo" -> listOf("one-piece-sub-indo", "1piece-sub-indo")
+            else -> listOf(slug)
+        }.distinct()
 
     private fun normalizeEpisodeSlug(value: String): String {
         val raw = value.removePrefix("$id:").trim()
