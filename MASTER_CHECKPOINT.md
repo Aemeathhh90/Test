@@ -983,8 +983,8 @@ Fitur berikut ditambahkan sebagai target AniLab di atas checkpoint yang sudah ad
 - Anime yang sama dari beberapa provider harus dapat dideteksi dan digabung menjadi satu hasil user-facing.
 - Deduplication dapat menggunakan kombinasi slug/title normalization, year, metadata, dan identifier yang tersedia.
 - Provider/source tetap tersembunyi dari user.
-- Search tidak menampilkan daftar provider sebagai filter/source switcher manual.
 - Jika satu hasil memiliki beberapa provider di belakang layar, Provider Router memilih source terbaik secara internal.
+- Search tidak menampilkan daftar provider sebagai filter/source switcher manual.
 - Fitur ini **bukan** Global Search + Provider Filter manual yang sudah dicoret.
 
 ## 24A.7 🔴 Smart Provider Recovery
@@ -1004,6 +1004,121 @@ Fitur berikut ditambahkan sebagai target AniLab di atas checkpoint yang sudah ad
 - Fitur-fitur di atas tidak boleh membatalkan atau mengganti keputusan Provider Engine, Diamond, Premium, Player, dan UX yang sudah dikunci.
 - Semua fitur baru harus divalidasi setelah fondasi streaming/provider stabil.
 - Penambahan roadmap ini tidak menjadi bagian dari Provider E2E saat ini.
+
+---
+
+# 24B. 🔴 ANI LAB — NEW PRODUCTIVITY & DISCOVERY FEATURES
+
+**Status:** 🔴 **ROADMAP DIKUNCI — IMPLEMENTASI BELUM SELESAI**
+
+Fitur di bagian ini adalah fitur baru dan tidak menggantikan fitur yang sudah ada. **Anime Calendar tidak ditambahkan ulang karena fitur Calendar/Jadwal Rilis sudah ada di checkpoint.**
+
+## 24B.1 🔴 Anime Relations
+
+- Ditempatkan pada alur UI **setelah user membuka Anime Detail dan sebelum Episode List**.
+- Menampilkan hubungan seri secara terstruktur, misalnya:
+  - Season 1
+  - Season 2
+  - Season 3
+  - Movie
+  - OVA
+  - ONA
+  - Special
+  - spin-off yang relevan.
+- User dapat memilih entry relation untuk berpindah ke anime/entry terkait sebelum melihat daftar episode.
+- Relations harus menggunakan normalized anime identity/metadata agar tidak membuat duplikasi anime akibat provider berbeda.
+- Jika data relations tidak tersedia, Episode List tetap dapat dibuka normal.
+- Provider/source tetap tersembunyi dari user.
+
+### Flow UI yang dikunci
+
+```text
+Search
+  ↓
+Anime Detail
+  ↓
+Anime Relations
+  ↓
+Episode List
+  ↓
+▶ Play
+```
+
+## 24B.2 🔴 Smart Notification Center
+
+- Menjadi pusat notifikasi internal AniLab.
+- Dapat menampilkan:
+  - episode baru dari anime yang diikuti/ditonton
+  - download selesai
+  - download gagal
+  - informasi maintenance/provider yang berdampak pada layanan
+  - informasi aplikasi penting.
+- **New Updates** tetap menjadi fitur update anime; Notification Center adalah tempat agregasi notifikasi yang lebih luas.
+- Notifikasi harus memiliki read/unread state.
+- User dapat membuka item notifikasi dan langsung menuju konteks terkait jika masih tersedia.
+- Notifikasi provider tidak boleh membocorkan detail teknis seperti host/resolver/API.
+- Implementasi harus hemat request dan tidak melakukan polling agresif.
+
+## 24B.3 🔴 Advanced Anime Filter
+
+- Menambahkan filter katalog yang lebih lengkap tanpa membuat Provider Filter manual.
+- Target filter:
+  - Genre
+  - Tahun
+  - Status
+  - Tipe anime
+  - Season
+  - Rating
+  - Studio bila metadata tersedia
+  - A–Z.
+- Filter dapat dikombinasikan.
+- Filter bekerja pada normalized catalog/data AniLab.
+- Jika provider tertentu tidak menyediakan field filter tertentu, AniLab harus tetap menangani hasil secara aman tanpa crash.
+- Tidak mengubah keputusan bahwa user tidak perlu memilih provider secara manual.
+
+## 24B.4 🔴 Download Storage Manager
+
+- Menjadi pengelola download lokal setelah fitur Download diimplementasikan.
+- Menampilkan:
+  - total storage yang digunakan AniLab untuk download
+  - ukuran file per episode
+  - status download
+  - daftar anime/episode yang tersimpan
+  - opsi menghapus satu episode
+  - opsi menghapus download satu anime
+  - pembersihan download yang sudah tidak dibutuhkan.
+- Storage Manager **local-first**.
+- File video tetap berada di storage perangkat user, bukan di server AniLab.
+- Metadata download sebisa mungkin disimpan lokal dan tidak mengharuskan upload file video ke server.
+- Server AniLab hanya menangani metadata/configuration yang benar-benar diperlukan, bukan menjadi penyimpanan video user.
+- Tidak boleh menambah beban bandwidth/storage server secara signifikan.
+- Download Manager harus menghormati entitlement Premium yang sudah dikunci.
+- Penghapusan file harus aman dan tidak menghapus Favorite/History kecuali user memang menghapus data tersebut secara terpisah.
+
+### 🔵 Prinsip server-light
+
+```text
+Provider Stream
+      ↓
+Device AniLab
+      ↓
+Local Download Storage
+      ↓
+Storage Manager
+
+Server AniLab:
+metadata/config ringan saja
+✕ bukan penyimpanan video download user
+```
+
+### 🔵 Non-negotiable
+
+- Anime Calendar/Jadwal Rilis sudah ada → **tidak dibuat ulang**.
+- Anime Relations tidak boleh mengubah flow Provider Engine.
+- Smart Notification Center tidak boleh menggantikan New Updates.
+- Advanced Filter tidak boleh menjadi manual Provider Filter.
+- Download Storage Manager harus local-first/server-light.
+- Fitur-fitur ini tidak mengubah prioritas P0 Provider E2E.
 
 ---
 
@@ -1042,6 +1157,7 @@ Alur utama user:
 ```text
 Cari anime
 → Pilih anime
+→ Pilih relation bila tersedia
 → Pilih episode
 → ▶ Nonton
 ```
@@ -1076,6 +1192,14 @@ Semua fitur baru masih **🔴 BELUM DIKERJAKAN**, kecuali hanya menjadi target/k
 - 🔴 Enhanced Watch History
 - 🔴 Smart Search + Provider Deduplication otomatis
 - 🔴 Smart Provider Recovery
+
+### Roadmap Product Features yang baru dicatat
+
+- 🔴 Anime Relations — **Anime Detail → Relations → Episode List**
+- 🔴 Smart Notification Center
+- 🔴 Advanced Anime Filter
+- 🔴 Download Storage Manager — **local-first / server-light**
+- 🟢 Anime Calendar — **sudah ada, tidak diduplikasi**
 
 **Catatan:** daftar di atas hanya roadmap. Tidak ada implementasi fitur-fitur tersebut pada checkpoint commit ini.
 
@@ -1165,6 +1289,7 @@ Release build
 - **Episode Access / Locked Watch Flow target**
 - **Provider Engine — Dynamic Provider & Domain Architecture**
 - **AniLab Smart Watching roadmap: 7 fitur baru dicatat, implementasi belum dimulai**
+- **AniLab Product Features roadmap: Anime Relations, Smart Notification Center, Advanced Anime Filter, Download Storage Manager**
 
 ### 🔴 Fokus pengerjaan berikutnya
 
