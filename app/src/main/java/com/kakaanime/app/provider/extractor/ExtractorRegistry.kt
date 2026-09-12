@@ -2,6 +2,7 @@ package com.kakaanime.app.provider.extractor
 
 import com.kakaanime.app.provider.extractor.extractors.GenericDirectExtractor
 import com.kakaanime.app.provider.extractor.extractors.GenericEmbedExtractor
+import com.kakaanime.app.provider.extractor.extractors.JavascriptMediaExtractor
 import com.kakaanime.app.provider.extractor.extractors.KrakenFilesExtractor
 import com.kakaanime.app.provider.extractor.extractors.OtakudesuQrtzExtractor
 import com.kakaanime.app.provider.extractor.extractors.OtakudesuServerExtractor
@@ -10,8 +11,9 @@ import com.kakaanime.app.provider.extractor.extractors.PixelDrainExtractor
 /**
  * Central extractor registry.
  *
- * Ordering follows the proven specific-first/generic-last model:
- * provider/server resolver -> API fallback -> host-specific resolver -> generic embed -> direct.
+ * Ordering is specific-first, then JS/config parsing, generic embed traversal,
+ * and finally direct-media handling. This keeps generic logic from masking a
+ * host/provider-specific strategy while still giving resilient fallbacks.
  */
 class ExtractorRegistry(
     extractors: List<StreamExtractor> = emptyList()
@@ -22,7 +24,8 @@ class ExtractorRegistry(
                 OtakudesuServerExtractor(),
                 OtakudesuQrtzExtractor(),
                 KrakenFilesExtractor(),
-                PixelDrainExtractor()
+                PixelDrainExtractor(),
+                JavascriptMediaExtractor()
             ) + extractors
         )
             .distinctBy { it.id }
