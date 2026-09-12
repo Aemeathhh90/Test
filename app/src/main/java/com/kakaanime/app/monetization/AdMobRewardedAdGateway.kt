@@ -2,6 +2,7 @@ package com.kakaanime.app.monetization
 
 import android.app.Activity
 import android.content.Context
+import android.content.ContextWrapper
 import com.google.android.gms.ads.AdRequest
 import com.google.android.gms.ads.LoadAdError
 import com.google.android.gms.ads.MobileAds
@@ -25,6 +26,7 @@ class AdMobRewardedAdGateway(
         const val TEST_REWARDED_AD_UNIT_ID = "ca-app-pub-3940256099942544/5224354917"
     }
 
+    private val hostContext = context
     private val appContext = context.applicationContext
     private var rewardedAd: RewardedAd? = null
     private var loading = false
@@ -38,7 +40,7 @@ class AdMobRewardedAdGateway(
     override fun isReady(): Boolean = rewardedAd != null
 
     override fun show(onReward: (diamonds: Int) -> Unit, onUnavailable: () -> Unit) {
-        val activity = contextActivity(context = appContext)
+        val activity = findActivity(hostContext)
         val ad = rewardedAd
 
         if (activity == null || ad == null) {
@@ -75,6 +77,14 @@ class AdMobRewardedAdGateway(
         )
     }
 
-    private fun contextActivity(context: Context): Activity? =
-        if (context is Activity) context else null
+    private fun findActivity(context: Context): Activity? {
+        var current: Context = context
+        while (current is ContextWrapper) {
+            if (current is Activity) return current
+            val base = current.baseContext
+            if (base === current) break
+            current = base
+        }
+        return current as? Activity
+    }
 }
