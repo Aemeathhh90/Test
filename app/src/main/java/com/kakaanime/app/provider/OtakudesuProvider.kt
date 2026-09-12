@@ -30,6 +30,11 @@ class OtakudesuProvider : AnimeProvider {
 
     private val baseUrl = "https://qrtzanim.vercel.app/api"
     private val legacySearchUrl = "https://otakudesu-api-jade.vercel.app/api"
+    private val webBaseUrls = listOf(
+        "https://otakudesu.cloud",
+        "https://otakudesu.blog",
+        "https://otakudesu.cam"
+    )
 
     override suspend fun search(query: String): List<ProviderAnime> {
         val normalizedQuery = query.trim()
@@ -57,6 +62,14 @@ class OtakudesuProvider : AnimeProvider {
             if (primary != null) return primary.toProviderAnime(candidate)
         }
 
+        // qrtzanim can disappear independently of the actual Otakudesu site.
+        // Read the provider's public anime page directly before falling back
+        // to the older JSON API.
+        for (candidate in animeSlugCandidates(slug)) {
+            val web = requestWebAnime(candidate)
+            if (web != null) return web.toWebProviderAnime(candidate)
+        }
+
         for (candidate in animeSlugCandidates(slug)) {
             val legacy = requestLegacyAnime(candidate)
             if (legacy != null) return legacy.toLegacyProviderAnime(candidate)
@@ -73,6 +86,12 @@ class OtakudesuProvider : AnimeProvider {
             val episodes = primary?.optJSONArray("episodeList")
                 ?.toProviderEpisodeList(candidate)
                 .orEmpty()
+            if (episodes.isNotEmpty()) return episodes
+        }
+
+        for (candidate in animeSlugCandidates(slug)) {
+            val web = requestWebAnime(candidate)
+            val episodes = web?.toWebProviderEpisodeList(candidate).orEmpty()
             if (episodes.isNotEmpty()) return episodes
         }
 
@@ -134,6 +153,86 @@ class OtakudesuProvider : AnimeProvider {
             }
         }.getOrNull()
     }
+
+    private suspend fun requestWebAnime(slug: String): String? = withContext(Dispatchers.IO) {
+        for (base in webBaseUrls) {
+            val html = runCatching {
+                val request = Request.Builder()
+                    .url("$base/anime/${encodePath(slug)}/")
+                    .header("User-Agent", "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 Chrome/124.0.0.0 Mobile Safari/537.36")
+                    .header("Accept-Language", "id-ID,id;q=0.9,en-US;q=0.8")
+                    .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
+                    .build()
+                client.newCall(request).execute().use { response ->
+                    if (!response.isSuccessful) null else response.body?.string()
+                }
+            }.getOrNull()
+
+            if (!html.isNullOrBlank() && html.contains("/episode/", ignoreCase = true)) {
+                return@withContext html
+            }
+        }
+        null
+    }
+
+    private fun String.toWebProviderAnime(fallbackId: String): ProviderAnime {
+        val title = Regex("<h1[^>]*>(.*?)</h1>", setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL))
+            .find(this)
+            ?.groupValues
+            ?.getOrNull(1)
+            ?.stripHtml()
+            ?.replace(Regex("\\s*(Subtitle\\s+Indonesia|Sub\\s*Indo).*", RegexOption.IGNORE_CASE), "")
+            ?.trim()
+            ?.ifBlank { null }
+            ?: "Unknown Anime"
+
+        val episodes = toWebProviderEpisodeList(fallbackId)
+
+        return ProviderAnime(
+            id = "$id:$fallbackId",
+            title = title,
+            providerId = id,
+            posterUrl = Regex("<img[^>]+(?:src|data-original)=[\"']([^\"']+)[\"']", setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL))
+                .find(this)?.groupValues?.getOrNull(1)?.trim()?.ifBlank { null },
+            description = Regex("<div[^>]+class=[\"'][^\"']*(?:sinopsis|sinopc)[^\"']*[\"'][^>]*>(.*?)</div>", setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL))
+                .find(this)?.groupValues?.getOrNull(1)?.stripHtml()?.trim(),
+            status = if (contains("Ongoing", ignoreCase = true)) "Ongoing" else "UNKNOWN",
+            latestEpisode = episodes.maxOfOrNull { it.number }
+        )
+    }
+
+    private fun String.toWebProviderEpisodeList(animeSlug: String): List<ProviderEpisode> {
+        val pattern = Regex(
+            "<a[^>]+href=[\"']([^\"']*/episode/[^\"']+)[\"'][^>]*>(.*?)</a>",
+            setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL)
+        )
+
+        return pattern.findAll(this)
+            .mapNotNull { match ->
+                val href = match.groupValues.getOrNull(1)?.trim().orEmpty()
+                val text = match.groupValues.getOrNull(2)?.stripHtml()?.trim().orEmpty()
+                val endpoint = normalizeEpisodeSlug(href)
+                val number = extractEpisodeNumber(text, endpoint) ?: return@mapNotNull null
+                ProviderEpisode(
+                    id = "$id:$endpoint",
+                    animeId = "$id:$animeSlug",
+                    number = number,
+                    providerId = id,
+                    title = text.ifBlank { "Episode $number" }
+                )
+            }
+            .distinctBy { it.number }
+            .sortedBy { it.number }
+    }
+
+    private fun String.stripHtml(): String =
+        replace(Regex("<[^>]+>"), " ")
+            .replace("&amp;", "&")
+            .replace("&quot;", "\"")
+            .replace("&#039;", "'")
+            .replace("&nbsp;", " ")
+            .replace(Regex("\\s+"), " ")
+            .trim()
 
     private fun JSONObject.toProviderAnime(fallbackId: String): ProviderAnime {
         val metadata = optJSONObject("metadata")
