@@ -6,7 +6,7 @@
 **Source of truth:** `main`  
 **Prioritas:** P0 — Provider E2E & Streaming Foundation
 
-> MASTER ini sengaja dibuat ringkas. Detail teknis dan sejarah tetap tersedia di file checkpoint khusus serta Git history.
+> MASTER ini sengaja dibuat ringkas. Detail teknis dan sejarah tetap tersedia di checkpoint khusus serta Git history.
 
 ---
 
@@ -112,12 +112,24 @@ Bitrise `provider_e2e` sekarang menjalankan:
 
 ---
 
+## 🔵 Backend
+
+**Status:** Fondasi tersedia; detail backend dipisahkan dari MASTER dan perlu diaudit terhadap source terbaru sebelum diberi status production/green.
+
+- Backend diperlakukan sebagai service/API terpisah dari aplikasi Android.
+- Detail source, endpoint, deployment, environment, security, dan audit backend:
+  → `BACKEND_CHECKPOINT.md`
+- MASTER hanya menyimpan status ringkas agar tetap mudah dibaca.
+
+---
+
 ## 🔴 Berikutnya
 
 1. Sahkan Samehadaku hanya jika benar-benar first-frame PASS.
 2. Jika FAIL, bandingkan dengan error sebelumnya dan perbaiki akar masalah.
-3. Setelah provider stabil, lanjut provider berikutnya.
-4. Target akhir P0: **29/29 provider E2E PASS**.
+3. Audit backend dari source `main`, lalu isi `BACKEND_CHECKPOINT.md` dengan fakta aktual.
+4. Setelah provider stabil, lanjut provider berikutnya.
+5. Target akhir P0: **29/29 provider E2E PASS**.
 
 ---
 
@@ -125,6 +137,7 @@ Bitrise `provider_e2e` sekarang menjalankan:
 
 | File | Isi |
 |---|---|
+| `BACKEND_CHECKPOINT.md` | Backend/API, deployment, environment, security, dan audit |
 | `EXTRACTOR_CHECKPOINT.md` | Extractor Registry, resolver, validator, extractor |
 | `MASTER_CHECKPOINT_UPDATE_2026-09-13_BUILD44.md` | Build #44 + Otakudesu E2E history |
 | `PROVIDER_MAPPING_2026-09-13.md` | Mapping/provider reference |
@@ -132,7 +145,7 @@ Bitrise `provider_e2e` sekarang menjalankan:
 | `PLAYER_CHECKPOINT.md` | Media3 + VideoPlayer |
 | `UI_CHECKPOINT.md` | UI/Home/detail/player UI |
 
-> Checkpoint lama **tidak dihapus**. Versi MASTER sebelumnya tetap dapat dipulihkan dari Git history; perubahan ini hanya membuat file MASTER aktif lebih ringkas dan mudah dibaca.
+> Checkpoint lama **tidak dihapus**. Versi MASTER sebelumnya tetap tersedia melalui Git history; perubahan ini hanya membuat file MASTER aktif lebih ringkas dan memisahkan detail backend.
 
 ---
 
@@ -143,3 +156,4 @@ Bitrise `provider_e2e` sekarang menjalankan:
 - Jangan membuat branch untuk workflow rutin; `main` adalah source of truth.
 - Jangan overwrite checkpoint historis; gunakan addendum/checkpoint baru.
 - Jangan mengubah arsitektur yang sudah terbukti tanpa alasan teknis yang jelas.
+- Jangan mengarang endpoint/status backend; verifikasi source `main` terlebih dahulu.
