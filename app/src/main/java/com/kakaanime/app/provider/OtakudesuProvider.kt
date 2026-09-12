@@ -35,7 +35,6 @@ class OtakudesuProvider : AnimeProvider {
         val normalizedQuery = query.trim()
         if (normalizedQuery.isBlank()) return emptyList()
 
-        // Primary: qrtzanim. Its documented response is { ok, data: { results } }.
         val primary = requestJson(
             "$baseUrl/search?q=${encode(normalizedQuery)}&page=1"
         )
@@ -47,9 +46,6 @@ class OtakudesuProvider : AnimeProvider {
 
         if (primaryResults.isNotEmpty()) return primaryResults
 
-        // Fallback: keep the provider usable if the primary wrapper is
-        // temporarily unavailable. The fallback returns Otakudesu slugs,
-        // which remain compatible with the legacy detail/episode routes.
         val fallback = requestJson(
             "$legacySearchUrl/search/${encodePath(normalizedQuery)}"
         )
@@ -61,25 +57,21 @@ class OtakudesuProvider : AnimeProvider {
     override suspend fun getAnime(animeId: String): ProviderAnime? {
         val slug = normalizeAnimeSlug(animeId)
 
-        // Primary: qrtzanim detail route.
         val primary = requestData("$baseUrl/anime/${encodePath(slug)}")
         if (primary != null) return primary.toProviderAnime(slug)
 
-        // Fallback: the legacy wrapper exposes anime_detail + episode_list.
         return requestLegacyAnime(slug)?.toLegacyProviderAnime(slug)
     }
 
     override suspend fun getEpisodes(animeId: String): List<ProviderEpisode> {
         val slug = normalizeAnimeSlug(animeId)
 
-        // Primary: qrtzanim detail route contains episodeList.
         val primary = requestData("$baseUrl/anime/${encodePath(slug)}")
         val primaryEpisodes = primary?.optJSONArray("episodeList")
             ?.toProviderEpisodeList(slug)
             .orEmpty()
         if (primaryEpisodes.isNotEmpty()) return primaryEpisodes
 
-        // Fallback: legacy anime endpoint contains anime_detail.episode_list.
         val legacyDetail = requestLegacyAnime(slug) ?: return emptyList()
         val animeDetail = legacyDetail.optJSONObject("anime_detail") ?: legacyDetail
         return animeDetail.optJSONArray("episode_list")
@@ -95,14 +87,12 @@ class OtakudesuProvider : AnimeProvider {
         val episode = episodes.firstOrNull { it.number == episodeNumber } ?: return emptyList()
         val episodeSlug = episode.id.removePrefix("$id:").trim('/')
 
-        // Primary: qrtzanim episode route.
         val primary = requestData("$baseUrl/episode/${encodePath(episodeSlug)}")
         if (primary != null) {
             val streams = primary.toQrtzStreams()
             if (streams.isNotEmpty()) return streams
         }
 
-        // Fallback: legacy wrapper exposes episode_detail.stream_link.
         val legacy = requestLegacyEpisode(episodeSlug) ?: return emptyList()
         val detail = legacy.optJSONObject("episode_detail") ?: legacy
         val streamUrl = detail.optString("stream_link").trim()
@@ -168,7 +158,7 @@ class OtakudesuProvider : AnimeProvider {
     private fun JSONObject.toLegacyProviderAnime(fallbackId: String): ProviderAnime {
         val detail = optJSONObject("anime_detail") ?: this
         val title = detail.optString("title").ifBlank { "Unknown Anime" }
-        val synopsis = detail.optString("synopsis").ifBlank { null }
+        val synopsis = detail.optString("synopsis")
         val score = detail.optString("skor").ifBlank { detail.optString("score") }
         val status = detail.optString("status").ifBlank { "UNKNOWN" }
         val poster = detail.optString("thumb").ifBlank { detail.optString("thumbnail") }
