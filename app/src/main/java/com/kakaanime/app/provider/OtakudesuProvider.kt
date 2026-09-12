@@ -1,5 +1,8 @@
 package com.kakaanime.app.provider
 
+import com.kakaanime.app.provider.extractor.ExtractorRegistry
+import com.kakaanime.app.provider.extractor.StreamResolver
+import com.kakaanime.app.provider.extractor.extractors.GenericDirectExtractor
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
@@ -12,8 +15,9 @@ import java.util.concurrent.TimeUnit
 /**
  * Otakudesu provider adapter.
  *
- * Uses qrtzanim as the primary source, direct Otakudesu HTML as a detail/
- * episode fallback, and the legacy JSON API as a final fallback.
+ * Provider responsibilities stop at discovery. Playable URLs are handed to
+ * the shared StreamResolver so host-specific extraction can be added without
+ * growing this provider into a stream-extraction monolith.
  */
 class OtakudesuProvider : AnimeProvider {
 
@@ -26,6 +30,12 @@ class OtakudesuProvider : AnimeProvider {
         .readTimeout(20, TimeUnit.SECONDS)
         .callTimeout(30, TimeUnit.SECONDS)
         .build()
+
+    private val streamResolver = StreamResolver(
+        ExtractorRegistry(
+            listOf(GenericDirectExtractor())
+        )
+    )
 
     private val baseUrl = "https://qrtzanim.vercel.app/api"
     private val legacySearchUrl = "https://otakudesu-api-jade.vercel.app/api"
@@ -113,8 +123,10 @@ class OtakudesuProvider : AnimeProvider {
 
         val primary = requestData("$baseUrl/episode/${encodePath(episodeSlug)}")
         if (primary != null) {
-            val streams = primary.toQrtzStreams()
-            if (streams.isNotEmpty()) return streams
+            val candidates = primary.toQrtzStreamCandidates()
+            val resolved = streamResolver.resolve(candidates.map { it.first })
+                .withMetadata(candidates)
+            if (resolved.isNotEmpty()) return resolved
         }
 
         val legacy = requestLegacyEpisode(episodeSlug) ?: return emptyList()
@@ -122,6 +134,10 @@ class OtakudesuProvider : AnimeProvider {
         val streamUrl = detail.optString("stream_link").trim()
         if (streamUrl.isBlank()) return emptyList()
 
+        val resolvedLegacy = streamResolver.resolve(listOf(streamUrl))
+        if (resolvedLegacy.isNotEmpty()) return resolvedLegacy
+
+        // Safety fallback while host-specific extractors are still being added.
         return listOf(streamFromUrl(streamUrl))
     }
 
@@ -394,27 +410,30 @@ class OtakudesuProvider : AnimeProvider {
         }
     }.sortedBy { it.number }
 
-    private fun JSONObject.toQrtzStreams(): List<ProviderStream> {
-        val streams = mutableListOf<ProviderStream>()
+    private fun JSONObject.toQrtzStreamCandidates(): List<Pair<String, String?>> {
+        val candidates = mutableListOf<Pair<String, String?>>()
         val streamArray = optJSONArray("streams") ?: JSONArray()
 
         for (index in 0 until streamArray.length()) {
             val item = streamArray.optJSONObject(index) ?: continue
             val url = item.optString("embedUrl").trim()
             if (url.isBlank()) continue
-
-            streams += streamFromUrl(
-                url = url,
-                quality = item.optString("resolution").ifBlank { null }
-            )
+            candidates += url to item.optString("resolution").ifBlank { null }
         }
 
         val defaultStream = optString("defaultStreamUrl").trim()
-        if (defaultStream.isNotBlank() && streams.none { it.url == defaultStream }) {
-            streams += streamFromUrl(defaultStream)
+        if (defaultStream.isNotBlank() && candidates.none { it.first == defaultStream }) {
+            candidates += defaultStream to null
         }
 
-        return streams.distinctBy { it.url }
+        return candidates.distinctBy { it.first }
+    }
+
+    private fun List<ProviderStream>.withMetadata(
+        candidates: List<Pair<String, String?>>
+    ): List<ProviderStream> = map { stream ->
+        val quality = candidates.firstOrNull { it.first == stream.url }?.second
+        if (quality == null) stream else stream.copy(quality = quality)
     }
 
     private fun streamFromUrl(url: String, quality: String? = null): ProviderStream =
