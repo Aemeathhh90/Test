@@ -19,7 +19,7 @@
 | Provider | Status | Keterangan |
 |---|---|---|
 | 🟢 Otakudesu | **E2E PASS** | First frame terbukti di Media3 |
-| 🟡 Samehadaku | **Sedang dites** | Target One Piece Episode 7 |
+| 🟡 Samehadaku | **Sedang dites** | Target One Piece Episode 7; discovery sekarang mengikuti CloudStream-style HTML-first |
 | 🔴 27 provider lainnya | Belum tervalidasi | Belum boleh dihitung green |
 
 **P0:** 🔴 Belum selesai
@@ -89,12 +89,12 @@ Prinsip utama:
 
 ## 🟡 Aktif Sekarang — Samehadaku
 
-Pendekatan yang dipakai:
+Pendekatan terbaru:
 
 ```text
-Samehadaku
- → gateway/API discovery
- → ProviderStream candidates
+Samehadaku HTML source
+ → CloudStream-style Search / Detail / Episode discovery
+ → Episode page URL
  → Extractor Registry
  → Stream Resolver
  → Stream Validator
@@ -102,13 +102,19 @@ Samehadaku
  → onRenderedFirstFrame()
 ```
 
-HTML-first approach sebelumnya gagal, sehingga jalur API/gateway dipakai sebagai jalur utama untuk pengujian saat ini.
+Temuan audit:
+- CloudStream Samehadaku yang aktif menggunakan HTML-first discovery pada `v2.samehadaku.how`.
+- Search memakai query WordPress `?s=...` dan selector kartu anime.
+- Detail dan episode diambil langsung dari halaman anime.
+- Link episode kemudian diberikan ke jalur extractor (`loadExtractor`-style).
+- Situs Samehadaku saat ini memang menyediakan halaman One Piece dan daftar episode, termasuk Episode 7.
+- Implementasi gateway/API tetap dipertahankan sebagai **fallback**, bukan jalur utama.
 
 Bitrise `provider_e2e` sekarang menjalankan:
 
 `SamehadakuProviderE2ETest#onePieceEpisodeSevenRendersFirstFrame`
 
-**Status:** 🟡 menunggu hasil E2E.
+**Status:** 🟡 menunggu hasil E2E setelah perubahan CloudStream-style.
 
 ---
 
@@ -125,11 +131,13 @@ Bitrise `provider_e2e` sekarang menjalankan:
 
 ## 🔴 Berikutnya
 
-1. Sahkan Samehadaku hanya jika benar-benar first-frame PASS.
-2. Jika FAIL, bandingkan dengan error sebelumnya dan perbaiki akar masalah.
-3. Audit backend dari source `main`, lalu isi `BACKEND_CHECKPOINT.md` dengan fakta aktual.
-4. Setelah provider stabil, lanjut provider berikutnya.
-5. Target akhir P0: **29/29 provider E2E PASS**.
+1. Jalankan ulang Samehadaku E2E setelah perubahan HTML-first.
+2. Jika search lolos, lanjut audit detail → episode 7 → stream → first frame.
+3. Jika FAIL, gunakan titik failure aktual sebagai dasar perbaikan berikutnya.
+4. Sahkan Samehadaku hanya jika benar-benar first-frame PASS.
+5. Audit backend dari source `main`, lalu isi `BACKEND_CHECKPOINT.md` dengan fakta aktual.
+6. Setelah provider stabil, lanjut provider berikutnya.
+7. Target akhir P0: **29/29 provider E2E PASS**.
 
 ---
 
@@ -157,3 +165,4 @@ Bitrise `provider_e2e` sekarang menjalankan:
 - Jangan overwrite checkpoint historis; gunakan addendum/checkpoint baru.
 - Jangan mengubah arsitektur yang sudah terbukti tanpa alasan teknis yang jelas.
 - Jangan mengarang endpoint/status backend; verifikasi source `main` terlebih dahulu.
+- CloudStream adalah referensi utama untuk pola provider/extractor; implementasi AniLab tetap native dan tidak bergantung pada CloudStream.
