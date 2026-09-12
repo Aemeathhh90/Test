@@ -134,8 +134,8 @@ class OtakudesuProvider : AnimeProvider {
             posterUrl = optString("thumbnail").ifBlank { null },
             description = synopsis,
             year = extractYear(metadata?.optString("releaseTime").orEmpty()),
-            status = metadata?.optString("status").ifNullOrBlank { "UNKNOWN" },
-            rating = metadata?.optString("score").toDoubleOrNull()
+            status = metadata?.optString("status").ifNullOrBlank("UNKNOWN"),
+            rating = metadata?.optString("score")?.toDoubleOrNull()
                 ?: optString("score").toDoubleOrNull(),
             latestEpisode = episodeList?.let { array ->
                 (0 until array.length()).mapNotNull { index ->
