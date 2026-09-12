@@ -101,7 +101,14 @@ class SamehadakuProvider : AnimeProvider {
                 .header("Accept", "application/json")
                 .build()
             client.newCall(request).execute().use { response ->
-                if (!response.isSuccessful) null else response.body?.string()?.takeIf { it.isNotBlank() }?.let(::JSONObject)
+                if (!response.isSuccessful) null else {
+                    val body = response.body?.string()?.trim().orEmpty()
+                    if (body.isBlank()) null else when {
+                        body.startsWith("[") -> JSONObject().put("items", JSONArray(body))
+                        body.startsWith("{") -> JSONObject(body)
+                        else -> null
+                    }
+                }
             }
         }.getOrNull()
     }
@@ -131,7 +138,7 @@ class SamehadakuProvider : AnimeProvider {
     }
 
     private fun extractEpisodeArray(root: JSONObject): List<JSONObject> {
-        for (key in listOf("episodes", "episodeList", "episode_list", "episode")) root.optJSONArray(key)?.let { return it.objects() }
+        for (key in listOf("episodes", "episodeList", "episode_list", "episode", "items")) root.optJSONArray(key)?.let { return it.objects() }
         root.optJSONObject("data")?.let { nested -> extractEpisodeArray(nested).takeIf { it.isNotEmpty() }?.let { return it } }
         return emptyList()
     }
