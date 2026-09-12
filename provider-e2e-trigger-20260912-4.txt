@@ -1,0 +1,1 @@
+trigger strict provider E2E after Otakudesu slug normalization
