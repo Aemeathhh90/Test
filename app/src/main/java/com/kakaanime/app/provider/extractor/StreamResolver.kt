@@ -1,36 +1,51 @@
 package com.kakaanime.app.provider.extractor
 
 import com.kakaanime.app.provider.ProviderStream
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.supervisorScope
 
 /**
- * Resolves server URLs through the registered extractor chain.
+ * Resolves provider/server URLs through the extractor chain.
  *
- * This is the compatibility boundary between provider discovery and Media3:
- * providers return server/embed URLs, while this class is responsible for
- * turning them into playable ProviderStream values.
+ * The resolver follows the more defensive pipeline used by mature stream
+ * clients: dispatch to specific and generic extractors, collect independent
+ * candidates, then validate the candidates before handing them to Media3.
  */
 class StreamResolver(
-    private val registry: ExtractorRegistry
+    private val registry: ExtractorRegistry,
+    private val validator: StreamValidator = StreamValidator()
 ) {
     suspend fun resolve(
         urls: List<String>,
         referer: String? = null
-    ): List<ProviderStream> {
-        val results = mutableListOf<ProviderStream>()
-
-        for (url in urls.map(String::trim).filter(String::isNotBlank).distinct()) {
-            val candidates = registry.find(url)
-            for (extractor in candidates) {
-                val extracted = runCatching {
-                    extractor.extract(url, referer)
-                }.getOrDefault(emptyList())
-                if (extracted.isNotEmpty()) {
-                    results += extracted
-                    break
-                }
+    ): List<ProviderStream> = supervisorScope {
+        urls.map(String::trim)
+            .filter(String::isNotBlank)
+            .distinct()
+            .flatMap { url ->
+                val candidates = registry.find(url)
+                candidates.map { extractor ->
+                    async {
+                        runCatching {
+                            extractor.extract(url, referer)
+                        }.getOrDefault(emptyList())
+                    }
+                }.awaitAll().flatten()
             }
-        }
-
-        return results.distinctBy { it.url }
+            .let { extracted ->
+                extracted
+                    .filter { it.url.startsWith("http", ignoreCase = true) }
+                    .distinctBy { it.url }
+            }
+            .let { extracted ->
+                extracted.map { stream ->
+                    async {
+                        validator.validate(stream)
+                    }
+                }.awaitAll()
+                    .filterNotNull()
+                    .distinctBy { it.url }
+            }
     }
 }
