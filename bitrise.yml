@@ -14,7 +14,10 @@ workflows:
             - disable_animations: 'yes'
             - headless_mode: 'yes'
       - git-clone@8: {}
-      - install-missing-android-tools@3: {}
+      - install-missing-android-tools@3:
+          inputs:
+            - project_location: "$BITRISE_SOURCE_DIR"
+            - gradlew_path: "$BITRISE_SOURCE_DIR/gradlew"
       - android-build-for-ui-testing@0:
           inputs:
             - project_location: "$BITRISE_SOURCE_DIR"
