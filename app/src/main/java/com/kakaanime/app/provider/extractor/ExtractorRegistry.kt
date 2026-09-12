@@ -4,23 +4,21 @@ import com.kakaanime.app.provider.extractor.extractors.GenericDirectExtractor
 import com.kakaanime.app.provider.extractor.extractors.GenericEmbedExtractor
 
 /**
- * Central registry for host-specific and generic stream extractors.
+ * Extractor registry inspired by the proven specific-first/generic-last model.
  *
- * Providers only need to discover server URLs. The registry decides which
- * extractor should receive each URL, keeping host logic reusable.
- * Generic direct/embed extractors are always available as the baseline;
- * provider-specific extractors can be supplied on top of them later.
+ * Host-specific extractors always get a chance before generic page/direct
+ * extraction. Generic extractors are the final fallback instead of competing
+ * with a specialized resolver.
  */
 class ExtractorRegistry(
     extractors: List<StreamExtractor> = emptyList()
 ) {
     private val extractors = (
-        extractors +
+        extractors.distinctBy { it.id }.sortedByDescending { it.priority } +
             GenericEmbedExtractor() +
             GenericDirectExtractor()
         )
         .distinctBy { it.id }
-        .sortedByDescending { it.priority }
 
     fun find(url: String): List<StreamExtractor> =
         extractors.filter { extractor ->
