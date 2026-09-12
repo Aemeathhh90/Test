@@ -123,3 +123,5 @@ jobs:
             ./gradlew :app:connectedDebugAndroidTest
             -Pandroid.testInstrumentationRunnerArguments.class=com.kakaanime.app.provider.AllProvidersPlaybackE2eTest
             --stacktrace
+
+# Keep push-triggered provider verification explicit for each provider-fix commit.
