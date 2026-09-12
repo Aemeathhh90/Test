@@ -6,6 +6,7 @@ import com.kakaanime.app.provider.extractor.extractors.JavascriptMediaExtractor
 import com.kakaanime.app.provider.extractor.extractors.KrakenFilesExtractor
 import com.kakaanime.app.provider.extractor.extractors.OtakudesuServerExtractor
 import com.kakaanime.app.provider.extractor.extractors.PixelDrainExtractor
+import com.kakaanime.app.provider.extractor.extractors.SamehadakuEpisodeExtractor
 
 /**
  * Central extractor registry.
@@ -15,11 +16,13 @@ import com.kakaanime.app.provider.extractor.extractors.PixelDrainExtractor
  * host/provider-specific strategy while still giving resilient fallbacks.
  */
 class ExtractorRegistry(
-    extractors: List<StreamExtractor> = emptyList()
+    extractors: List<StreamExtractor> = emptyList(),
+    includeSamehadakuEpisodeExtractor: Boolean = true
 ) {
     private val extractors = (
         (
-            listOf(
+            listOfNotNull(
+                SamehadakuEpisodeExtractor().takeIf { includeSamehadakuEpisodeExtractor },
                 OtakudesuServerExtractor(),
                 KrakenFilesExtractor(),
                 PixelDrainExtractor(),
@@ -28,8 +31,8 @@ class ExtractorRegistry(
         )
             .distinctBy { it.id }
             .sortedByDescending { it.priority } +
-            GenericEmbedExtractor() +
-            GenericDirectExtractor()
+        GenericEmbedExtractor() +
+        GenericDirectExtractor()
         )
         .distinctBy { it.id }
 
