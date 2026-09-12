@@ -22,16 +22,15 @@ import java.util.concurrent.TimeUnit
 /**
  * P0 gate for the first real provider.
  *
- * The test deliberately uses OtakudesuProvider directly instead of the smart
- * router so a green result proves that this provider itself can complete the
- * whole path:
- * search -> detail -> episode -> stream -> Media3 -> first rendered frame.
+ * Episode 7 is intentional: Build #43 previously failed here with
+ * "Otakudesu returned no streams for episode 7". Keeping the exact failing
+ * case makes this test a regression gate for the new resolver pipeline.
  */
 @RunWith(AndroidJUnit4::class)
 class OtakudesuProviderE2ETest {
 
     @Test
-    fun onePieceEpisodeOneRendersFirstFrame() = runBlocking {
+    fun onePieceEpisodeSevenRendersFirstFrame() = runBlocking {
         val provider = OtakudesuProvider()
 
         val searchResults = provider.search("One Piece")
@@ -47,10 +46,13 @@ class OtakudesuProviderE2ETest {
         val episodes = provider.getEpisodes(anime.id)
         assertFalse("Otakudesu returned no episodes for ${anime.id}", episodes.isEmpty())
 
-        val episode = episodes.firstOrNull { it.number == 1 } ?: episodes.minBy { it.number }
-        val streams = provider.getStreams(anime.id, episode.number)
+        val episode = episodes.firstOrNull { it.number == 7 }
+        assertNotNull("Otakudesu episode 7 is not present for ${anime.id}", episode)
+
+        val selectedEpisode = episode!!
+        val streams = provider.getStreams(anime.id, selectedEpisode.number)
         assertFalse(
-            "Otakudesu returned no streams for episode ${episode.number}",
+            "Otakudesu returned no streams for episode ${selectedEpisode.number}",
             streams.isEmpty()
         )
 
@@ -61,7 +63,7 @@ class OtakudesuProviderE2ETest {
 
         val selected = stream!!
         println(
-            "E2E_PROVIDER=otakudesu anime=${anime.title} episode=${episode.number} " +
+            "E2E_PROVIDER=otakudesu anime=${anime.title} episode=${selectedEpisode.number} " +
                 "type=${selected.type} quality=${selected.quality} url=${selected.url.take(180)}"
         )
 
