@@ -125,7 +125,7 @@ class OtakudesuProvider : AnimeProvider {
         }.ifBlank { "Unknown Anime" }
         val episodeList = optJSONArray("episodeList")
         val synopsis = optJSONArray("synopsis")?.toStringList()?.joinToString("\n")
-            ?: optString("synopsis").ifBlank { null }
+            ?: optString("synopsis")
 
         return ProviderAnime(
             id = "$id:$fallbackId",
