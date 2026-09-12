@@ -51,9 +51,25 @@ class AllAnimeProvider : AnimeProvider {
     override suspend fun getStreams(animeId: String, episodeNumber: Int): List<ProviderStream> {
         val showId = animeId.substringAfter(":", animeId)
         val streams = mutableListOf<ProviderStream>()
+        // Reference implementation documents /episode_url as the raw mp4/m3u8 resolver.
         for (quality in listOf("best", "1080p", "720p", "480p")) {
             val root = request("/episode_url?show_id=${encode(showId)}&ep_no=$episodeNumber&mode=sub&quality=$quality") ?: continue
             collectUrls(root, quality, streams)
+        }
+        // The same reference API also exposes /play, which proxies the selected
+        // source and supports Range requests. Keep it as a real playback fallback
+        // when direct CDN URLs are unavailable or blocked by the emulator network.
+        if (streams.isEmpty()) {
+            for (quality in listOf("best", "1080p", "720p", "480p")) {
+                streams += ProviderStream(
+                    providerId = id,
+                    url = "$base/play?show_id=${encode(showId)}&ep_no=$episodeNumber&mode=sub&quality=$quality",
+                    quality = quality,
+                    language = "Japanese",
+                    subtitleLanguage = "Indonesian",
+                    type = StreamType.MP4
+                )
+            }
         }
         return ProviderStreamDeduplicator.deduplicate(streams)
     }
