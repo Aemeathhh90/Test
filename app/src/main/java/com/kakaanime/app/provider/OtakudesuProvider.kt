@@ -10,10 +10,8 @@ import java.net.URLEncoder
 import java.util.concurrent.TimeUnit
 
 /**
- * First real KakaAnime provider adapter.
- *
- * The upstream API is an unofficial Otakudesu wrapper. Keeping the wrapper
- * behind this adapter means the rest of KakaAnime remains provider-agnostic.
+ * Otakudesu adapter with the dedicated wrapper first and a provider-scoped
+ * gateway fallback when the wrapper cannot resolve a detail/episode/stream.
  */
 class OtakudesuProvider : AnimeProvider {
 
@@ -28,45 +26,46 @@ class OtakudesuProvider : AnimeProvider {
         .build()
 
     private val baseUrl = "https://otakudesu-api-jade.vercel.app/api"
+    private val gateway = RemoteSourceProvider(id, name, priority, "otakudesu")
 
     override suspend fun search(query: String): List<ProviderAnime> =
         requestJson("$baseUrl/search/${encode(query)}")
             ?.optJSONArray("search_results")
             ?.toProviderAnimeList()
-            ?: emptyList()
+            ?.takeIf { it.isNotEmpty() }
+            ?: gateway.search(query)
 
     override suspend fun getAnime(animeId: String): ProviderAnime? {
         val slug = animeId.removePrefix("$id:")
-        val root = requestJson("$baseUrl/anime/${encodePath(slug)}") ?: return null
-        val detail = root.optJSONObject("anime_detail") ?: return null
-        return detail.toProviderAnime(slug)
+        val root = requestJson("$baseUrl/anime/${encodePath(slug)}")
+        val detail = root?.optJSONObject("anime_detail")
+        return detail?.toProviderAnime(slug) ?: gateway.getAnime(animeId)
     }
 
     override suspend fun getEpisodes(animeId: String): List<ProviderEpisode> {
         val slug = animeId.removePrefix("$id:")
-        val root = requestJson("$baseUrl/anime/${encodePath(slug)}") ?: return emptyList()
-        val detail = root.optJSONObject("anime_detail") ?: return emptyList()
-        val episodes = detail.optJSONArray("episode_list") ?: return emptyList()
-
-        return buildList {
-            for (index in 0 until episodes.length()) {
-                val item = episodes.optJSONObject(index) ?: continue
-                val endpoint = item.optString("endpoint").trim()
-                val number = extractEpisodeNumber(
-                    item.optString("title"),
-                    endpoint
-                ) ?: continue
-                add(
-                    ProviderEpisode(
-                        id = "$id:${endpoint.ifBlank { "$slug-episode-$number" }}",
-                        animeId = "$id:$slug",
-                        number = number,
-                        providerId = id,
-                        title = item.optString("title").ifBlank { "Episode $number" }
+        val root = requestJson("$baseUrl/anime/${encodePath(slug)}")
+        val detail = root?.optJSONObject("anime_detail")
+        val episodes = detail?.optJSONArray("episode_list")
+        val direct = episodes?.let { array ->
+            buildList {
+                for (index in 0 until array.length()) {
+                    val item = array.optJSONObject(index) ?: continue
+                    val endpoint = item.optString("endpoint").trim()
+                    val number = extractEpisodeNumber(item.optString("title"), endpoint) ?: continue
+                    add(
+                        ProviderEpisode(
+                            id = "$id:${endpoint.ifBlank { "$slug-episode-$number" }}",
+                            animeId = "$id:$slug",
+                            number = number,
+                            providerId = id,
+                            title = item.optString("title").ifBlank { "Episode $number" }
+                        )
                     )
-                )
-            }
-        }.sortedBy { it.number }
+                }
+            }.sortedBy { it.number }
+        }.orEmpty()
+        return direct.ifEmpty { gateway.getEpisodes(animeId) }
     }
 
     override suspend fun getStreams(
@@ -74,16 +73,17 @@ class OtakudesuProvider : AnimeProvider {
         episodeNumber: Int
     ): List<ProviderStream> {
         val episodes = getEpisodes(animeId)
-        val episode = episodes.firstOrNull { it.number == episodeNumber } ?: return emptyList()
+        val episode = episodes.firstOrNull { it.number == episodeNumber }
+        if (episode == null) return gateway.getStreams(animeId, episodeNumber)
+
         val endpoint = episode.id.removePrefix("$id:")
-        val root = requestJson("$baseUrl/episode/${encodePath(endpoint)}") ?: return emptyList()
-        val detail = root.optJSONObject("episode_detail") ?: return emptyList()
+        val root = requestJson("$baseUrl/episode/${encodePath(endpoint)}")
+        val detail = root?.optJSONObject("episode_detail")
+        if (detail == null) return gateway.getStreams(animeId, episodeNumber)
 
         val streams = mutableListOf<ProviderStream>()
         val direct = detail.optString("stream_link").trim()
-        if (direct.isNotBlank()) {
-            streams += streamFromUrl(direct)
-        }
+        if (direct.isNotBlank()) streams += streamFromUrl(direct)
 
         val downloads = detail.optJSONArray("downloads") ?: JSONArray()
         for (i in 0 until downloads.length()) {
@@ -92,13 +92,12 @@ class OtakudesuProvider : AnimeProvider {
             val links = qualityGroup.optJSONArray("links") ?: continue
             for (j in 0 until links.length()) {
                 val link = links.optJSONObject(j)?.optString("url")?.trim().orEmpty()
-                if (link.isNotBlank()) {
-                    streams += streamFromUrl(link, quality)
-                }
+                if (link.isNotBlank()) streams += streamFromUrl(link, quality)
             }
         }
 
-        return streams.distinctBy { it.url }
+        val directStreams = streams.distinctBy { it.url }
+        return directStreams.ifEmpty { gateway.getStreams(animeId, episodeNumber) }
     }
 
     private suspend fun requestJson(url: String): JSONObject? = withContext(Dispatchers.IO) {
@@ -108,11 +107,13 @@ class OtakudesuProvider : AnimeProvider {
                 .header("User-Agent", "KakaAnime/0.1")
                 .header("Accept", "application/json")
                 .build()
-
             client.newCall(request).execute().use { response ->
                 if (!response.isSuccessful) return@runCatching null
                 val body = response.body?.string().orEmpty()
-                if (body.isBlank()) null else JSONObject(body)
+                if (body.isBlank()) null else when {
+                    body.trimStart().startsWith("[") -> JSONObject().put("items", JSONArray(body))
+                    else -> JSONObject(body)
+                }
             }
         }.getOrNull()
     }
@@ -169,6 +170,7 @@ class OtakudesuProvider : AnimeProvider {
             type = when {
                 url.contains(".m3u8", ignoreCase = true) -> StreamType.HLS
                 url.contains(".mpd", ignoreCase = true) -> StreamType.DASH
+                url.contains(".mp4", ignoreCase = true) -> StreamType.MP4
                 else -> StreamType.UNKNOWN
             }
         )
@@ -198,7 +200,5 @@ class OtakudesuProvider : AnimeProvider {
     }
 
     private fun encode(value: String): String = URLEncoder.encode(value.trim(), "UTF-8")
-
-    private fun encodePath(value: String): String =
-        value.trim('/').split('/').joinToString("/") { encode(it) }
+    private fun encodePath(value: String): String = value.trim('/').split('/').joinToString("/") { encode(it) }
 }
