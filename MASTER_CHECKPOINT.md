@@ -1,6 +1,6 @@
 # 🧭 MASTER CHECKPOINT KAKAANIME / ANILAB — UPDATE TERBARU
 
-**Tanggal:** 12 September 2026  
+**Tanggal:** 13 September 2026  
 **Repo:** `KakaAnime/KakaAnime` — Private  
 **Nama produk:** **AniLab** (nama GitHub/repo sementara tetap KakaAnime)  
 **Platform:** Android  
@@ -409,6 +409,163 @@ Episode
 
 ---
 
+# 6B. 🔵 CLOU DSTREAM REFERENCE — PROVIDER / EXTRACTOR ARCHITECTURE
+
+**Status:** 🔵 **REFERENCE TERKUNCI — BELUM DIIMPLEMENTASIKAN LANGSUNG**
+
+CloudStream ditemukan sebagai referensi teknis yang lebih konkret untuk jalur Provider → Server Discovery → Extractor → Direct Stream. Referensi ini dicatat agar implementasi AniLab tidak kembali menebak-nebak alur provider.
+
+### 🔵 Referensi utama
+
+- `ExtremeBoyGG/nonton-indo` — CloudStream 3 extensions untuk situs streaming Indonesia.
+- Otakudesu extension berstatus **Stable** pada repository referensi.
+- AnimeIndo extension berstatus **Stable** pada repository referensi.
+- CloudStream memiliki `loadExtractor()`/Extractor Registry untuk menyerahkan URL host ke resolver yang sesuai.
+
+### 🔵 Temuan Otakudesu
+
+Pola CloudStream yang sudah dibedah:
+
+```text
+Otakudesu
+   ↓
+Anime HTML
+   ↓
+Episode list
+   ↓
+Episode page
+   ↓
+Server / download links
+   ↓
+Host detection
+   ├─ Direct MP4/MKV/WebM/M3U8
+   ├─ PixelDrain
+   ├─ KrakenFiles
+   └─ Host lain
+          ↓
+     loadExtractor()
+          ↓
+     Direct Media
+          ↓
+     ExtractorLink
+```
+
+**Kesimpulan:** Otakudesu tidak harus diperlakukan sebagai API-only provider. Jalur HTML-first + server discovery + resolver/extractor merupakan referensi yang lebih kuat untuk kasus E2E saat ini.
+
+### 🔵 Temuan AnimeIndo
+
+Pola CloudStream yang sudah dibedah:
+
+```text
+Episode page
+   ↓
+iframe#tontonin
++
+a.server[data-video]
+   ↓
+Kumpulkan semua server
+   ↓
+┌────────────────────┐
+│ B-TUBE             │
+│ direct <source>    │
+└────────────────────┘
+
+┌────────────────────┐
+│ XTWAP              │
+│ JWPlayer → file    │
+│ → M3U8/HLS         │
+└────────────────────┘
+
+┌────────────────────┐
+│ External server    │
+│ → loadExtractor()  │
+└────────────────────┘
+```
+
+### 🔵 Mapping ke AniLab
+
+Konsep CloudStream diterjemahkan ke arsitektur internal AniLab, bukan di-copy sebagai framework CloudStream:
+
+```text
+CloudStream                    AniLab
+
+ExtractorLink.url       →      ProviderStream.url
+ExtractorLink.quality   →      ProviderStream.quality
+ExtractorLink.referer   →      ProviderStream.headers
+ExtractorLink.headers   →      ProviderStream.headers
+M3U8                    →      StreamType.HLS
+VIDEO/direct media      →      StreamType.MP4
+```
+
+### 🔵 Resolver Direction
+
+AniLab diarahkan menggunakan lapisan terpisah:
+
+```text
+Provider Adapter
+      ↓
+Episode / Server Discovery
+      ↓
+Stream Resolver
+      ↓
+Extractor Registry
+      ├─ Direct Media
+      ├─ Host-specific Resolver
+      └─ Generic Extractor
+      ↓
+ProviderStream
+      ↓
+Media3
+```
+
+### 🔵 Non-negotiable
+
+- CloudStream menjadi **referensi**, bukan dependency/framework yang dimasukkan ke AniLab.
+- Jangan copy seluruh CloudStream ke aplikasi.
+- Jangan membuat provider menjadi kumpulan parser host yang terlalu besar jika resolver dapat dipisahkan.
+- Resolver yang dapat dipakai beberapa provider harus dibuat reusable.
+- Direct media tetap boleh dilewatkan langsung tanpa extractor.
+- Embed/server URL tetap harus dapat diteruskan ke resolver.
+- User tetap tidak melihat provider, host, resolver, atau source switcher.
+- Semua hasil akhirnya tetap harus masuk ke `ProviderStream` → Media3.
+
+### 🔴 Status implementasi
+
+- 🔵 CloudStream reference ditemukan dan dicatat.
+- 🔵 Otakudesu HTML-first/server-discovery direction dicatat.
+- 🔵 Extractor Registry direction dicatat.
+- 🔵 Reusable Stream Resolver direction dicatat.
+- 🔴 Refactor `OtakudesuProvider` belum dilakukan.
+- 🔴 `StreamResolver` AniLab belum diimplementasikan.
+- 🔴 Extractor Registry AniLab belum diimplementasikan.
+- 🔴 E2E playback belum green.
+
+### 🔵 Gate setelah refactor
+
+```text
+Search
+ ↓
+Anime Detail
+ ↓
+Episode
+ ↓
+Episode Page / Server Discovery
+ ↓
+Resolver / Extractor
+ ↓
+.m3u8 / .mpd / .mp4
+ ↓
+Media3
+ ↓
+onRenderedFirstFrame()
+ ↓
+🟢 PASS
+```
+
+> **Catatan:** referensi CloudStream tidak mengubah status provider menjadi 🟢. Build #40 tetap dicatat sebagai gagal pada Detail Resolution dan provider tetap 🔴 sampai E2E nyata berhasil.
+
+---
+
 # 7. 🔴 P0 — STREAMING FOUNDATION
 
 ### Target
@@ -466,6 +623,15 @@ Saat ini player masih mempunyai jalur demo dan provider-resolved stream belum te
 - 🟢 Java/JVM target tetap `17`.
 - 🟢 Gradle wrapper tetap `8.11.1`.
 
+## Bitrise Provider E2E
+
+- 🟢 Workflow provider E2E aktif di Bitrise.
+- 🟢 Workflow menggunakan emulator Android API 34.
+- 🟢 APK debug dan test APK berhasil dibangun pada run E2E.
+- 🔴 **Build #40 gagal pada test `OtakudesuProviderE2ETest#onePieceEpisodeOneRendersFirstFrame`.**
+- 🔴 Failure: `Otakudesu detail resolution failed for otakudesu:one-piece-sub-indo`.
+- 🔵 Build #40 belum boleh dihitung sebagai provider green.
+
 ## WarpBuild
 
 - 🟢 WarpBuildBot sudah dikonfigurasi.
@@ -491,6 +657,7 @@ Saat ini player masih mempunyai jalur demo dan provider-resolved stream belum te
 - 🟢 Run #1 sudah pernah dijalankan.
 - 🔴 Status belum menghasilkan E2E green.
 - 🔴 Runner sebelumnya masih berada pada tahap provisioning/queue dan belum menghasilkan bukti playback lengkap.
+- 🔴 Bitrise Build #40 gagal pada Otakudesu Detail Resolution.
 
 ### Strategi
 
@@ -1288,6 +1455,7 @@ Release build
 - Google Login + Backup/Restore target
 - **Episode Access / Locked Watch Flow target**
 - **Provider Engine — Dynamic Provider & Domain Architecture**
+- **CloudStream provider/extractor reference dicatat; belum diimplementasikan**
 - **AniLab Smart Watching roadmap: 7 fitur baru dicatat, implementasi belum dimulai**
 - **AniLab Product Features roadmap: Anime Relations, Smart Notification Center, Advanced Anime Filter, Download Storage Manager**
 
