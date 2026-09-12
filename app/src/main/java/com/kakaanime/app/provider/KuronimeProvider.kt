@@ -15,7 +15,7 @@ import javax.crypto.Cipher
 import javax.crypto.spec.IvParameterSpec
 import javax.crypto.spec.SecretKeySpec
 
-/** Dedicated Kuronime adapter. Keeps the site-specific extraction separate from generic gateways. */
+/** Dedicated Kuronime adapter with a gateway fallback for stream resolution. */
 class KuronimeProvider : AnimeProvider {
     override val id = "kuronime"
     override val name = "Kuronime"
@@ -31,6 +31,7 @@ class KuronimeProvider : AnimeProvider {
     private val base = "https://kuronime.sbs"
     private val sourceApi = "https://animeku.org/api/v9/sources"
     private val key = "3&!Z0M,VIZ;dZW==".toByteArray()
+    private val gateway = RemoteSourceProvider(id, name, priority, "kura")
 
     override suspend fun search(query: String): List<ProviderAnime> = withContext(Dispatchers.IO) {
         runCatching {
@@ -94,7 +95,7 @@ class KuronimeProvider : AnimeProvider {
     }
 
     override suspend fun getStreams(animeId: String, episodeNumber: Int): List<ProviderStream> = withContext(Dispatchers.IO) {
-        runCatching {
+        val direct = runCatching {
             val episode = getEpisodes(animeId).firstOrNull { it.number == episodeNumber } ?: return@runCatching emptyList()
             val episodeUrl = episode.id.removePrefix("$id:")
             val doc = Jsoup.parse(get(episodeUrl), episodeUrl)
@@ -135,6 +136,9 @@ class KuronimeProvider : AnimeProvider {
             }
             ProviderStreamDeduplicator.deduplicate(streams)
         }.getOrDefault(emptyList())
+
+        if (direct.isNotEmpty()) direct
+        else gateway.getStreams(gatewayAnimeId(animeId), episodeNumber)
     }
 
     private fun anime(url: String, title: String, poster: String?) = ProviderAnime(
@@ -163,6 +167,12 @@ class KuronimeProvider : AnimeProvider {
     private fun get(url: String): String {
         val request = Request.Builder().url(url).header("User-Agent", ua).build()
         return client.newCall(request).execute().use { it.body?.string().orEmpty() }
+    }
+
+    private fun gatewayAnimeId(animeId: String): String {
+        val raw = animeId.removePrefix("$id:")
+        val slug = runCatching { URI(raw).path.substringAfterLast('/').ifBlank { raw.trim('/') } }.getOrDefault(raw.trim('/'))
+        return "$id:$slug"
     }
 
     private fun currentBaseUrl(): String = base
