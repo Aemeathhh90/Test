@@ -35,13 +35,22 @@ class KakaAnimePreferences(context: Context) {
     fun saveProfileAvatarIndex(value: Int) { prefs.edit().putInt(KEY_PROFILE_AVATAR, value.coerceIn(0, 3)).apply() }
     fun loadProfileBannerIndex(): Int = prefs.getInt(KEY_PROFILE_BANNER, 0).coerceIn(0, 3)
     fun saveProfileBannerIndex(value: Int) { prefs.edit().putInt(KEY_PROFILE_BANNER, value.coerceIn(0, 3)).apply() }
+    fun loadProfilePhotoUri(): String? = prefs.getString(KEY_PROFILE_PHOTO_URI, null)
+    fun saveProfilePhotoUri(value: String?) { saveNullableString(KEY_PROFILE_PHOTO_URI, value) }
+    fun loadProfileBannerUri(): String? = prefs.getString(KEY_PROFILE_BANNER_URI, null)
+    fun saveProfileBannerUri(value: String?) { saveNullableString(KEY_PROFILE_BANNER_URI, value) }
+    fun loadPremiumBannerUri(): String? = prefs.getString(KEY_PREMIUM_BANNER_URI, null)
+    fun savePremiumBannerUri(value: String?) { saveNullableString(KEY_PREMIUM_BANNER_URI, value) }
+    fun loadAnimatedProfileUri(): String? = prefs.getString(KEY_ANIMATED_PROFILE_URI, null)
+    fun saveAnimatedProfileUri(value: String?) { saveNullableString(KEY_ANIMATED_PROFILE_URI, value) }
+    private fun saveNullableString(key: String, value: String?) { prefs.edit().apply { if (value.isNullOrBlank()) remove(key) else putString(key, value) }.apply() }
     fun loadDarkMode(): Boolean = prefs.getBoolean(KEY_DARK_MODE, true)
     fun saveDarkMode(value: Boolean) { prefs.edit().putBoolean(KEY_DARK_MODE, value).apply() }
     fun loadAccentName(): String = prefs.getString(KEY_ACCENT, "Blue") ?: "Blue"
     fun saveAccentName(value: String) { prefs.edit().putString(KEY_ACCENT, value).apply() }
     private fun loadStringSet(key: String): Set<String> { val raw = prefs.getString(key, null) ?: return emptySet(); return runCatching { val array = JSONArray(raw); buildSet { for (i in 0 until array.length()) add(array.getString(i)) } }.getOrDefault(emptySet()) }
     private fun saveStringSet(key: String, values: Set<String>) { val array = JSONArray(); values.sorted().forEach(array::put); prefs.edit().putString(key, array.toString()).apply() }
-    companion object { private const val PREFS_NAME = "kakaanime_user_state"; private const val KEY_FAVORITES = "favorite_titles"; private const val KEY_WATCHED_EPISODES = "watched_episodes"; private const val KEY_WATCH_HISTORY = "watch_history"; private const val KEY_DIAMONDS = "diamonds"; private const val KEY_PREMIUM = "premium"; private const val KEY_PROFILE_NAME = "profile_name"; private const val KEY_PROFILE_BIO = "profile_bio"; private const val KEY_PROFILE_AVATAR = "profile_avatar"; private const val KEY_PROFILE_BANNER = "profile_banner"; private const val KEY_DARK_MODE = "dark_mode"; private const val KEY_ACCENT = "accent"; private const val MAX_WATCH_HISTORY_ENTRIES = 2000 }
+    companion object { private const val PREFS_NAME = "kakaanime_user_state"; private const val KEY_FAVORITES = "favorite_titles"; private const val KEY_WATCHED_EPISODES = "watched_episodes"; private const val KEY_WATCH_HISTORY = "watch_history"; private const val KEY_DIAMONDS = "diamonds"; private const val KEY_PREMIUM = "premium"; private const val KEY_PROFILE_NAME = "profile_name"; private const val KEY_PROFILE_BIO = "profile_bio"; private const val KEY_PROFILE_AVATAR = "profile_avatar"; private const val KEY_PROFILE_BANNER = "profile_banner"; private const val KEY_PROFILE_PHOTO_URI = "profile_photo_uri"; private const val KEY_PROFILE_BANNER_URI = "profile_banner_uri"; private const val KEY_PREMIUM_BANNER_URI = "premium_banner_uri"; private const val KEY_ANIMATED_PROFILE_URI = "animated_profile_uri"; private const val KEY_DARK_MODE = "dark_mode"; private const val KEY_ACCENT = "accent"; private const val MAX_WATCH_HISTORY_ENTRIES = 2000 }
 }
 
 data class WatchHistoryEntry(val title: String, val episode: Int, val episodeTitle: String?, val episodeThumbnailUrl: String?, val watchedAt: Long, val durationMs: Long)
