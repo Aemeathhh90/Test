@@ -18,6 +18,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import coil.ImageLoader
+import coil.compose.AsyncImage
+import coil.decode.GifDecoder
 import com.kakaanime.app.data.KakaAnimePreferences
 import com.kakaanime.app.monetization.MonetizationState
 import com.kakaanime.app.ui.theme.KakaAccent
@@ -39,6 +42,9 @@ fun ProfileScreen(themeState: KakaThemeState, monetizationState: MonetizationSta
     var avatar by remember { mutableStateOf(prefs.loadProfileAvatarIndex()) }
     var profilePhotoUri by remember { mutableStateOf(prefs.loadProfilePhotoUri()) }
     var bannerUri by remember { mutableStateOf(prefs.loadProfileBannerUri()) }
+    var premiumBannerUri by remember { mutableStateOf(prefs.loadPremiumBannerUri()) }
+    var animatedProfileUri by remember { mutableStateOf(prefs.loadAnimatedProfileUri()) }
+    val gifImageLoader = remember { ImageLoader.Builder(context).components { add(GifDecoder.Factory()) }.build() }
 
     LaunchedEffect(Unit) {
         themeState.darkMode = prefs.loadDarkMode()
@@ -46,7 +52,7 @@ fun ProfileScreen(themeState: KakaThemeState, monetizationState: MonetizationSta
     }
     if (showAnimeWatched) { AnimeWatchedScreen(prefs, localAnime, { showAnimeWatched = false }) { showAnimeWatched = false }; return }
     if (showEpisodeWatched) { EpisodeWatchedScreen(prefs, localAnime, { showEpisodeWatched = false }) { _, _ -> showEpisodeWatched = false }; return }
-    if (showEdit) { EditProfileScreen(prefs, onBack = { name = prefs.loadProfileName(); bio = prefs.loadProfileBio(); avatar = prefs.loadProfileAvatarIndex(); profilePhotoUri = prefs.loadProfilePhotoUri(); bannerUri = prefs.loadProfileBannerUri(); showEdit = false }, isPremium = monetizationState.isPremium, onPremiumClick = onPremiumClick); return }
+    if (showEdit) { EditProfileScreen(prefs, onBack = { name = prefs.loadProfileName(); bio = prefs.loadProfileBio(); avatar = prefs.loadProfileAvatarIndex(); profilePhotoUri = prefs.loadProfilePhotoUri(); bannerUri = prefs.loadProfileBannerUri(); premiumBannerUri = prefs.loadPremiumBannerUri(); animatedProfileUri = prefs.loadAnimatedProfileUri(); showEdit = false }, isPremium = monetizationState.isPremium, onPremiumClick = onPremiumClick); return }
 
     val initials = name.trim().take(2).ifBlank { "KA" }.uppercase()
     val avatarColor = listOf(Color(0xFFFF4D67), Color(0xFF9C6BFF), Color(0xFF20C8E8), Color(0xFF35C98A))[avatar.coerceIn(0, 3)]
@@ -64,15 +70,25 @@ fun ProfileScreen(themeState: KakaThemeState, monetizationState: MonetizationSta
             Surface(Modifier.fillMaxWidth(), RoundedCornerShape(24.dp), color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = .58f)) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     Box(Modifier.fillMaxWidth().height(116.dp).clip(RoundedCornerShape(18.dp))) {
-                        if (bannerUri != null) coil.compose.AsyncImage(model = bannerUri, contentDescription = "Banner Atas", modifier = Modifier.fillMaxSize(), contentScale = androidx.compose.ui.layout.ContentScale.Crop) else Box(Modifier.fillMaxSize().background(Brush.linearGradient(listOf(avatarColor.copy(alpha = .85f), MaterialTheme.colorScheme.primary.copy(alpha = .58f), Color(0xFF111827)))))
+                        if (bannerUri != null) AsyncImage(model = bannerUri, contentDescription = "Banner Atas", modifier = Modifier.fillMaxSize(), contentScale = androidx.compose.ui.layout.ContentScale.Crop)
+                        else Box(Modifier.fillMaxSize().background(Brush.linearGradient(listOf(avatarColor.copy(alpha = .85f), MaterialTheme.colorScheme.primary.copy(alpha = .58f), Color(0xFF111827)))))
                         Column(Modifier.align(Alignment.BottomStart).padding(14.dp)) { Text("KakaAnime Account", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Color.White); Text("Banner Atas", fontSize = 10.sp, color = Color.White.copy(alpha = .78f)) }
                     }
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Box(Modifier.size(68.dp).clip(CircleShape).background(avatarColor), contentAlignment = Alignment.Center) { if (profilePhotoUri != null) coil.compose.AsyncImage(model = profilePhotoUri, contentDescription = "Foto profil", modifier = Modifier.fillMaxSize().clip(CircleShape), contentScale = androidx.compose.ui.layout.ContentScale.Crop) else Text(initials, fontSize = 19.sp, fontWeight = FontWeight.Black, color = Color.White) }
+                        Box(Modifier.size(68.dp).clip(CircleShape).background(avatarColor), contentAlignment = Alignment.Center) {
+                            when {
+                                monetizationState.isPremium && animatedProfileUri != null -> AsyncImage(model = animatedProfileUri, imageLoader = gifImageLoader, contentDescription = "Animated profile", modifier = Modifier.fillMaxSize().clip(CircleShape), contentScale = androidx.compose.ui.layout.ContentScale.Crop)
+                                profilePhotoUri != null -> AsyncImage(model = profilePhotoUri, contentDescription = "Foto profil", modifier = Modifier.fillMaxSize().clip(CircleShape), contentScale = androidx.compose.ui.layout.ContentScale.Crop)
+                                else -> Text(initials, fontSize = 19.sp, fontWeight = FontWeight.Black, color = Color.White)
+                            }
+                        }
                         Spacer(Modifier.width(12.dp)); Column(Modifier.weight(1f)) { Text(name, fontSize = 18.sp, fontWeight = FontWeight.Bold); Text(bio, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2); Spacer(Modifier.height(5.dp)); Text(if (monetizationState.isPremium) "Premium" else "Free User", fontSize = 10.sp, fontWeight = FontWeight.Bold) }
                         IconButton(onClick = { showEdit = true }) { Icon(Icons.Outlined.Edit, "Edit profile") }
                     }
                     Row(Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.background.copy(alpha = .55f), RoundedCornerShape(14.dp)).padding(12.dp), verticalAlignment = Alignment.CenterVertically) { Icon(Icons.Outlined.Star, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp)); Spacer(Modifier.width(8.dp)); Text("${monetizationState.diamonds} Diamonds", modifier = Modifier.weight(1f), fontWeight = FontWeight.SemiBold, fontSize = 13.sp); Text("Premium", fontSize = 11.sp, color = MaterialTheme.colorScheme.primary, modifier = Modifier.clickable(onClick = onPremiumClick)) }
+                    if (monetizationState.isPremium && premiumBannerUri != null) {
+                        AsyncImage(model = premiumBannerUri, contentDescription = "Premium Banner", modifier = Modifier.fillMaxWidth().height(64.dp).clip(RoundedCornerShape(14.dp)), contentScale = androidx.compose.ui.layout.ContentScale.Crop)
+                    }
                 }
             }
         }
