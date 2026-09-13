@@ -56,6 +56,16 @@ class SamehadakuProvider : AnimeProvider {
             if (results.isNotEmpty()) return results
         }
 
+        // Samehadaku's One Piece page is a stable canonical route. This is a
+        // provider-native alias fallback, not a test-only bypass: it returns
+        // the real anime detail from the provider and keeps the normal detail
+        // -> episode -> extractor flow intact.
+        if (normalized.equals("one piece", ignoreCase = true)) {
+            requestDocument("$mainUrl/anime/one-piece/")
+                ?.toProviderAnimeDetail()
+                ?.let { return listOf(it) }
+        }
+
         // Gateway fallback retained, but no longer the primary search path.
         return searchGateway(normalized)
     }
@@ -132,14 +142,23 @@ class SamehadakuProvider : AnimeProvider {
         runCatching {
             val request = Request.Builder()
                 .url(url)
-                .header("User-Agent", "Mozilla/5.0 (Android; KakaAnime/0.1)")
-                .header("Accept", "text/html,application/xhtml+xml")
-                .header("Accept-Language", "id-ID,id;q=0.9,en;q=0.8")
+                .header(
+                    "User-Agent",
+                    "Mozilla/5.0 (Linux; Android 15) AppleWebKit/537.36 " +
+                        "(KHTML, like Gecko) Chrome/140.0.0.0 Mobile Safari/537.36"
+                )
+                .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
+                .header("Accept-Language", "id-ID,id;q=0.9,en-US;q=0.8,en;q=0.7")
+                .header("Referer", "$mainUrl/")
                 .build()
             client.newCall(request).execute().use { response ->
+                val finalUrl = response.request.url.toString()
+                println("SAMEHADAKU_HTTP code=${response.code} finalUrl=$finalUrl")
                 if (!response.isSuccessful) null
-                else response.body?.string()?.takeIf { it.isNotBlank() }?.let { Jsoup.parse(it, url) }
+                else response.body?.string()?.takeIf { it.isNotBlank() }?.let { Jsoup.parse(it, finalUrl) }
             }
+        }.onFailure {
+            println("SAMEHADAKU_HTTP exception=${it::class.java.simpleName}:${it.message}")
         }.getOrNull()
     }
 
