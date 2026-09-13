@@ -146,7 +146,7 @@ fun EpisodeGateDialog(
                     Text("Episode Terkunci", fontSize = 22.sp, fontWeight = FontWeight.Bold)
                     Spacer(Modifier.height(6.dp))
                     Text(
-                        "Tonton iklan untuk membuka episode lebih cepat, atau tunggu waktu akses selesai.",
+                        "Tonton iklan untuk membuka episode lebih cepat, atau pilih waktu akses 90 detik untuk mendapatkan diamond.",
                         textAlign = TextAlign.Center,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -163,7 +163,7 @@ fun EpisodeGateDialog(
                         Text("Premium • Tanpa Menunggu")
                     }
                     Text(
-                        "Rewarded ad memberi 2 diamond; 1 diamond digunakan untuk episode ini.",
+                        "Rewarded ad atau waktu tunggu 90 detik memberi 2 diamond; 1 diamond digunakan untuk episode ini.",
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         fontSize = 12.sp,
                         textAlign = TextAlign.Center,
@@ -192,7 +192,7 @@ fun EpisodeGateDialog(
                     }
                     Spacer(Modifier.height(12.dp))
                     Text(
-                        "Iklan sedang diputar atau belum tersedia. Jika reward iklan diterima lebih dulu, episode akan langsung terbuka.",
+                        "Iklan sedang diputar atau belum tersedia. Jika reward iklan diterima lebih dulu, episode langsung terbuka. Jika tidak ada iklan, selesaikan waktu tunggu untuk mendapatkan 2 diamond dan membuka episode.",
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         textAlign = TextAlign.Center,
                         fontSize = 13.sp,
@@ -209,7 +209,7 @@ fun EpisodeGateDialog(
                         Icon(Icons.Default.Info, contentDescription = null, modifier = Modifier.size(22.dp))
                         Spacer(Modifier.size(10.dp))
                         Text(
-                            "Jangan tutup aplikasi selama proses berlangsung. Setelah waktu tunggu selesai, akses episode diproses otomatis.",
+                            "Jangan tutup aplikasi selama proses berlangsung. Setelah 90 detik selesai, 2 diamond diberikan dan 1 diamond langsung digunakan untuk episode ini.",
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             fontSize = 12.sp,
                         )
