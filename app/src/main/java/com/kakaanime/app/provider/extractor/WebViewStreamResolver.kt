@@ -38,11 +38,13 @@ class WebViewStreamResolver(
 
             fun finish(result: List<ProviderStream>) {
                 if (!finished.compareAndSet(false, true)) return
-                mainHandler.removeCallbacksAndMessages(null)
-                webView?.stopLoading()
-                webView?.destroy()
-                webView = null
-                if (continuation.isActive) continuation.resume(result)
+                mainHandler.post {
+                    mainHandler.removeCallbacksAndMessages(null)
+                    webView?.stopLoading()
+                    webView?.destroy()
+                    webView = null
+                    if (continuation.isActive) continuation.resume(result)
+                }
             }
 
             fun capture(candidate: String, requestHeaders: Map<String, String> = emptyMap()) {
