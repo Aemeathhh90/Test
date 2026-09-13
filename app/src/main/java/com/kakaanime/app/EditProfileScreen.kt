@@ -21,14 +21,16 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
+import androidx.compose.ui.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import coil.ImageLoader
 import coil.compose.AsyncImage
+import coil.decode.GifDecoder
 import com.kakaanime.app.data.KakaAnimePreferences
 
 private val profileAvatarColors = listOf(Color(0xFFFF4D67), Color(0xFF9C6BFF), Color(0xFF20C8E8), Color(0xFF35C98A))
@@ -47,6 +49,7 @@ fun EditProfileScreen(preferences: KakaAnimePreferences, onBack: () -> Unit, isP
     var bannerUri by remember { mutableStateOf(preferences.loadProfileBannerUri()) }
     var premiumBannerUri by remember { mutableStateOf(preferences.loadPremiumBannerUri()) }
     var animatedProfileUri by remember { mutableStateOf(preferences.loadAnimatedProfileUri()) }
+    val gifImageLoader = remember { ImageLoader.Builder(context).components { add(GifDecoder.Factory()) }.build() }
 
     fun persistReadPermission(uri: android.net.Uri) { runCatching { context.contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION) } }
     val photoPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri -> if (uri != null) { persistReadPermission(uri); profilePhotoUri = uri.toString(); preferences.saveProfilePhotoUri(profilePhotoUri) } }
@@ -65,7 +68,15 @@ fun EditProfileScreen(preferences: KakaAnimePreferences, onBack: () -> Unit, isP
                 if (bannerUri != null) AsyncImage(model = bannerUri, contentDescription = "Banner Atas", modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop) else Box(Modifier.fillMaxSize().background(Brush.linearGradient(profileBannerGradients[avatarIndex.coerceIn(0, 3)])))
                 Text("KakaAnime", Modifier.align(Alignment.Center).padding(top = 8.dp), fontSize = 30.sp, fontWeight = FontWeight.Black, color = Color.White)
                 Text("ANIME ALWAYS WITH YOU", Modifier.align(Alignment.Center).padding(top = 55.dp), fontSize = 9.sp, fontWeight = FontWeight.Bold, color = Color.White.copy(alpha = .72f))
-                Surface(Modifier.align(Alignment.BottomStart).padding(14.dp), CircleShape, color = profileAvatarColors[avatarIndex.coerceIn(0, 3)]) { Box(Modifier.size(82.dp), contentAlignment = Alignment.Center) { if (profilePhotoUri != null) AsyncImage(model = profilePhotoUri, contentDescription = "Foto profil", modifier = Modifier.fillMaxSize().clip(CircleShape), contentScale = ContentScale.Crop) else Text(name.trim().take(2).ifBlank { "KA" }.uppercase(), fontSize = 22.sp, fontWeight = FontWeight.Black, color = Color.White) } }
+                Surface(Modifier.align(Alignment.BottomStart).padding(14.dp), CircleShape, color = profileAvatarColors[avatarIndex.coerceIn(0, 3)]) {
+                    Box(Modifier.size(82.dp), contentAlignment = Alignment.Center) {
+                        when {
+                            isPremium && animatedProfileUri != null -> AsyncImage(model = animatedProfileUri, imageLoader = gifImageLoader, contentDescription = "Animated profile", modifier = Modifier.fillMaxSize().clip(CircleShape), contentScale = ContentScale.Crop)
+                            profilePhotoUri != null -> AsyncImage(model = profilePhotoUri, contentDescription = "Foto profil", modifier = Modifier.fillMaxSize().clip(CircleShape), contentScale = ContentScale.Crop)
+                            else -> Text(name.trim().take(2).ifBlank { "KA" }.uppercase(), fontSize = 22.sp, fontWeight = FontWeight.Black, color = Color.White)
+                        }
+                    }
+                }
                 Surface(Modifier.align(Alignment.BottomStart).padding(start = 76.dp, bottom = 10.dp), CircleShape, color = MaterialTheme.colorScheme.surface.copy(alpha = .92f)) { Icon(Icons.Outlined.Edit, "Edit avatar", Modifier.padding(9.dp).size(17.dp)) }
             }
             Column(verticalArrangement = Arrangement.spacedBy(9.dp)) {
