@@ -30,7 +30,7 @@ import com.kakaanime.app.data.WatchHistoryEntry
 import com.kakaanime.app.network.AnimeRepository
 
 @Composable
-fun ReDantotsuHomeScreen(animeList: List<Anime>, onAnimeClick: (Anime) -> Unit, refreshKey: Int = 0) {
+fun ReDantotsuHomeScreen(animeList: List<Anime>, onAnimeClick: (Anime) -> Unit, onContinueWatchingClick: (Anime, Int) -> Unit = { anime, _ -> onAnimeClick(anime) }, refreshKey: Int = 0) {
     val context = LocalContext.current
     val preferences = remember(context) { KakaAnimePreferences(context) }
     val metadataService = remember { AniListMetadataService() }
@@ -70,7 +70,7 @@ fun ReDantotsuHomeScreen(animeList: List<Anime>, onAnimeClick: (Anime) -> Unit, 
             else items(filtered, key = { it.title }) { anime -> SearchAnimeRow(anime, posterUrls[anime.title], onAnimeClick) }
         } else {
             item { FeaturedReferenceCard(backendAnime.firstOrNull(), posterUrls[backendAnime.firstOrNull()?.title], onAnimeClick) }
-            if (continueWatching.isNotEmpty()) item { HomeEpisodeSection("Continue Watching", continueWatching, onAnimeClick) }
+            if (continueWatching.isNotEmpty()) item { HomeEpisodeSection("Continue Watching", continueWatching, onContinueWatchingClick) }
             item { HomeAnimeSection("Trending", backendAnime, posterUrls, onAnimeClick) }
             item { HomeAnimeSection("New Updates", backendAnime.sortedByDescending { it.latestEpisode }, posterUrls, onAnimeClick, "NEW") }
             item { HomeAnimeSection("Anime Completed", backendAnime.filter { it.status.equals("Finished", true) }, posterUrls, onAnimeClick, "COMPLETED") }
@@ -124,7 +124,7 @@ fun ReDantotsuHomeScreen(animeList: List<Anime>, onAnimeClick: (Anime) -> Unit, 
     }
 }
 
-@Composable private fun HomeEpisodeSection(title: String, entries: List<Pair<Anime, WatchHistoryEntry>>, onClick: (Anime) -> Unit) {
+@Composable private fun HomeEpisodeSection(title: String, entries: List<Pair<Anime, WatchHistoryEntry>>, onClick: (Anime, Int) -> Unit) {
     Column {
         Row(verticalAlignment = Alignment.CenterVertically) { Text(title, fontSize = 19.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f)); Text("Lihat semua", fontSize = 12.sp, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.SemiBold) }
         Spacer(Modifier.height(10.dp))
@@ -134,8 +134,8 @@ fun ReDantotsuHomeScreen(animeList: List<Anime>, onAnimeClick: (Anime) -> Unit, 
     }
 }
 
-@Composable private fun HomeEpisodeCard(anime: Anime, history: WatchHistoryEntry, onClick: (Anime) -> Unit) {
-    Column(Modifier.width(136.dp).clickable { onClick(anime) }) {
+@Composable private fun HomeEpisodeCard(anime: Anime, history: WatchHistoryEntry, onClick: (Anime, Int) -> Unit) {
+    Column(Modifier.width(136.dp).clickable { onClick(anime, history.episode) }) {
         Box(Modifier.fillMaxWidth().height(184.dp).clip(RoundedCornerShape(16.dp)).background(MaterialTheme.colorScheme.surfaceVariant)) {
             history.episodeThumbnailUrl?.let { AsyncImage(it, "${anime.title} Episode ${history.episode}", Modifier.fillMaxSize(), contentScale = ContentScale.Crop) }
             Surface(Modifier.align(Alignment.TopStart).padding(8.dp), RoundedCornerShape(8.dp), color = MaterialTheme.colorScheme.scrim.copy(alpha = .72f)) {
