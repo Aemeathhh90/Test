@@ -2,6 +2,7 @@ package com.kakaanime.app.provider
 
 import android.os.Handler
 import android.os.HandlerThread
+import android.util.Log
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MimeTypes
 import androidx.media3.datasource.DefaultDataSource
@@ -31,8 +32,6 @@ class SamehadakuProviderE2ETest {
         val searchResults = provider.search("One Piece")
         assertFalse("Samehadaku search returned no results", searchResults.isEmpty())
 
-        // Search may return titles such as "One Piece Heroines" before the
-        // canonical series. Do not let a broad contains() match select the wrong anime.
         val anime = searchResults.firstOrNull {
             it.title.trim().equals("One Piece", ignoreCase = true) ||
                 it.id.trimEnd('/').endsWith("/anime/one-piece", ignoreCase = true)
@@ -57,25 +56,43 @@ class SamehadakuProviderE2ETest {
         )
 
         streams.forEachIndexed { index, candidate ->
-            println(
+            Log.i(
+                TAG,
                 "E2E_STREAM[$index] provider=${candidate.providerId} type=${candidate.type} " +
                     "quality=${candidate.quality} headers=${candidate.headers.keys} " +
                     "url=${candidate.url.take(240)}"
             )
         }
 
-        val stream = streams.firstOrNull {
-            it.url.startsWith("https://") || it.url.startsWith("http://")
-        }
+        // Prefer streams whose type was proven by the resolver/validator. The
+        // previous first-HTTP selection could pick an UNKNOWN wrapper even when
+        // a validated HLS/DASH candidate existed later in the list.
+        val stream = streams
+            .filter { it.url.startsWith("https://") || it.url.startsWith("http://") }
+            .sortedByDescending { typeScore(it.type) }
+            .firstOrNull()
         assertNotNull("Samehadaku returned no HTTP(S) stream URL", stream)
 
         val selected = stream!!
-        println(
+        Log.i(
+            TAG,
             "E2E_PROVIDER=samehadaku anime=${selectedAnime.title} episode=${selectedEpisode.number} " +
                 "type=${selected.type} quality=${selected.quality} url=${selected.url.take(240)}"
         )
 
+        assertTrue(
+            "Samehadaku selected an UNKNOWN stream type after resolver validation",
+            selected.type != StreamType.UNKNOWN
+        )
+
         renderFirstFrame(selected)
+    }
+
+    private fun typeScore(type: StreamType): Int = when (type) {
+        StreamType.HLS -> 3
+        StreamType.DASH -> 3
+        StreamType.MP4 -> 2
+        StreamType.UNKNOWN -> 0
     }
 
     private fun renderFirstFrame(stream: ProviderStream) {
@@ -124,7 +141,8 @@ class SamehadakuProviderE2ETest {
                                             .take(4)
                                             .joinToString(" -> ") { it::class.java.simpleName + ": " + (it.message ?: "") }
                                     }
-                                    println(
+                                    Log.e(
+                                        TAG,
                                         "E2E_MEDIA3_ERROR code=${failureCode ?: "unknown"} " +
                                             "message=${failureMessage ?: "none"} cause=${failureCause ?: "none"}"
                                     )
@@ -132,16 +150,13 @@ class SamehadakuProviderE2ETest {
                                 }
                             })
 
-                            val mediaItemBuilder = MediaItem.Builder()
-                                .setUri(stream.url)
+                            val mediaItemBuilder = MediaItem.Builder().setUri(stream.url)
                             when (stream.type) {
                                 StreamType.HLS -> mediaItemBuilder.setMimeType(MimeTypes.APPLICATION_M3U8)
                                 StreamType.DASH -> mediaItemBuilder.setMimeType(MimeTypes.APPLICATION_MPD)
                                 else -> Unit
                             }
 
-                            // A signed/redirected manifest may not retain a .m3u8/.mpd suffix.
-                            // The provider's normalized stream type is therefore authoritative.
                             exoPlayer.setMediaItem(mediaItemBuilder.build())
                             exoPlayer.prepare()
                             exoPlayer.playWhenReady = true
@@ -179,5 +194,9 @@ class SamehadakuProviderE2ETest {
             playerThread.quitSafely()
             playerThread.join(5_000)
         }
+    }
+
+    private companion object {
+        const val TAG = "AniLab-Samehadaku-E2E"
     }
 }
