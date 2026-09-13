@@ -19,19 +19,26 @@ Urutan utama:
 2. Banner/profile header di bagian atas.
 3. Profile card: avatar, username, bio, status Free/Premium, diamonds, edit profile.
 4. Premium CTA banner.
-5. Statistik dalam satu row:
-   - Anime Watched
-   - Episode Watched
-   - Favorites
-   - Diamonds bila ruang/layout memungkinkan tanpa merusak hierarchy.
-6. Menu Account:
-   - Profile
-   - Premium & Diamonds
-   - Appearance
-   - Notifications
-   - Settings
-   - About KakaAnime
+5. Statistik dalam satu row.
+6. Menu Account dengan urutan final:
+   - ⚙️ Settings
+   - 👤 Profile
+   - 🎨 Appearance
+   - 💎 Premium
+   - 🔔 Notifications
+   - ℹ️ About KakaAnime
 7. Bottom navigation tetap menjadi navigation utama aplikasi.
+
+## Menu UX
+
+Urutan menu di atas sekarang **dikunci sebagai versi yang dipilih Shin**. Ikon visual mengikuti makna emoji/reference tersebut, sementara rendering Android tetap memakai icon vector Material yang konsisten dengan bahasa UI KakaAnime.
+
+- `Settings` membuka entry settings dasar sementara; detail settings dapat dikembangkan tanpa mengubah urutan/layout.
+- `Profile` membuka Edit Profile.
+- `Appearance` membuka kontrol theme/accent.
+- `Premium` membuka Premium flow.
+- `Notifications` memiliki entry screen/dialog sementara; integrasi notifikasi aktual tetap tahap berikutnya.
+- `About KakaAnime` membuka informasi aplikasi.
 
 ## Statistik
 
@@ -58,10 +65,17 @@ Urutan utama:
 
 - 🟢 Screenshot/layout direction dikunci sebagai primary reference.
 - 🟢 ReDantotsu-inspired UX direction dikunci.
+- 🟢 Menu Account order dikunci: Settings → Profile → Appearance → Premium → Notifications → About.
+- 🟢 Semua enam entry menu sekarang memiliki action/entry UI dasar.
 - 🟡 Current Account Dashboard masih perlu penyesuaian visual terhadap reference.
 - 🟡 Episode Watched membutuhkan model history yang benar sebelum statistik dinyatakan final.
-- 🟡 Menu Settings/Notifications/Premium masih perlu diselesaikan satu per satu.
+- 🟡 Detail Settings/Notifications masih perlu diselesaikan.
+
+## Latest change
+
+Commit: `8cd7a1e57e628e080984410b3aaeeca6f25263a6`  
+`account: align menu with approved reference order`
 
 ## Next
 
-Selesaikan **Account Dashboard UI** terlebih dahulu sampai struktur dan visualnya final, lalu lanjut berurutan ke Edit Profile → Settings → Appearance → Notifications → About → Premium → final Account audit.
+Selesaikan **Account Dashboard UI** sampai struktur dan visualnya final, lalu lanjut berurutan ke Edit Profile → Settings → Appearance → Notifications → About → Premium → final Account audit.
