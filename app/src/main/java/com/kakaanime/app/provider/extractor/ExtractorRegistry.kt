@@ -4,6 +4,7 @@ import com.kakaanime.app.provider.extractor.extractors.GenericDirectExtractor
 import com.kakaanime.app.provider.extractor.extractors.GenericEmbedExtractor
 import com.kakaanime.app.provider.extractor.extractors.JavascriptMediaExtractor
 import com.kakaanime.app.provider.extractor.extractors.KrakenFilesExtractor
+import com.kakaanime.app.provider.extractor.extractors.OtakudesuHostExtractor
 import com.kakaanime.app.provider.extractor.extractors.OtakudesuServerExtractor
 import com.kakaanime.app.provider.extractor.extractors.PixelDrainExtractor
 import com.kakaanime.app.provider.extractor.extractors.SamehadakuEpisodeExtractor
@@ -28,6 +29,9 @@ class ExtractorRegistry(
             add(SamehadakuEpisodeExtractor())
         }
 
+        add(
+            OtakudesuHostExtractor()
+        )
         addAll(
             listOf(
                 OtakudesuServerExtractor(),
