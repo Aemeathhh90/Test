@@ -3,6 +3,7 @@ package com.kakaanime.app.provider.extractor
 import android.content.Context
 import android.os.Handler
 import android.os.Looper
+import android.webkit.CookieManager
 import android.webkit.WebResourceRequest
 import android.webkit.WebResourceResponse
 import android.webkit.WebSettings
@@ -46,10 +47,14 @@ class WebViewStreamResolver(
 
             fun capture(candidate: String, requestHeaders: Map<String, String> = emptyMap()) {
                 val type = candidate.toStreamType() ?: return
+                val cookie = runCatching {
+                    CookieManager.getInstance().getCookie(candidate)
+                }.getOrNull()
                 val headers = buildMap {
                     put("User-Agent", USER_AGENT)
                     referer?.takeIf { it.isNotBlank() }?.let { put("Referer", it) }
                     requestHeaders["Referer"]?.takeIf { it.isNotBlank() }?.let { put("Referer", it) }
+                    cookie?.takeIf { it.isNotBlank() }?.let { put("Cookie", it) }
                 }
                 finish(listOf(ProviderStream(
                     providerId = "webview-resolver",
