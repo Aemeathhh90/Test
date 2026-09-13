@@ -61,6 +61,9 @@ import kotlinx.coroutines.delay
 @Composable
 fun VideoPlayerScreen(
     videoUrl: String,
+    title: String = "One Piece",
+    episodeNumber: Int = 1140,
+    description: String = "",
     introStart: Long = 0L,
     introEnd: Long = 0L,
     outroStart: Long = 0L,
@@ -104,14 +107,17 @@ fun VideoPlayerScreen(
         }
     }
 
+    val previousEpisode = (episodeNumber - 1).coerceAtLeast(1)
+    val nextEpisode = episodeNumber + 1
+
     if (isLandscape) {
         Box(modifier = modifier.fillMaxSize().background(Color.Black)) {
             PlayerSurface(player)
             ReDantotsuPlayerController(
                 state = playerState,
-                title = "One Piece • Episode 1140",
-                previousEpisode = "1139",
-                nextEpisode = "1141",
+                title = "$title • Episode $episodeNumber",
+                previousEpisode = previousEpisode.toString(),
+                nextEpisode = nextEpisode.toString(),
                 autoNext = autoNext,
                 onAutoNext = { autoNext = !autoNext },
                 onBack = { activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT },
@@ -132,9 +138,9 @@ fun VideoPlayerScreen(
                 PlayerSurface(player)
                 ReDantotsuPlayerController(
                     state = playerState,
-                    title = "One Piece • Episode 1140",
-                    previousEpisode = "1139",
-                    nextEpisode = "1141",
+                    title = "$title • Episode $episodeNumber",
+                    previousEpisode = previousEpisode.toString(),
+                    nextEpisode = nextEpisode.toString(),
                     autoNext = autoNext,
                     onAutoNext = { autoNext = !autoNext },
                     onBack = {},
@@ -151,15 +157,16 @@ fun VideoPlayerScreen(
             if (showSpeedMenu) SpeedMenu(speed, { speed = it; playerController.setSpeed(it); showSpeedMenu = false }, { showSpeedMenu = false })
 
             Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 14.dp)) {
-                Text("One Piece", fontSize = 25.sp, fontWeight = FontWeight.Bold, color = colors.onBackground)
+                Text(title, fontSize = 25.sp, fontWeight = FontWeight.Bold, color = colors.onBackground)
                 Spacer(Modifier.height(3.dp))
-                Text("Episode 1140 • 1.2M penonton", fontSize = 14.sp, color = colors.onSurfaceVariant)
+                Text("Episode $episodeNumber", fontSize = 14.sp, color = colors.onSurfaceVariant)
                 Spacer(Modifier.height(12.dp))
-                val description = "Monkey D. Luffy dan kru Topi Jerami melanjutkan perjalanan mereka dalam petualangan besar di dunia One Piece. Saksikan pertarungan, misteri, dan perkembangan terbaru kru Topi Jerami."
-                Text(if (descriptionExpanded) description else description.take(155) + if (description.length > 155) "..." else "", fontSize = 14.sp, lineHeight = 21.sp, color = colors.onBackground)
-                Row(modifier = Modifier.clickable { descriptionExpanded = !descriptionExpanded }.padding(vertical = 3.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Text(if (descriptionExpanded) "Sembunyikan" else "Selengkapnya", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = colors.primary)
-                    Icon(Icons.Filled.ExpandMore, null, tint = colors.primary, modifier = Modifier.size(18.dp))
+                if (description.isNotBlank()) {
+                    Text(if (descriptionExpanded) description else description.take(155) + if (description.length > 155) "..." else "", fontSize = 14.sp, lineHeight = 21.sp, color = colors.onBackground)
+                    Row(modifier = Modifier.clickable { descriptionExpanded = !descriptionExpanded }.padding(vertical = 3.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Text(if (descriptionExpanded) "Sembunyikan" else "Selengkapnya", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = colors.primary)
+                        Icon(Icons.Filled.ExpandMore, null, tint = colors.primary, modifier = Modifier.size(18.dp))
+                    }
                 }
                 Spacer(Modifier.height(14.dp))
                 Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
@@ -184,7 +191,9 @@ fun VideoPlayerScreen(
                 Text("Episode List", fontSize = 21.sp, fontWeight = FontWeight.Bold, color = colors.onBackground)
                 Spacer(Modifier.height(10.dp))
                 Row(modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    EpisodeCard("1138", false, false); EpisodeCard("1139", false, false); EpisodeCard("1140", false, true); EpisodeCard("1141", true, false); EpisodeCard("1142", true, false)
+                    EpisodeCard(previousEpisode.toString(), false, false)
+                    EpisodeCard(episodeNumber.toString(), false, true)
+                    EpisodeCard(nextEpisode.toString(), true, false)
                 }
                 Spacer(Modifier.height(22.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
