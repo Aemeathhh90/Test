@@ -22,6 +22,10 @@ class KakaAnimePreferences(context: Context) {
         val entry = WatchHistoryEntry(title, episode, episodeTitle ?: old?.episodeTitle, episodeThumbnailUrl ?: old?.episodeThumbnailUrl, now, if (durationMs > 0L) durationMs else old?.durationMs ?: 0L)
         if (index >= 0) current[index] = entry else current.add(entry); saveWatchHistory(current.take(MAX_WATCH_HISTORY_ENTRIES))
     }
+    fun deleteWatchHistoryEntry(title: String, episode: Int) {
+        saveWatchHistory(loadWatchHistory().filterNot { it.title == title && it.episode == episode })
+    }
+    fun clearWatchHistory() { saveWatchHistory(emptyList()) }
     private fun saveWatchHistory(entries: List<WatchHistoryEntry>) { val array = JSONArray(); entries.forEach { e -> array.put(JSONObject().put("title", e.title).put("episode", e.episode).put("episodeTitle", e.episodeTitle.orEmpty()).put("episodeThumbnailUrl", e.episodeThumbnailUrl.orEmpty()).put("watchedAt", e.watchedAt).put("durationMs", e.durationMs)) }; prefs.edit().putString(KEY_WATCH_HISTORY, array.toString()).apply() }
     fun loadDiamonds(): Int = prefs.getInt(KEY_DIAMONDS, 0)
     fun saveDiamonds(value: Int) { prefs.edit().putInt(KEY_DIAMONDS, value.coerceAtLeast(0)).apply() }
