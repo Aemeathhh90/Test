@@ -10,6 +10,7 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.jsoup.Jsoup
 import java.net.URI
+import java.net.URLDecoder
 import java.util.concurrent.TimeUnit
 
 /**
@@ -98,10 +99,29 @@ class SamehadakuEpisodeExtractor : StreamExtractor {
         for ((_, link) in discovered) {
             val resolved = when {
                 isDirectMedia(link.url) -> listOf(directStream(link.url, url, link.quality))
-                else -> hostResolver.resolve(
-                    urls = listOf(link.url),
-                    referer = url
-                )
+                else -> {
+                    val hostResolved = hostResolver.resolve(
+                        urls = listOf(link.url),
+                        referer = url
+                    )
+                    val typedHostResolved = hostResolved.filter { it.type != StreamType.UNKNOWN }
+                    if (typedHostResolved.isNotEmpty()) {
+                        typedHostResolved
+                    } else {
+                        // CloudStream's Samehadaku implementation has a
+                        // second-stage generic embed parser: when the server
+                        // returns an extensionless embed URL, GET that page
+                        // and inspect <video>/<source> for the real media URL.
+                        // Do this only for Samehadaku's server link so the
+                        // global resolver/validator remains strict.
+                        val embedStreams = resolveEmbedPage(
+                            embedUrl = link.url,
+                            episodeUrl = url,
+                            quality = link.quality
+                        )
+                        if (embedStreams.isNotEmpty()) embedStreams else hostResolved
+                    }
+                }
             }
             streams += resolved.map { stream ->
                 if (link.quality.isNullOrBlank()) stream
@@ -124,6 +144,89 @@ class SamehadakuEpisodeExtractor : StreamExtractor {
             response.body?.string()?.takeIf { it.isNotBlank() }?.let { Jsoup.parse(it, url) }
         }
     }.getOrNull()
+
+    /**
+     * Resolve a host/embed page when its URL itself has no media extension.
+     * The returned stream may initially be UNKNOWN; the outer StreamResolver
+     * will run StreamValidator and infer HLS/DASH/MP4 from response headers or
+     * content before the player sees it.
+     */
+    private fun resolveEmbedPage(
+        embedUrl: String,
+        episodeUrl: String,
+        quality: String?
+    ): List<ProviderStream> {
+        val document = getEmbedPage(embedUrl, episodeUrl) ?: return emptyList()
+        val mediaUrls = linkedSetOf<String>()
+
+        document.select("video source[src], video source[data-src], source[src], source[data-src]")
+            .forEach { source ->
+                val href = source.absUrl("src").ifBlank { source.attr("src") }
+                    .ifBlank { source.absUrl("data-src") }
+                    .ifBlank { source.attr("data-src") }
+                    .trim()
+                if (href.startsWith("http", true)) mediaUrls += href
+            }
+
+        document.select("video[src], video[data-src]").forEach { video ->
+            val href = video.absUrl("src").ifBlank { video.attr("src") }
+                .ifBlank { video.absUrl("data-src") }
+                .ifBlank { video.attr("data-src") }
+                .trim()
+            if (href.startsWith("http", true)) mediaUrls += href
+        }
+
+        // Some Samehadaku-compatible hosts expose a JSON data-page payload
+        // instead of a literal <source>. Prefer the URL field when present.
+        document.selectFirst("#app[data-page], [data-page]")?.attr("data-page")
+            ?.let(::extractDataPageUrl)
+            ?.takeIf { it.startsWith("http", true) }
+            ?.let { mediaUrls += it }
+
+        return mediaUrls.map { mediaUrl ->
+            ProviderStream(
+                providerId = "samehadaku",
+                url = mediaUrl,
+                quality = quality,
+                language = "Japanese",
+                subtitleLanguage = "Indonesian",
+                type = streamTypeFromUrl(mediaUrl),
+                headers = mapOf(
+                    "User-Agent" to USER_AGENT,
+                    "Referer" to embedUrl
+                )
+            )
+        }
+    }
+
+    private fun getEmbedPage(
+        embedUrl: String,
+        episodeUrl: String
+    ): org.jsoup.nodes.Document? = runCatching {
+        val request = Request.Builder()
+            .url(embedUrl)
+            .header("User-Agent", USER_AGENT)
+            .header("Accept", "text/html,application/xhtml+xml")
+            .header("Accept-Language", "id-ID,id;q=0.9,en;q=0.8")
+            .header("Referer", embedUrl.ifBlank { episodeUrl })
+            .build()
+        client.newCall(request).execute().use { response ->
+            if (!response.isSuccessful) return@runCatching null
+            response.body?.string()?.takeIf { it.isNotBlank() }?.let {
+                Jsoup.parse(it, embedUrl)
+            }
+        }
+    }.getOrNull()
+
+    private fun extractDataPageUrl(value: String): String? {
+        val raw = runCatching { URLDecoder.decode(value, "UTF-8") }.getOrDefault(value)
+        val unescaped = raw.replace("\\/", "/").replace("\\\"", "\"")
+        val match = Regex("\\\"url\\\"\\s*:\\s*\\\"([^\\\"]+)\\\"")
+            .find(unescaped)
+            ?: Regex("(?:^|[,{])\\s*url\\s*[:=]\\s*[\\\"']([^\\\"']+)")
+                .find(unescaped)
+        return match?.groupValues?.getOrNull(1)?.trim()
+    }
 
     private fun requestPlayerAjax(
         episodeUrl: String,
@@ -180,17 +283,19 @@ class SamehadakuEpisodeExtractor : StreamExtractor {
             quality = quality,
             language = "Japanese",
             subtitleLanguage = "Indonesian",
-            type = when {
-                url.contains(".m3u8", true) -> StreamType.HLS
-                url.contains(".mpd", true) -> StreamType.DASH
-                url.contains(".mp4", true) || url.contains(".webm", true) -> StreamType.MP4
-                else -> StreamType.UNKNOWN
-            },
+            type = streamTypeFromUrl(url),
             headers = mapOf(
                 "User-Agent" to USER_AGENT,
                 "Referer" to referer
             )
         )
+
+    private fun streamTypeFromUrl(url: String): StreamType = when {
+        url.contains(".m3u8", true) -> StreamType.HLS
+        url.contains(".mpd", true) -> StreamType.DASH
+        url.contains(".mp4", true) || url.contains(".webm", true) -> StreamType.MP4
+        else -> StreamType.UNKNOWN
+    }
 
     private data class DiscoveredLink(
         val url: String,
