@@ -85,12 +85,12 @@ class AniListCalendarService {
                         .build()
 
                     client.newCall(request).execute().use { response ->
-                        if (!response.isSuccessful) return@runCatching emptyList()
+                        if (!response.isSuccessful) return@runCatching emptyList<AniListScheduleEntry>() to false
                         val body = response.body?.string().orEmpty()
-                        if (body.isBlank()) return@runCatching emptyList()
+                        if (body.isBlank()) return@runCatching emptyList<AniListScheduleEntry>() to false
                         parse(body)
                     }
-                }.getOrElse { emptyList() }
+                }.getOrElse { emptyList<AniListScheduleEntry>() to false }
 
                 addAll(pageEntries.first)
                 hasNextPage = pageEntries.second
@@ -103,8 +103,10 @@ class AniListCalendarService {
 
     private fun parse(body: String): Pair<List<AniListScheduleEntry>, Boolean> {
         val root = JSONObject(body)
-        val page = root.optJSONObject("data")?.optJSONObject("Page") ?: return emptyList<AniListScheduleEntry>() to false
-        val schedules = page.optJSONArray("airingSchedules") ?: return emptyList<AniListScheduleEntry>() to false
+        val page = root.optJSONObject("data")?.optJSONObject("Page")
+            ?: return emptyList<AniListScheduleEntry>() to false
+        val schedules = page.optJSONArray("airingSchedules")
+            ?: return emptyList<AniListScheduleEntry>() to false
         val hasNextPage = page.optJSONObject("pageInfo")?.optBoolean("hasNextPage", false) ?: false
 
         val entries = buildList {
@@ -112,9 +114,11 @@ class AniListCalendarService {
                 val item = schedules.optJSONObject(i) ?: continue
                 val media = item.optJSONObject("media") ?: continue
                 val title = media.optJSONObject("title") ?: continue
-                val displayTitle = sequenceOf("english", "romaji", "native")
+                val rawTitle = sequenceOf("english", "romaji", "native")
                     .mapNotNull { title.optString(it).trim().takeIf(String::isNotBlank) }
                     .firstOrNull() ?: continue
+                val mediaId = media.optInt("id", 0)
+                val displayTitle = canonicalAppTitle(mediaId, rawTitle)
                 val episode = item.optInt("episode", 0)
                 val airingAt = item.optLong("airingAt", 0L)
                 if (episode <= 0 || airingAt <= 0L) continue
@@ -129,7 +133,7 @@ class AniListCalendarService {
 
                 add(
                     AniListScheduleEntry(
-                        id = media.optInt("id", 0),
+                        id = mediaId,
                         title = displayTitle,
                         episode = episode,
                         airingAt = airingAt,
@@ -145,6 +149,18 @@ class AniListCalendarService {
             }
         }
         return entries to hasNextPage
+    }
+
+    /**
+     * Keeps AniList's media identity while normalizing known app entries to the
+     * titles used by the current KakaAnime detail catalog. This prevents a tap
+     * on a schedule card from becoming a dead end when AniList uses a season
+     * subtitle or alternate capitalization.
+     */
+    private fun canonicalAppTitle(mediaId: Int, fallbackTitle: String): String = when (mediaId) {
+        21 -> "One Piece"
+        176496 -> "Solo Leveling"
+        else -> fallbackTitle
     }
 
     private fun startOfTodayEpochSecond(): Long =
