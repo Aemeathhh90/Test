@@ -65,7 +65,6 @@ fun EditProfileScreen(
     var name by remember { mutableStateOf(preferences.loadProfileName()) }
     var bio by remember { mutableStateOf(preferences.loadProfileBio()) }
     var avatarIndex by remember { mutableStateOf(preferences.loadProfileAvatarIndex()) }
-    var bannerIndex by remember { mutableStateOf(preferences.loadProfileBannerIndex()) }
 
     Column(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
         Row(
@@ -84,7 +83,6 @@ fun EditProfileScreen(
                     preferences.saveProfileName(name)
                     preferences.saveProfileBio(bio)
                     preferences.saveProfileAvatarIndex(avatarIndex)
-                    preferences.saveProfileBannerIndex(bannerIndex)
                     onBack()
                 },
                 enabled = name.isNotBlank(),
@@ -102,7 +100,7 @@ fun EditProfileScreen(
         ) {
             Box(
                 Modifier.fillMaxWidth().height(190.dp).clip(RoundedCornerShape(24.dp)).background(
-                    Brush.linearGradient(profileBannerGradients[bannerIndex])
+                    Brush.linearGradient(profileBannerGradients[avatarIndex.coerceIn(0, 3)])
                 )
             ) {
                 Text(
@@ -122,7 +120,7 @@ fun EditProfileScreen(
                 Surface(
                     Modifier.align(Alignment.BottomStart).padding(14.dp),
                     CircleShape,
-                    color = profileAvatarColors[avatarIndex]
+                    color = profileAvatarColors[avatarIndex.coerceIn(0, 3)]
                 ) {
                     Box(Modifier.size(82.dp), contentAlignment = Alignment.Center) {
                         Text(
@@ -189,30 +187,18 @@ fun EditProfileScreen(
                 }
             }
 
-            Column(verticalArrangement = Arrangement.spacedBy(9.dp)) {
-                Text("Banner", style = MaterialTheme.typography.titleMedium)
-                Row(
-                    Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    profileBannerGradients.forEachIndexed { index, gradient ->
-                        Box(
-                            Modifier.size(width = 132.dp, height = 74.dp)
-                                .clip(RoundedCornerShape(14.dp))
-                                .background(Brush.linearGradient(gradient))
-                                .clickable { bannerIndex = index }
-                        ) {
-                            if (bannerIndex == index) {
-                                Surface(
-                                    Modifier.align(Alignment.TopEnd).padding(7.dp),
-                                    CircleShape,
-                                    color = MaterialTheme.colorScheme.surface.copy(alpha = .88f)
-                                ) {
-                                    Icon(Icons.Outlined.Check, null, Modifier.padding(5.dp).size(14.dp))
-                                }
-                            }
-                        }
-                    }
+            Surface(
+                Modifier.fillMaxWidth(),
+                RoundedCornerShape(18.dp),
+                color = MaterialTheme.colorScheme.primary.copy(alpha = .10f)
+            ) {
+                Column(Modifier.padding(15.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                    Text("Premium Banner", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                    Text(
+                        "Banner akun digunakan untuk Upgrade to Premium / Premium Aktif. Tidak dapat diganti sebagai banner profil.",
+                        fontSize = 11.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
             }
 
