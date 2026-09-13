@@ -5,6 +5,8 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -25,10 +27,11 @@ import androidx.compose.material.icons.outlined.Star
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
+import androidx.compose.material3.IconButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -38,7 +41,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -58,6 +60,7 @@ fun ProfileScreen(
     val preferences = remember(context) { KakaAnimePreferences(context) }
     var editingProfile by remember { mutableStateOf(false) }
     var showAbout by remember { mutableStateOf(false) }
+    var showAppearance by remember { mutableStateOf(false) }
     var profileName by remember { mutableStateOf(preferences.loadProfileName()) }
     var profileBio by remember { mutableStateOf(preferences.loadProfileBio()) }
     var avatarIndex by remember { mutableStateOf(preferences.loadProfileAvatarIndex()) }
@@ -82,7 +85,7 @@ fun ProfileScreen(
 
     LazyColumn(
         Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background),
-        contentPadding = androidx.compose.foundation.layout.PaddingValues(18.dp, 14.dp, 18.dp, 116.dp),
+        contentPadding = PaddingValues(18.dp, 14.dp, 18.dp, 116.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
         item {
@@ -124,7 +127,7 @@ fun ProfileScreen(
                                 )
                             }
                         }
-                        androidx.compose.material3.IconButton(onClick = { editingProfile = true }) {
+                        IconButton(onClick = { editingProfile = true }) {
                             Icon(Icons.Outlined.Edit, "Edit profile")
                         }
                     }
@@ -177,14 +180,48 @@ fun ProfileScreen(
         item {
             AccountSection {
                 AccountRow(Icons.Outlined.Person, "Profile", "View and edit your profile") { editingProfile = true }
-                AccountRow(Icons.Outlined.Palette, "Appearance", "Theme and accent color") { }
-                AccountRow(Icons.Outlined.DarkMode, "Dark mode", if (themeState.darkMode) "ON" else "OFF") {
-                    themeState.darkMode = !themeState.darkMode
-                    preferences.saveDarkMode(themeState.darkMode)
-                }
+                AccountRow(Icons.Outlined.Palette, "Appearance", "Theme and accent color") { showAppearance = true }
                 AccountRow(Icons.Outlined.Info, "About KakaAnime", "Version, credits, and more") { showAbout = true }
             }
         }
+    }
+
+    if (showAppearance) {
+        AlertDialog(
+            onDismissRequest = { showAppearance = false },
+            title = { Text("Appearance") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Outlined.DarkMode, null)
+                        Spacer(Modifier.size(10.dp))
+                        Text("Dark mode", Modifier.weight(1f))
+                        Text(
+                            if (themeState.darkMode) "ON" else "OFF",
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.clickable {
+                                themeState.darkMode = !themeState.darkMode
+                                preferences.saveDarkMode(themeState.darkMode)
+                            }
+                        )
+                    }
+                    Text("Accent color", style = MaterialTheme.typography.titleSmall)
+                    Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+                        KakaAccent.entries.forEach { accent ->
+                            Surface(
+                                Modifier.weight(1f).height(34.dp).clickable {
+                                    themeState.accent = accent
+                                    preferences.saveAccentName(accent.name)
+                                },
+                                RoundedCornerShape(9.dp),
+                                color = accent.primary.copy(alpha = if (themeState.accent == accent) .92f else .24f)
+                            ) {}
+                        }
+                    }
+                }
+            },
+            confirmButton = { TextButton(onClick = { showAppearance = false }) { Text("Selesai") } }
+        )
     }
 
     if (showAbout) {
