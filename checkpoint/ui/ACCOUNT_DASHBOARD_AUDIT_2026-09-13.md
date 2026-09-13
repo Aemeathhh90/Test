@@ -2,61 +2,52 @@
 
 **Tanggal:** 13 September 2026  
 **Branch:** `main`  
-**Scope:** Account Dashboard + Edit Profile only
-
-## Reference
-
-Primary layout reference: screenshot supplied by Shin. Visual language/interaction should remain KakaAnime-specific with ReDantotsu-inspired UX.
+**Scope:** Account Dashboard + watch-history visual data foundation
 
 ## Current progress
 
-### 🟢 Completed in this batch
-- Account header now includes a compact Settings shortcut.
-- Dashboard now has the large Banner Atas structural area above the profile identity card.
-- Dashboard statistics now use the target hierarchy: Anime Watched / Episode Watched / Favorites.
-- Diamonds remain in the profile/monetization row instead of competing with the three primary statistics.
-- Watch history persistence is now used for Episode Watched counting, with fallback to the legacy last-watched map for anime count compatibility.
-- Episode opening records a watch-history entry so the Episode Watched statistic has a real persisted source.
-- Account menu remains locked to: Settings → Profile → Appearance → Premium → Notifications → About KakaAnime.
+### 🟢 Completed
+- Account header includes compact Settings shortcut.
+- Dashboard has Banner Atas structural area above profile identity card.
+- Dashboard statistics use Anime Watched / Episode Watched / Favorites.
+- Diamonds remain in the profile/monetization row.
+- Watch history persistence is used for Episode Watched counting.
+- Episode opening records a persisted watch-history entry.
+- Account menu remains locked to Settings → Profile → Appearance → Premium → Notifications → About KakaAnime.
+- Watch-history model now supports an episode-specific thumbnail URL.
+- Continue Watching now reads the latest watch-history entry per anime and renders its episode thumbnail when the provider supplies one.
+- Episode Watched now renders the thumbnail stored on that exact episode record instead of resolving an anime poster for every episode.
+- Otakudesu API episode parsing now accepts common episode-image fields (`thumbnail`, `thumb`, `image`) into the episode record.
 
 ### 🟡 Still needs correction / refinement
-1. Banner Atas is currently a structural visual placeholder; Premium custom upload/media is not implemented yet.
-2. Profile avatar still renders initials + preset color. Free static photo picker and Premium animated profile are not implemented yet.
-3. Premium banner still has no selectable custom media. Its Upgrade to Premium / Premium Aktif function remains fixed.
-4. Episode Watched history currently records an episode when the app opens it; a later playback-completion threshold can refine the definition of “watched” if desired.
-5. Settings/Notifications are placeholder dialogs; they are not final screens.
-6. Appearance is still a compact dialog and needs a dedicated expandable experience later.
-7. About KakaAnime is still a lightweight dialog and needs a final dedicated UI later.
-8. Edit Profile still needs the obsolete Premium Banner block removed/reworked and the real media-picker architecture implemented.
+1. Otakudesu HTML-first episode discovery currently exposes title/URL but not an episode image, so HTML-only results may have no episode thumbnail until episode-page image extraction is added.
+2. Existing history entries created before thumbnail persistence naturally have no episode thumbnail.
+3. Banner Atas custom upload/media is not implemented yet.
+4. Profile static photo picker and Premium animated profile are not implemented yet.
+5. Premium banner custom media is not implemented yet.
+6. Episode Watched currently records on episode open; completion threshold can refine the meaning later.
+7. Settings/Notifications are placeholder dialogs.
+8. Appearance is still a compact dialog.
+9. About KakaAnime is still a lightweight dialog.
+10. Edit Profile still needs the obsolete Premium Banner block removed/reworked and real media-picker architecture.
+11. Android build/runtime verification is still pending; no claim of green build is made from connector-only edits.
 
-## Target Account Dashboard structure
+## Watch-history thumbnail contract
 
-1. Header: Account + subtitle + settings shortcut.
-2. Customizable Banner Atas.
-3. Profile card: avatar, username, bio, Free/Premium status, diamonds, edit.
-4. Premium banner: custom background/media + Upgrade to Premium/Premium Aktif state.
-5. Stats: Anime Watched / Episode Watched / Favorites; Diamonds shown without breaking hierarchy.
-6. Menu: Settings / Profile / Appearance / Premium / Notifications / About KakaAnime.
+- `WatchHistoryEntry` now stores `episodeThumbnailUrl` separately from the anime poster.
+- Continue Watching uses the thumbnail belonging to the exact latest watched episode.
+- Episode Watched uses the thumbnail belonging to each exact episode record.
+- No anime poster is intentionally substituted for an episode thumbnail in these two episode-focused surfaces.
+- Provider data can supply the thumbnail; if unavailable, the UI shows a neutral fallback rather than incorrectly presenting the anime poster as the episode image.
 
-## Implementation order — LOCKED
+## Important commits
 
-1. Account Dashboard visual structure + statistics foundation — 🟢 batch progress, final visual polish pending.
-2. Watched data model/history — 🟢 persistence foundation exists; completion semantics can be refined during verification.
-3. Edit Profile static avatar + Banner Atas + Banner Premium + Premium gating — 🟡 next major batch.
-4. Settings — 🔴 not started as final screen.
-5. Appearance — 🟡 basic persistence exists; dedicated final UI not started.
-6. Notifications — 🔴 not started as final screen.
-7. About KakaAnime — 🟡 basic dialog exists; final UI not started.
-8. Final Account audit + Android build/runtime verification — 🔴 pending.
+- `b51a128f2ec14d3162b6686752a147013d400090` — add `thumbnailUrl` to `ProviderEpisode`.
+- `e4e8e4d122ec28e7682f51c86636e39455a9988d` — persist `episodeThumbnailUrl` in watch history.
+- `bd5348ce0ef72fe0dc600d4e7d43a9663b132dcf` — restore the full Otakudesu provider while adding API episode-thumbnail mapping.
+- `c129ed06355ef9dbd7ae0f29d9ce980abf2e6c1b` — render exact episode thumbnails in Episode Watched.
+- `3b53b751e02af187a535a8eff187b500abd7f15b` — use exact episode thumbnail history entries for Continue Watching.
 
-## Technical notes
+## Next step
 
-- `KakaAnimePreferences` persists `WatchHistoryEntry` records separately from the legacy `title -> last watched episode` map.
-- `WatchHistoryEntry` contains title, episode, optional episode title, watched timestamp, and duration.
-- The current Dashboard uses `watchHistory.size` for Episode Watched and unique watched titles for Anime Watched.
-- Do not fake Episode Watched from the latest episode number or number of available provider episodes.
-- The current `MainActivity` records watch history when an episode is opened; this keeps the lock/history contract aligned with the existing diamond consumption flow.
-
-## Audit conclusion
-
-Account Dashboard is **🟡 in progress**, not final. The structure and statistics foundation are now in place, but custom media, Edit Profile, and final Account sub-screens remain. Continue with **Edit Profile + media customization** only after this checkpoint, while preserving rollback traceability on `main`.
+Continue with **Edit Profile + media customization** after this watch-history data refinement, while preserving rollback traceability on `main`.
