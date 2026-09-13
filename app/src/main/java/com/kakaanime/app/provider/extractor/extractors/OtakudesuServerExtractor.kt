@@ -56,6 +56,7 @@ class OtakudesuServerExtractor : StreamExtractor {
 
     private suspend fun resolveMirrorStream(pageUrl: String, html: String): List<PlaybackCandidate> {
         val origin = runCatching { URI(pageUrl).let { "${it.scheme}://${it.authority}" } }.getOrNull() ?: return emptyList()
+        val ajaxReferer = "$origin/"
         val script = Regex("<script[^>]*>(.*?)</script>", setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL))
             .findAll(html).map { it.groupValues[1] }
             .firstOrNull {
@@ -65,15 +66,20 @@ class OtakudesuServerExtractor : StreamExtractor {
             }
             ?: return emptyList()
 
-        val nonceAction = Regex("(?:window\\.__x__nonce|\\{action):?\\s*\\\"([^\\\"]+)\\\"", RegexOption.IGNORE_CASE)
-            .find(script)?.groupValues?.getOrNull(1)
-            ?: script.substringAfter("{action:\"").substringBefore('"')
-        val action = Regex("action\\s*:\\s*[\\\"']([^\\\"']+)[\\\"']", RegexOption.IGNORE_CASE)
-            .find(script)?.groupValues?.getOrNull(1)
+        // CloudStream's working implementation targets the action nested in
+        // the mirrorstream data object, not the value assigned to __x__nonce.
+        val nonceAction = NONCE_ACTION_REGEX.find(script)?.groupValues?.getOrNull(1)
+            ?: script.substringAfter("data:{action:\"").substringBefore('"')
+        val action = ACTION_REGEX.find(script)?.groupValues?.getOrNull(1)
+            ?: FALLBACK_ACTION_REGEX.find(script)?.groupValues?.getOrNull(1)
             ?: script.substringAfter("action:\"").substringBefore('"')
         if (nonceAction.isBlank() || action.isBlank()) return emptyList()
 
-        val nonceRaw = postAjaxRaw("$origin/wp-admin/admin-ajax.php", mapOf("action" to nonceAction)) ?: return emptyList()
+        val nonceRaw = postAjaxRaw(
+            "$origin/wp-admin/admin-ajax.php",
+            mapOf("action" to nonceAction),
+            ajaxReferer,
+        ) ?: return emptyList()
         val nonce = extractAjaxData(nonceRaw) ?: return emptyList()
 
         val entries = Regex("data-content\\s*=\\s*[\\\"']([^\\\"']+)[\\\"']", RegexOption.IGNORE_CASE)
@@ -86,6 +92,7 @@ class OtakudesuServerExtractor : StreamExtractor {
             val response = postAjaxRaw(
                 "$origin/wp-admin/admin-ajax.php",
                 mapOf("id" to entry.id, "i" to entry.i, "q" to entry.q, "nonce" to nonce, "action" to action),
+                ajaxReferer,
             ) ?: continue
             val decoded = extractAjaxData(response)?.let(::decodeBase64) ?: decodeBase64(response) ?: response
             extractIframeUrls(decoded, pageUrl).forEach { results.putIfAbsent(it, PlaybackCandidate(it, entry.q)) }
@@ -171,7 +178,9 @@ class OtakudesuServerExtractor : StreamExtractor {
     }
 
     private fun parseMirrorEntry(value: String): MirrorEntry? {
-        val decoded = value.trim().removePrefix("[").removeSuffix("]")
+        val raw = decodeHtml(value).trim()
+        // data-content is base64-encoded JSON in the current OtakuDesu flow.
+        val decoded = decodeBase64(raw)?.trim()?.removePrefix("[")?.removeSuffix("]") ?: return null
         val json = runCatching { JSONObject(decoded) }.getOrNull()
         if (json != null) {
             val id = json.optString("id").takeIf(String::isNotBlank)
@@ -179,23 +188,17 @@ class OtakudesuServerExtractor : StreamExtractor {
             val quality = json.optString("q").takeIf(String::isNotBlank)
             if (id != null && mirror != null && quality != null) return MirrorEntry(id, mirror, quality)
         }
-        val parts = decoded.split(",")
-        if (parts.size < 3) return null
-        fun field(index: Int) = parts[index].substringAfter(":").replace("\"", "").trim()
-        val id = field(0)
-        val mirror = field(1)
-        val quality = field(2)
-        return if (id.isNotBlank() && mirror.isNotBlank()) MirrorEntry(id, mirror, quality) else null
+        return null
     }
 
-    private suspend fun postAjaxRaw(endpoint: String, fields: Map<String, String>): String? = withContext(Dispatchers.IO) {
+    private suspend fun postAjaxRaw(endpoint: String, fields: Map<String, String>, referer: String): String? = withContext(Dispatchers.IO) {
         runCatching {
             val body = FormBody.Builder().apply { fields.forEach { (k, v) -> add(k, v) } }.build()
             val request = Request.Builder()
                 .url(endpoint)
                 .post(body)
                 .header("User-Agent", UA)
-                .header("Referer", "https://otakudesu.blog/")
+                .header("Referer", referer)
                 .header("X-Requested-With", "XMLHttpRequest")
                 .build()
             client.newCall(request).execute().use { response ->
@@ -237,5 +240,11 @@ class OtakudesuServerExtractor : StreamExtractor {
 
     private data class PlaybackCandidate(val url: String, val quality: String?)
     private data class MirrorEntry(val id: String, val i: String, val q: String)
-    private companion object { const val UA = "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 Chrome/124.0.0.0 Mobile Safari/537.36" }
+
+    private companion object {
+        const val UA = "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 Chrome/124.0.0.0 Mobile Safari/537.36"
+        private val NONCE_ACTION_REGEX = Regex("data\\s*:\\s*\\{\\s*action\\s*:\\s*\"([a-f0-9]+)\"", RegexOption.IGNORE_CASE)
+        private val ACTION_REGEX = Regex("nonce\\s*:\\s*[^,]+,\\s*action\\s*:\\s*\"([a-f0-9]+)\"", RegexOption.IGNORE_CASE)
+        private val FALLBACK_ACTION_REGEX = Regex("action\\s*:\\s*\"([a-f0-9]{32})\"", RegexOption.IGNORE_CASE)
+    }
 }
