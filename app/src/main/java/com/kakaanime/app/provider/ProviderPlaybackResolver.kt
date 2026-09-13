@@ -1,6 +1,6 @@
 package com.kakaanime.app.provider
 
-/** Resolves a playable stream for an anime title/episode without exposing provider details to the UI. */
+/** Resolves playable streams and provider episode lists without exposing provider details to the UI. */
 object ProviderPlaybackResolver {
     private val engine by lazy { ProviderFactory.createEngine() }
 
@@ -12,8 +12,6 @@ object ProviderPlaybackResolver {
         val candidates = engine.search(title)
         if (candidates.isEmpty()) return null
 
-        // Try the best-ranked provider matches first. Each candidate keeps its
-        // provider-specific id, so a failed source does not poison other sources.
         val ordered = candidates
             .sortedWith(compareBy<ProviderAnime> { it.providerId.isBlank() }.thenByDescending { it.latestEpisode ?: 0 })
 
@@ -29,5 +27,24 @@ object ProviderPlaybackResolver {
         }
 
         return null
+    }
+
+    suspend fun episodes(title: String): List<ProviderEpisode> {
+        val candidates = engine.search(title)
+        if (candidates.isEmpty()) return emptyList()
+
+        val ordered = candidates
+            .sortedWith(compareBy<ProviderAnime> { it.providerId.isBlank() }.thenByDescending { it.latestEpisode ?: 0 })
+
+        for (candidate in ordered) {
+            val episodes = runCatching { engine.getEpisodes(candidate.id) }
+                .getOrDefault(emptyList())
+                .filter { it.number > 0 }
+                .distinctBy { it.number }
+                .sortedByDescending { it.number }
+            if (episodes.isNotEmpty()) return episodes
+        }
+
+        return emptyList()
     }
 }
