@@ -3,6 +3,7 @@
     <uses-permission android:name="android.permission.INTERNET" />
 
     <application
+        android:name=".KakaAnimeApplication"
         android:theme="@style/Theme.KakaAnime"
         android:label="AniLab"
         android:allowBackup="true"
