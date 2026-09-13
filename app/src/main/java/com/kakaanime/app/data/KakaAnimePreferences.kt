@@ -13,6 +13,11 @@ class KakaAnimePreferences(context: Context) {
         return runCatching { val json = JSONObject(raw); buildMap { json.keys().forEach { title -> put(title, json.optInt(title, 0)) } }.filterValues { it > 0 } }.getOrDefault(emptyMap())
     }
     fun saveWatchedEpisodes(episodes: Map<String, Int>) { val json = JSONObject(); episodes.forEach { (title, episode) -> json.put(title, episode) }; prefs.edit().putString(KEY_WATCHED_EPISODES, json.toString()).apply() }
+    fun loadUnlockedEpisodes(): Set<String> = loadStringSet(KEY_UNLOCKED_EPISODES)
+    fun saveUnlockedEpisodes(episodes: Set<String>) { saveStringSet(KEY_UNLOCKED_EPISODES, episodes) }
+    fun markEpisodeUnlocked(title: String, episode: Int) { saveUnlockedEpisodes(loadUnlockedEpisodes() + episodeKey(title, episode)) }
+    fun isEpisodeUnlocked(title: String, episode: Int): Boolean = episodeKey(title, episode) in loadUnlockedEpisodes()
+    private fun episodeKey(title: String, episode: Int): String = "$title::$episode"
     fun loadWatchHistory(): List<WatchHistoryEntry> {
         val raw = prefs.getString(KEY_WATCH_HISTORY, null) ?: return emptyList()
         return runCatching { val array = JSONArray(raw); buildList { for (i in 0 until array.length()) { val item = array.optJSONObject(i) ?: continue; val title = item.optString("title").trim(); val episode = item.optInt("episode", 0); if (title.isBlank() || episode <= 0) continue; add(WatchHistoryEntry(title, episode, item.optString("episodeTitle").takeIf { it.isNotBlank() }, item.optString("episodeThumbnailUrl").takeIf { it.isNotBlank() }, item.optLong("watchedAt", 0L), item.optLong("durationMs", 0L))) } }.sortedByDescending { it.watchedAt } }.getOrDefault(emptyList())
@@ -22,9 +27,7 @@ class KakaAnimePreferences(context: Context) {
         val entry = WatchHistoryEntry(title, episode, episodeTitle ?: old?.episodeTitle, episodeThumbnailUrl ?: old?.episodeThumbnailUrl, now, if (durationMs > 0L) durationMs else old?.durationMs ?: 0L)
         if (index >= 0) current[index] = entry else current.add(entry); saveWatchHistory(current.take(MAX_WATCH_HISTORY_ENTRIES))
     }
-    fun deleteWatchHistoryEntry(title: String, episode: Int) {
-        saveWatchHistory(loadWatchHistory().filterNot { it.title == title && it.episode == episode })
-    }
+    fun deleteWatchHistoryEntry(title: String, episode: Int) { saveWatchHistory(loadWatchHistory().filterNot { it.title == title && it.episode == episode }) }
     fun clearWatchHistory() { saveWatchHistory(emptyList()) }
     private fun saveWatchHistory(entries: List<WatchHistoryEntry>) { val array = JSONArray(); entries.forEach { e -> array.put(JSONObject().put("title", e.title).put("episode", e.episode).put("episodeTitle", e.episodeTitle.orEmpty()).put("episodeThumbnailUrl", e.episodeThumbnailUrl.orEmpty()).put("watchedAt", e.watchedAt).put("durationMs", e.durationMs)) }; prefs.edit().putString(KEY_WATCH_HISTORY, array.toString()).apply() }
     fun loadDiamonds(): Int = prefs.getInt(KEY_DIAMONDS, 0)
@@ -54,7 +57,7 @@ class KakaAnimePreferences(context: Context) {
     fun saveAccentName(value: String) { prefs.edit().putString(KEY_ACCENT, value).apply() }
     private fun loadStringSet(key: String): Set<String> { val raw = prefs.getString(key, null) ?: return emptySet(); return runCatching { val array = JSONArray(raw); buildSet { for (i in 0 until array.length()) add(array.getString(i)) } }.getOrDefault(emptySet()) }
     private fun saveStringSet(key: String, values: Set<String>) { val array = JSONArray(); values.sorted().forEach(array::put); prefs.edit().putString(key, array.toString()).apply() }
-    companion object { private const val PREFS_NAME = "kakaanime_user_state"; private const val KEY_FAVORITES = "favorite_titles"; private const val KEY_WATCHED_EPISODES = "watched_episodes"; private const val KEY_WATCH_HISTORY = "watch_history"; private const val KEY_DIAMONDS = "diamonds"; private const val KEY_PREMIUM = "premium"; private const val KEY_PROFILE_NAME = "profile_name"; private const val KEY_PROFILE_BIO = "profile_bio"; private const val KEY_PROFILE_AVATAR = "profile_avatar"; private const val KEY_PROFILE_BANNER = "profile_banner"; private const val KEY_PROFILE_PHOTO_URI = "profile_photo_uri"; private const val KEY_PROFILE_BANNER_URI = "profile_banner_uri"; private const val KEY_PREMIUM_BANNER_URI = "premium_banner_uri"; private const val KEY_ANIMATED_PROFILE_URI = "animated_profile_uri"; private const val KEY_DARK_MODE = "dark_mode"; private const val KEY_ACCENT = "accent"; private const val MAX_WATCH_HISTORY_ENTRIES = 2000 }
+    companion object { private const val PREFS_NAME = "kakaanime_user_state"; private const val KEY_FAVORITES = "favorite_titles"; private const val KEY_WATCHED_EPISODES = "watched_episodes"; private const val KEY_UNLOCKED_EPISODES = "unlocked_episodes"; private const val KEY_WATCH_HISTORY = "watch_history"; private const val KEY_DIAMONDS = "diamonds"; private const val KEY_PREMIUM = "premium"; private const val KEY_PROFILE_NAME = "profile_name"; private const val KEY_PROFILE_BIO = "profile_bio"; private const val KEY_PROFILE_AVATAR = "profile_avatar"; private const val KEY_PROFILE_BANNER = "profile_banner"; private const val KEY_PROFILE_PHOTO_URI = "profile_photo_uri"; private const val KEY_PROFILE_BANNER_URI = "profile_banner_uri"; private const val KEY_PREMIUM_BANNER_URI = "premium_banner_uri"; private const val KEY_ANIMATED_PROFILE_URI = "animated_profile_uri"; private const val KEY_DARK_MODE = "dark_mode"; private const val KEY_ACCENT = "accent"; private const val MAX_WATCH_HISTORY_ENTRIES = 2000 }
 }
 
 data class WatchHistoryEntry(val title: String, val episode: Int, val episodeTitle: String?, val episodeThumbnailUrl: String?, val watchedAt: Long, val durationMs: Long)
