@@ -52,11 +52,17 @@ class StreamResolver(
         if (typedValidated.isNotEmpty()) return@supervisorScope typedValidated
 
         // JavaScript player pages can expose only an iframe/config URL to
-        // OkHttp. Use the browser-backed resolver instead of guessing HLS.
-        val browserStreams = resolveWithBrowser(inputUrls, referer)
+        // OkHttp. Try browser resolution against both the original page and
+        // every extracted host/player URL. This preserves the extractor chain
+        // instead of relying on the episode page alone.
+        val browserInputs = (extracted.map { it.url } + inputUrls)
+            .distinct()
+        val browserStreams = resolveWithBrowser(browserInputs, referer)
         if (browserStreams.isNotEmpty()) return@supervisorScope browserStreams
 
         // Validation remains a reliability signal rather than a hard dependency.
+        // UNKNOWN validated streams should never survive: the validator now
+        // rejects UNKNOWN unless a supported media type was actually proven.
         if (validated.isNotEmpty()) validated else extracted
     }
 
