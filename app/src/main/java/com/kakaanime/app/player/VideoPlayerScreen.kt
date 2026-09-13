@@ -59,9 +59,7 @@ fun VideoPlayerScreen(videoUrl: String, title: String = "One Piece", episodeNumb
 
     DisposableEffect(player, videoUrl, episodeNumber) {
         val listener = object : Player.Listener {
-            override fun onRenderedFirstFrame() {
-                onRenderedFirstFrame()
-            }
+            override fun onRenderedFirstFrame() { onRenderedFirstFrame() }
         }
         player.addListener(listener)
         onDispose { player.removeListener(listener) }
@@ -77,24 +75,8 @@ fun VideoPlayerScreen(videoUrl: String, title: String = "One Piece", episodeNumb
     LaunchedEffect(autoNext, autoSkipIntro, autoSkipOutro, selectedQuality) {
         settings.edit().putBoolean("auto_next", autoNext).putBoolean("auto_skip_intro", autoSkipIntro).putBoolean("auto_skip_outro", autoSkipOutro).putString("default_quality", selectedQuality).apply()
     }
-    LaunchedEffect(videoUrl, title, episodeNumber, isPremium, selectedQuality) {
-        if (selectedQuality == "Auto") return@LaunchedEffect
-        val target = when (selectedQuality) {
-            "360p" -> StreamQuality.Q360
-            "480p" -> StreamQuality.Q480
-            "720p" -> StreamQuality.Q720
-            "1080p" -> StreamQuality.Q1080
-            else -> null
-        } ?: return@LaunchedEffect
-        if (selectedQuality == "1080p" && !isPremium) return@LaunchedEffect
-        val position = player.currentPosition.coerceAtLeast(0L)
-        val resolved = runCatching { ProviderPlaybackResolver.resolve(title = title, episodeNumber = episodeNumber, premium = isPremium, preferredQuality = target) }.getOrNull()
-        if (resolved != null && resolved.url.isNotBlank() && resolved.url != videoUrl) {
-            playerController.setVideo(resolved.url)
-            if (position > 0L) playerController.seekTo(position)
-        }
-    }
-    LaunchedEffect(qualityRequest, title, episodeNumber, isPremium) {
+
+    LaunchedEffect(qualityRequest, title, episodeNumber, isPremium, videoUrl) {
         val requested = qualityRequest ?: return@LaunchedEffect
         qualityLoading = true
         val target = when (requested) {
@@ -107,7 +89,7 @@ fun VideoPlayerScreen(videoUrl: String, title: String = "One Piece", episodeNumb
         if (target != null && (requested != "1080p" || isPremium)) {
             val position = player.currentPosition.coerceAtLeast(0L)
             val resolved = runCatching { ProviderPlaybackResolver.resolve(title = title, episodeNumber = episodeNumber, premium = isPremium, preferredQuality = target) }.getOrNull()
-            if (resolved != null && resolved.url.isNotBlank()) {
+            if (resolved != null && resolved.url.isNotBlank() && resolved.url != player.currentMediaItem?.localConfiguration?.uri?.toString()) {
                 playerController.setVideo(resolved.url)
                 if (position > 0L) playerController.seekTo(position)
                 selectedQuality = requested
@@ -134,59 +116,22 @@ fun VideoPlayerScreen(videoUrl: String, title: String = "One Piece", episodeNumb
     if (isLandscape) {
         Box(modifier.fillMaxSize().background(Color.Black)) {
             PlayerSurface(player)
-            ReDantotsuPlayerController(
-                state = playerState,
-                title = "$title • Episode $episodeNumber",
-                previousEpisode = previousEpisode.toString(),
-                nextEpisode = nextEpisode.toString(),
-                autoNext = autoNext,
-                onAutoNext = { autoNext = !autoNext },
-                onBack = { activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT },
-                onPlayPause = { playerController.togglePlayPause() },
-                onSeekBack = { playerController.seekBack() },
-                onSeekForward = { playerController.seekForward() },
-                onSeekTo = { playerController.seekTo(it) },
-                onPreviousEpisode = onPreviousEpisode,
-                onNextEpisode = onNextEpisode,
-                onFullscreen = { activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT },
-                onSpeed = { showSpeedMenu = true }
-            )
+            ReDantotsuPlayerController(state = playerState, title = "$title • Episode $episodeNumber", previousEpisode = previousEpisode.toString(), nextEpisode = nextEpisode.toString(), autoNext = autoNext, onAutoNext = { autoNext = !autoNext }, onBack = { activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT }, onPlayPause = { playerController.togglePlayPause() }, onSeekBack = { playerController.seekBack() }, onSeekForward = { playerController.seekForward() }, onSeekTo = { playerController.seekTo(it) }, onPreviousEpisode = onPreviousEpisode, onNextEpisode = onNextEpisode, onFullscreen = { activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT }, onSpeed = { showSpeedMenu = true })
             if (showSpeedMenu) SpeedMenu(speed, { speed = it; playerController.setSpeed(it); showSpeedMenu = false }, { showSpeedMenu = false })
         }
     } else {
         Column(modifier.fillMaxSize().background(colors.background).navigationBarsPadding()) {
             Box(Modifier.fillMaxWidth().height(245.dp).background(Color.Black)) {
                 PlayerSurface(player)
-                ReDantotsuPlayerController(
-                    state = playerState,
-                    title = "$title • Episode $episodeNumber",
-                    previousEpisode = previousEpisode.toString(),
-                    nextEpisode = nextEpisode.toString(),
-                    autoNext = autoNext,
-                    onAutoNext = { autoNext = !autoNext },
-                    onBack = onBack,
-                    onPlayPause = { playerController.togglePlayPause() },
-                    onSeekBack = { playerController.seekBack() },
-                    onSeekForward = { playerController.seekForward() },
-                    onSeekTo = { playerController.seekTo(it) },
-                    onPreviousEpisode = onPreviousEpisode,
-                    onNextEpisode = onNextEpisode,
-                    onFullscreen = { activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE },
-                    onSpeed = { showSpeedMenu = true }
-                )
+                ReDantotsuPlayerController(state = playerState, title = "$title • Episode $episodeNumber", previousEpisode = previousEpisode.toString(), nextEpisode = nextEpisode.toString(), autoNext = autoNext, onAutoNext = { autoNext = !autoNext }, onBack = onBack, onPlayPause = { playerController.togglePlayPause() }, onSeekBack = { playerController.seekBack() }, onSeekForward = { playerController.seekForward() }, onSeekTo = { playerController.seekTo(it) }, onPreviousEpisode = onPreviousEpisode, onNextEpisode = onNextEpisode, onFullscreen = { activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE }, onSpeed = { showSpeedMenu = true })
             }
             if (showSpeedMenu) SpeedMenu(speed, { speed = it; playerController.setSpeed(it); showSpeedMenu = false }, { showSpeedMenu = false })
             Column(Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 14.dp)) {
                 Text(title, fontSize = 25.sp, fontWeight = FontWeight.Bold, color = colors.onBackground)
-                Spacer(Modifier.height(3.dp))
-                Text("Episode $episodeNumber", fontSize = 14.sp, color = colors.onSurfaceVariant)
-                Spacer(Modifier.height(12.dp))
+                Spacer(Modifier.height(3.dp)); Text("Episode $episodeNumber", fontSize = 14.sp, color = colors.onSurfaceVariant); Spacer(Modifier.height(12.dp))
                 if (description.isNotBlank()) {
                     Text(if (descriptionExpanded) description else description.take(155) + if (description.length > 155) "..." else "", fontSize = 14.sp, lineHeight = 21.sp, color = colors.onBackground)
-                    Row(Modifier.clickable { descriptionExpanded = !descriptionExpanded }.padding(vertical = 3.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Text(if (descriptionExpanded) "Sembunyikan" else "Selengkapnya", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = colors.primary)
-                        Icon(Icons.Filled.ExpandMore, null, tint = colors.primary, modifier = Modifier.size(18.dp))
-                    }
+                    Row(Modifier.clickable { descriptionExpanded = !descriptionExpanded }.padding(vertical = 3.dp), verticalAlignment = Alignment.CenterVertically) { Text(if (descriptionExpanded) "Sembunyikan" else "Selengkapnya", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = colors.primary); Icon(Icons.Filled.ExpandMore, null, tint = colors.primary, modifier = Modifier.size(18.dp)) }
                 }
                 Spacer(Modifier.height(14.dp))
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
@@ -194,90 +139,35 @@ fun VideoPlayerScreen(videoUrl: String, title: String = "One Piece", episodeNumb
                     Box {
                         QualityButton(if (qualityLoading) "..." else selectedQuality) { if (!qualityLoading) showQualityMenu = true }
                         DropdownMenu(expanded = showQualityMenu, onDismissRequest = { showQualityMenu = false }) {
-                            listOf("360p", "480p", "720p").forEach { quality ->
-                                DropdownMenuItem(text = { Text(if (quality == selectedQuality) "✓ $quality" else quality) }, onClick = { qualityRequest = quality; showQualityMenu = false })
-                            }
+                            listOf("360p", "480p", "720p").forEach { quality -> DropdownMenuItem(text = { Text(if (quality == selectedQuality) "✓ $quality" else quality) }, onClick = { qualityRequest = quality; showQualityMenu = false }) }
                             DropdownMenuItem(text = { Row(verticalAlignment = Alignment.CenterVertically) { Text("1080p"); Spacer(Modifier.width(8.dp)); Icon(Icons.Filled.Lock, "Premium", tint = colors.primary, modifier = Modifier.size(16.dp)) } }, onClick = { if (isPremium) { qualityRequest = "1080p"; showQualityMenu = false } })
                         }
                     }
                 }
-                Spacer(Modifier.height(20.dp))
-                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    Text("Episode List", fontSize = 21.sp, fontWeight = FontWeight.Bold, color = colors.onBackground)
-                    Spacer(Modifier.width(8.dp))
-                    if (episodeNumbers.isNotEmpty()) Text("$episodeNumber / $maxEpisode", fontSize = 12.sp, color = colors.onSurfaceVariant)
-                }
+                Spacer(Modifier.height(20.dp)); Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) { Text("Episode List", fontSize = 21.sp, fontWeight = FontWeight.Bold, color = colors.onBackground); Spacer(Modifier.width(8.dp)); if (episodeNumbers.isNotEmpty()) Text("$episodeNumber / $maxEpisode", fontSize = 12.sp, color = colors.onSurfaceVariant) }
                 Spacer(Modifier.height(10.dp))
-                if (episodeNumbers.isEmpty()) {
-                    Text("Episode provider belum tersedia.", fontSize = 14.sp, color = colors.onSurfaceVariant)
-                } else {
-                    Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        episodeNumbers.forEach { number -> EpisodeCard(number.toString(), number !in watchedEpisodes && number != episodeNumber, number == episodeNumber) { onEpisodeClick(number) } }
-                    }
-                }
+                if (episodeNumbers.isEmpty()) Text("Episode provider belum tersedia.", fontSize = 14.sp, color = colors.onSurfaceVariant) else Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(10.dp)) { episodeNumbers.forEach { number -> EpisodeCard(number.toString(), number !in watchedEpisodes && number != episodeNumber, number == episodeNumber) { onEpisodeClick(number) } } }
                 Spacer(Modifier.height(22.dp))
-                Surface(Modifier.fillMaxWidth(), shape = RoundedCornerShape(18.dp), color = colors.surfaceVariant.copy(alpha = .35f)) {
-                    Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Filled.ChatBubbleOutline, null, tint = colors.primary, modifier = Modifier.size(24.dp))
-                        Spacer(Modifier.width(10.dp))
-                        Column {
-                            Text("Komentar", fontSize = 18.sp, fontWeight = FontWeight.Bold)
-                            Text("Fitur komentar akan hadir di V2.", fontSize = 12.sp, color = colors.onSurfaceVariant)
-                        }
-                    }
-                }
+                Surface(Modifier.fillMaxWidth(), shape = RoundedCornerShape(18.dp), color = colors.surfaceVariant.copy(alpha = .35f)) { Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) { Icon(Icons.Filled.ChatBubbleOutline, null, tint = colors.primary, modifier = Modifier.size(24.dp)); Spacer(Modifier.width(10.dp)); Column { Text("Komentar", fontSize = 18.sp, fontWeight = FontWeight.Bold); Text("Fitur komentar akan hadir di V2.", fontSize = 12.sp, color = colors.onSurfaceVariant) } } }
             }
         }
     }
 }
 
 @Composable private fun PlayerSurface(player: Player) {
-    AndroidView(
-        factory = { context ->
-            PlayerView(context).apply {
-                this.player = player
-                useController = false
-                resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
-                setShowBuffering(PlayerView.SHOW_BUFFERING_WHEN_PLAYING)
-            }
-        },
-        modifier = Modifier.fillMaxSize(),
-        update = { it.player = player }
-    )
+    AndroidView(factory = { context -> PlayerView(context).apply { this.player = player; useController = false; resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT; setShowBuffering(PlayerView.SHOW_BUFFERING_WHEN_PLAYING) } }, modifier = Modifier.fillMaxSize(), update = { it.player = player })
 }
 
 @Composable private fun SpeedMenu(speed: Float, onSelect: (Float) -> Unit, onDismiss: () -> Unit) {
-    Box(Modifier.fillMaxSize()) {
-        DropdownMenu(expanded = true, onDismissRequest = onDismiss, modifier = Modifier.align(Alignment.TopEnd)) {
-            listOf(.75f, 1f, 1.25f, 1.5f, 2f).forEach { value ->
-                DropdownMenuItem(text = { Text(if (value == speed) "✓ ${value}x" else "${value}x") }, onClick = { onSelect(value) })
-            }
-        }
-    }
+    Box(Modifier.fillMaxSize()) { DropdownMenu(expanded = true, onDismissRequest = onDismiss, modifier = Modifier.align(Alignment.TopEnd)) { listOf(.75f, 1f, 1.25f, 1.5f, 2f).forEach { value -> DropdownMenuItem(text = { Text(if (value == speed) "✓ ${value}x" else "${value}x") }, onClick = { onSelect(value) }) } } }
 }
 
 @Composable private fun QualityButton(quality: String, onClick: () -> Unit) {
     val colors = MaterialTheme.colorScheme
-    Row(Modifier.height(50.dp).clip(RoundedCornerShape(16.dp)).background(colors.surfaceVariant.copy(alpha = .92f)).clickable(onClick = onClick).padding(horizontal = 13.dp), verticalAlignment = Alignment.CenterVertically) {
-        Text(quality, fontWeight = FontWeight.Bold, color = colors.onSurface)
-        Spacer(Modifier.width(6.dp))
-        Icon(Icons.Filled.Settings, "Kualitas", tint = colors.primary, modifier = Modifier.size(18.dp))
-    }
+    Row(Modifier.height(50.dp).clip(RoundedCornerShape(16.dp)).background(colors.surfaceVariant.copy(alpha = .92f)).clickable(onClick = onClick).padding(horizontal = 13.dp), verticalAlignment = Alignment.CenterVertically) { Text(quality, fontWeight = FontWeight.Bold, color = colors.onSurface); Spacer(Modifier.width(6.dp)); Icon(Icons.Filled.Settings, "Kualitas", tint = colors.primary, modifier = Modifier.size(18.dp)) }
 }
 
 @Composable private fun EpisodeCard(number: String, locked: Boolean, selected: Boolean, onClick: () -> Unit) {
-    val colors = MaterialTheme.colorScheme
-    val showProgress = !locked
-    Surface(Modifier.width(92.dp).height(62.dp).clickable(onClick = onClick), shape = RoundedCornerShape(14.dp), color = if (selected) colors.primary else colors.surfaceVariant.copy(alpha = if (locked) .45f else .78f)) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(number, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = if (selected) colors.onPrimary else colors.onSurface)
-                if (locked) { Spacer(Modifier.width(5.dp)); Icon(Icons.Filled.Lock, "Terkunci", tint = colors.primary, modifier = Modifier.size(15.dp)) }
-            }
-            if (showProgress) {
-                Spacer(Modifier.height(6.dp))
-                LinearProgressIndicator(progress = { 1f }, modifier = Modifier.width(68.dp).height(3.dp).clip(RoundedCornerShape(3.dp)), color = if (selected) colors.onPrimary else colors.primary, trackColor = colors.onSurface.copy(alpha = .14f))
-            }
-        }
-    }
+    val colors = MaterialTheme.colorScheme; val showProgress = !locked
+    Surface(Modifier.width(92.dp).height(62.dp).clickable(onClick = onClick), shape = RoundedCornerShape(14.dp), color = if (selected) colors.primary else colors.surfaceVariant.copy(alpha = if (locked) .45f else .78f)) { Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) { Row(verticalAlignment = Alignment.CenterVertically) { Text(number, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = if (selected) colors.onPrimary else colors.onSurface); if (locked) { Spacer(Modifier.width(5.dp)); Icon(Icons.Filled.Lock, "Terkunci", tint = colors.primary, modifier = Modifier.size(15.dp)) } }; if (showProgress) { Spacer(Modifier.height(6.dp)); LinearProgressIndicator(progress = { 1f }, modifier = Modifier.width(68.dp).height(3.dp).clip(RoundedCornerShape(3.dp)), color = if (selected) colors.onPrimary else colors.primary, trackColor = colors.onSurface.copy(alpha = .14f)) } } }
 }
