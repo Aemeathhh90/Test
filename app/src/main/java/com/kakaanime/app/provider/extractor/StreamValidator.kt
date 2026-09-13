@@ -43,30 +43,30 @@ class StreamValidator {
                 val finalUrl = response.request.url.toString()
                 val contentType = response.header("Content-Type").orEmpty().lowercase()
                 val body = when (stream.type) {
-                    StreamType.HLS, StreamType.DASH -> response.body?.string().orEmpty().take(32_768)
+                    StreamType.HLS, StreamType.DASH, StreamType.UNKNOWN ->
+                        response.body?.string().orEmpty().take(32_768)
                     else -> ""
                 }
 
-                val valid = when (stream.type) {
-                    StreamType.HLS -> body.contains("#EXTM3U", ignoreCase = true)
-                    StreamType.DASH -> body.contains("<MPD", ignoreCase = true)
+                val detectedType = stream.type.takeIf { it != StreamType.UNKNOWN }
+                    ?: detectType(finalUrl, contentType, body)
+
+                val valid = when (detectedType) {
+                    StreamType.HLS -> body.contains("#EXTM3U", ignoreCase = true) ||
+                        contentType.contains("mpegurl") || contentType.contains("m3u8")
+                    StreamType.DASH -> body.contains("<MPD", ignoreCase = true) ||
+                        contentType.contains("dash") || contentType.contains("mpd")
                     StreamType.MP4 -> contentType.contains("video") ||
                         contentType.contains("octet-stream") ||
                         response.code == 206
-                    StreamType.UNKNOWN -> contentType.contains("video") ||
-                        contentType.contains("mpegurl") ||
-                        contentType.contains("dash") ||
-                        body.contains("#EXTM3U") ||
-                        body.contains("<MPD", ignoreCase = true) ||
-                        response.code == 206
+                    StreamType.UNKNOWN -> response.code == 206
                 }
 
                 if (!valid) return@runCatching null
 
                 stream.copy(
                     url = finalUrl,
-                    type = stream.type.takeIf { it != StreamType.UNKNOWN }
-                        ?: detectType(finalUrl, contentType, body)
+                    type = detectedType
                 )
             }
         }.getOrNull()
@@ -75,8 +75,14 @@ class StreamValidator {
     private fun detectType(url: String, contentType: String, body: String): StreamType {
         val clean = url.substringBefore('?').substringBefore('#').lowercase()
         return when {
-            clean.endsWith(".m3u8") || contentType.contains("mpegurl") || body.contains("#EXTM3U") -> StreamType.HLS
-            clean.endsWith(".mpd") || contentType.contains("dash") || body.contains("<MPD", ignoreCase = true) -> StreamType.DASH
+            clean.endsWith(".m3u8") ||
+                contentType.contains("mpegurl") ||
+                contentType.contains("m3u8") ||
+                body.contains("#EXTM3U") -> StreamType.HLS
+            clean.endsWith(".mpd") ||
+                contentType.contains("dash") ||
+                contentType.contains("mpd") ||
+                body.contains("<MPD", ignoreCase = true) -> StreamType.DASH
             contentType.contains("video") || clean.endsWith(".mp4") -> StreamType.MP4
             else -> StreamType.UNKNOWN
         }
