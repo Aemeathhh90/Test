@@ -46,9 +46,10 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.kakaanime.app.data.KakaAnimePreferences
 import com.kakaanime.app.monetization.AdMobRewardedAdGateway
-import com.kakaanime.app.monetization.MonetizationState
 import com.kakaanime.app.monetization.DiamondRules
+import com.kakaanime.app.monetization.MonetizationState
 import com.kakaanime.app.player.VideoPlayerScreen
 import com.kakaanime.app.premium.PremiumScreen
 import com.kakaanime.app.ui.theme.KakaAnimeTheme
@@ -90,18 +91,40 @@ class MainActivity : ComponentActivity() {
 fun KakaAnimeApp() {
     val themeState = rememberKakaThemeState()
     val context = LocalContext.current
+    val preferences = remember(context) { KakaAnimePreferences(context) }
     val rewardedAds = remember(context) { AdMobRewardedAdGateway(context) }
+
     var selectedAnime by remember { mutableStateOf<Anime?>(null) }
     var selectedEpisode by remember { mutableStateOf<Int?>(null) }
     var selectedTab by remember { mutableStateOf(BottomTab.HOME) }
     var showPremium by remember { mutableStateOf(false) }
-    var favoriteTitles by remember { mutableStateOf(setOf("One Piece")) }
-    var watchedEpisodes by remember { mutableStateOf(mapOf("One Piece" to 1140)) }
-    var monetizationState by remember { mutableStateOf(MonetizationState(diamonds = 0, isPremium = false)) }
+
+    var favoriteTitles by remember(preferences) {
+        mutableStateOf(preferences.loadFavoriteTitles())
+    }
+    var watchedEpisodes by remember(preferences) {
+        mutableStateOf(preferences.loadWatchedEpisodes())
+    }
+    var monetizationState by remember(preferences) {
+        mutableStateOf(
+            MonetizationState(
+                diamonds = preferences.loadDiamonds(),
+                isPremium = preferences.loadPremium()
+            )
+        )
+    }
+
+    fun saveUserState() {
+        preferences.saveFavoriteTitles(favoriteTitles)
+        preferences.saveWatchedEpisodes(watchedEpisodes)
+        preferences.saveDiamonds(monetizationState.diamonds)
+        preferences.savePremium(monetizationState.isPremium)
+    }
 
     fun openEpisode(anime: Anime, episode: Int) {
         if (monetizationState.isPremium) {
             watchedEpisodes = watchedEpisodes + (anime.title to episode)
+            preferences.saveWatchedEpisodes(watchedEpisodes)
             selectedEpisode = episode
             return
         }
@@ -110,17 +133,24 @@ fun KakaAnimeApp() {
         if (consumed != null) {
             monetizationState = consumed
             watchedEpisodes = watchedEpisodes + (anime.title to episode)
+            preferences.saveDiamonds(consumed.diamonds)
+            preferences.saveWatchedEpisodes(watchedEpisodes)
             selectedEpisode = episode
             return
         }
 
         rewardedAds.show(
             onReward = { diamonds ->
-                monetizationState = monetizationState.copy(diamonds = monetizationState.diamonds + diamonds)
-                val afterReward = DiamondRules.consumeForEpisode(monetizationState.copy(diamonds = monetizationState.diamonds + diamonds))
+                val rewardedState = monetizationState.copy(
+                    diamonds = monetizationState.diamonds + diamonds
+                )
+                monetizationState = rewardedState
+                val afterReward = DiamondRules.consumeForEpisode(rewardedState)
                 if (afterReward != null) {
                     monetizationState = afterReward
                     watchedEpisodes = watchedEpisodes + (anime.title to episode)
+                    preferences.saveDiamonds(afterReward.diamonds)
+                    preferences.saveWatchedEpisodes(watchedEpisodes)
                     selectedEpisode = episode
                 }
             },
@@ -136,10 +166,19 @@ fun KakaAnimeApp() {
     }
 
     KakaAnimeTheme(themeState = themeState) {
-        AnimatedContent(targetState = screen, transitionSpec = { (fadeIn() + slideInHorizontally { it / 8 }) togetherWith (fadeOut() + slideOutHorizontally { -it / 10 }) }, label = "screen_transition") { target ->
+        AnimatedContent(
+            targetState = screen,
+            transitionSpec = { (fadeIn() + slideInHorizontally { it / 8 }) togetherWith (fadeOut() + slideOutHorizontally { -it / 10 }) },
+            label = "screen_transition"
+        ) { target ->
             when (target) {
                 AnimeScreen.HOME -> Box(Modifier.fillMaxSize()) {
-                    AnimatedContent(targetState = selectedTab, transitionSpec = { fadeIn() togetherWith fadeOut() }, label = "tab_transition", modifier = Modifier.fillMaxSize().padding(bottom = 84.dp)) { tab ->
+                    AnimatedContent(
+                        targetState = selectedTab,
+                        transitionSpec = { fadeIn() togetherWith fadeOut() },
+                        label = "tab_transition",
+                        modifier = Modifier.fillMaxSize().padding(bottom = 84.dp)
+                    ) { tab ->
                         when (tab) {
                             BottomTab.HOME -> ReDantotsuHomeScreen(localAnime) { selectedAnime = it }
                             BottomTab.CALENDAR -> CalendarScreen(localAnime, { selectedAnime = it }, favoriteTitles)
@@ -153,8 +192,16 @@ fun KakaAnimeApp() {
                 AnimeScreen.DETAIL -> AnimeDetailScreen(
                     anime = selectedAnime!!,
                     isFavorite = selectedAnime!!.title in favoriteTitles,
+                    watchedEpisode = watchedEpisodes[selectedAnime!!.title],
                     onBack = { selectedAnime = null; selectedEpisode = null },
-                    onFavorite = { favoriteTitles = if (selectedAnime!!.title in favoriteTitles) favoriteTitles - selectedAnime!!.title else favoriteTitles + selectedAnime!!.title },
+                    onFavorite = {
+                        favoriteTitles = if (selectedAnime!!.title in favoriteTitles) {
+                            favoriteTitles - selectedAnime!!.title
+                        } else {
+                            favoriteTitles + selectedAnime!!.title
+                        }
+                        preferences.saveFavoriteTitles(favoriteTitles)
+                    },
                     onEpisodeClick = { openEpisode(selectedAnime!!, it) }
                 )
                 AnimeScreen.PLAYER -> VideoPlayerScreen(
@@ -178,7 +225,13 @@ fun KakaAnimeApp() {
 
 @Composable
 private fun KakaBottomNavigation(selectedTab: BottomTab, onTabSelected: (BottomTab) -> Unit) {
-    Surface(modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 12.dp), shape = RoundedCornerShape(28.dp), color = MaterialTheme.colorScheme.surface.copy(alpha = .94f), tonalElevation = 5.dp, shadowElevation = 10.dp) {
+    Surface(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 12.dp),
+        shape = RoundedCornerShape(28.dp),
+        color = MaterialTheme.colorScheme.surface.copy(alpha = .94f),
+        tonalElevation = 5.dp,
+        shadowElevation = 10.dp
+    ) {
         Row(Modifier.fillMaxWidth().padding(6.dp), horizontalArrangement = Arrangement.SpaceEvenly) {
             BottomTab.entries.forEach { tab ->
                 val selected = selectedTab == tab
@@ -196,7 +249,10 @@ private fun KakaBottomNavigation(selectedTab: BottomTab, onTabSelected: (BottomT
                     BottomTab.FAVORITE -> "Favorite"
                     BottomTab.PROFILE -> "Profile"
                 }
-                Column(Modifier.weight(1f).clickable { onTabSelected(tab) }.padding(vertical = 7.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                Column(
+                    Modifier.weight(1f).clickable { onTabSelected(tab) }.padding(vertical = 7.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
                     Icon(icon, contentDescription = label, tint = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
                     Text(label, fontSize = 10.sp, fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal, color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
                 }
@@ -206,8 +262,19 @@ private fun KakaBottomNavigation(selectedTab: BottomTab, onTabSelected: (BottomT
 }
 
 @Composable
-private fun AnimeDetailScreen(anime: Anime, isFavorite: Boolean, onBack: () -> Unit, onFavorite: () -> Unit, onEpisodeClick: (Int) -> Unit) {
-    LazyColumn(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background), contentPadding = PaddingValues(16.dp, 16.dp, 16.dp, 32.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+private fun AnimeDetailScreen(
+    anime: Anime,
+    isFavorite: Boolean,
+    watchedEpisode: Int?,
+    onBack: () -> Unit,
+    onFavorite: () -> Unit,
+    onEpisodeClick: (Int) -> Unit
+) {
+    LazyColumn(
+        Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background),
+        contentPadding = PaddingValues(16.dp, 16.dp, 16.dp, 32.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp)
+    ) {
         item {
             Text("‹ Kembali", modifier = Modifier.clickable { onBack() }, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.SemiBold)
             Spacer(Modifier.height(10.dp))
@@ -217,17 +284,29 @@ private fun AnimeDetailScreen(anime: Anime, isFavorite: Boolean, onBack: () -> U
             Text(anime.description)
             Spacer(Modifier.height(10.dp))
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                Button(onClick = { onEpisodeClick(anime.latestEpisode) }, modifier = Modifier.weight(1f), shape = RoundedCornerShape(14.dp)) { Text("▶  Tonton") }
-                Button(onClick = onFavorite, modifier = Modifier.weight(1f), shape = RoundedCornerShape(14.dp)) { Text(if (isFavorite) "♥ Favorit" else "♡ Favorit") }
+                Button(onClick = { onEpisodeClick(watchedEpisode ?: anime.latestEpisode) }, modifier = Modifier.weight(1f), shape = RoundedCornerShape(14.dp)) {
+                    Text(if (watchedEpisode != null) "▶  Lanjutkan" else "▶  Tonton")
+                }
+                Button(onClick = onFavorite, modifier = Modifier.weight(1f), shape = RoundedCornerShape(14.dp)) {
+                    Text(if (isFavorite) "♥ Favorit" else "♡ Favorit")
+                }
             }
             Spacer(Modifier.height(8.dp))
             Text("Episode", fontSize = 21.sp, fontWeight = FontWeight.Bold)
         }
         items((anime.latestEpisode downTo maxOf(1, anime.latestEpisode - 19)).toList()) { episode ->
-            Surface(Modifier.fillMaxWidth().clickable { onEpisodeClick(episode) }, shape = RoundedCornerShape(14.dp), color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = .55f)) {
+            val watched = watchedEpisode != null && episode <= watchedEpisode
+            Surface(
+                Modifier.fillMaxWidth().clickable { onEpisodeClick(episode) },
+                shape = RoundedCornerShape(14.dp),
+                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = .55f)
+            ) {
                 Row(Modifier.fillMaxWidth().padding(15.dp), horizontalArrangement = Arrangement.SpaceBetween) {
-                    Text("Episode $episode", fontWeight = FontWeight.Medium)
-                    if (episode == anime.latestEpisode) Text("BARU", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+                    Text("Episode $episode", fontWeight = if (watched) FontWeight.Bold else FontWeight.Medium)
+                    when {
+                        episode == anime.latestEpisode -> Text("BARU", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+                        watched -> Text("✓", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+                    }
                 }
             }
         }
