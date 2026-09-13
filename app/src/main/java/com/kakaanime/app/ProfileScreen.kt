@@ -41,7 +41,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
+import androidx.compose.ui.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -64,6 +64,8 @@ fun ProfileScreen(
     var showAppearance by remember { mutableStateOf(false) }
     var showSettings by remember { mutableStateOf(false) }
     var showNotifications by remember { mutableStateOf(false) }
+    var showAnimeWatched by remember { mutableStateOf(false) }
+    var showEpisodeWatched by remember { mutableStateOf(false) }
     var profileName by remember { mutableStateOf(preferences.loadProfileName()) }
     var profileBio by remember { mutableStateOf(preferences.loadProfileBio()) }
     var avatarIndex by remember { mutableStateOf(preferences.loadProfileAvatarIndex()) }
@@ -71,6 +73,26 @@ fun ProfileScreen(
     LaunchedEffect(preferences) {
         themeState.darkMode = preferences.loadDarkMode()
         themeState.accent = runCatching { KakaAccent.valueOf(preferences.loadAccentName()) }.getOrDefault(KakaAccent.Blue)
+    }
+
+    if (showAnimeWatched) {
+        AnimeWatchedScreen(
+            preferences = preferences,
+            animeList = localAnime,
+            onBack = { showAnimeWatched = false },
+            onAnimeClick = { showAnimeWatched = false }
+        )
+        return
+    }
+
+    if (showEpisodeWatched) {
+        EpisodeWatchedScreen(
+            preferences = preferences,
+            animeList = localAnime,
+            onBack = { showEpisodeWatched = false },
+            onEpisodeClick = { _, _ -> showEpisodeWatched = false }
+        )
+        return
     }
 
     if (editingProfile) {
@@ -99,17 +121,10 @@ fun ProfileScreen(
         }
 
         item {
-            Surface(
-                Modifier.fillMaxWidth(),
-                RoundedCornerShape(24.dp),
-                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = .58f)
-            ) {
+            Surface(Modifier.fillMaxWidth(), RoundedCornerShape(24.dp), color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = .58f)) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Box(
-                            Modifier.size(68.dp).clip(CircleShape).background(profileAccent),
-                            contentAlignment = Alignment.Center
-                        ) {
+                        Box(Modifier.size(68.dp).clip(CircleShape).background(profileAccent), contentAlignment = Alignment.Center) {
                             Text(initials, fontWeight = FontWeight.Black, fontSize = 19.sp, color = Color.White)
                         }
                         Spacer(Modifier.size(12.dp))
@@ -117,29 +132,13 @@ fun ProfileScreen(
                             Text(profileName, fontSize = 18.sp, fontWeight = FontWeight.Bold)
                             Text(profileBio, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2)
                             Spacer(Modifier.height(6.dp))
-                            Surface(
-                                shape = RoundedCornerShape(9.dp),
-                                color = if (monetizationState.isPremium) Color(0xFFFFB52E).copy(alpha = .16f) else MaterialTheme.colorScheme.surface
-                            ) {
-                                Text(
-                                    if (monetizationState.isPremium) "Premium" else "Free User",
-                                    Modifier.padding(horizontal = 9.dp, vertical = 5.dp),
-                                    fontSize = 10.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = if (monetizationState.isPremium) Color(0xFFFFB52E) else MaterialTheme.colorScheme.onSurfaceVariant
-                                )
+                            Surface(shape = RoundedCornerShape(9.dp), color = if (monetizationState.isPremium) Color(0xFFFFB52E).copy(alpha = .16f) else MaterialTheme.colorScheme.surface) {
+                                Text(if (monetizationState.isPremium) "Premium" else "Free User", Modifier.padding(horizontal = 9.dp, vertical = 5.dp), fontSize = 10.sp, fontWeight = FontWeight.Bold, color = if (monetizationState.isPremium) Color(0xFFFFB52E) else MaterialTheme.colorScheme.onSurfaceVariant)
                             }
                         }
-                        IconButton(onClick = { editingProfile = true }) {
-                            Icon(Icons.Outlined.Edit, "Edit profile")
-                        }
+                        IconButton(onClick = { editingProfile = true }) { Icon(Icons.Outlined.Edit, "Edit profile") }
                     }
-
-                    Surface(
-                        Modifier.fillMaxWidth(),
-                        RoundedCornerShape(14.dp),
-                        color = MaterialTheme.colorScheme.background.copy(alpha = .55f)
-                    ) {
+                    Surface(Modifier.fillMaxWidth(), RoundedCornerShape(14.dp), color = MaterialTheme.colorScheme.background.copy(alpha = .55f)) {
                         Row(Modifier.padding(horizontal = 13.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
                             Icon(Icons.Outlined.Star, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
                             Spacer(Modifier.size(8.dp))
@@ -152,16 +151,9 @@ fun ProfileScreen(
         }
 
         item {
-            Surface(
-                Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).clickable(onClick = onPremiumClick),
-                RoundedCornerShape(20.dp),
-                color = MaterialTheme.colorScheme.primary.copy(alpha = .12f)
-            ) {
+            Surface(Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).clickable(onClick = onPremiumClick), RoundedCornerShape(20.dp), color = MaterialTheme.colorScheme.primary.copy(alpha = .12f)) {
                 Row(Modifier.padding(17.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Box(
-                        Modifier.size(46.dp).clip(CircleShape).background(MaterialTheme.colorScheme.primary.copy(alpha = .16f)),
-                        contentAlignment = Alignment.Center
-                    ) { Icon(Icons.Outlined.Star, null, tint = MaterialTheme.colorScheme.primary) }
+                    Box(Modifier.size(46.dp).clip(CircleShape).background(MaterialTheme.colorScheme.primary.copy(alpha = .16f)), contentAlignment = Alignment.Center) { Icon(Icons.Outlined.Star, null, tint = MaterialTheme.colorScheme.primary) }
                     Spacer(Modifier.size(12.dp))
                     Column(Modifier.weight(1f)) {
                         Text(if (monetizationState.isPremium) "Premium Aktif" else "Upgrade to Premium", fontWeight = FontWeight.Bold, fontSize = 16.sp)
@@ -174,7 +166,7 @@ fun ProfileScreen(
 
         item {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(9.dp)) {
-                AccountStat("Anime", preferences.loadWatchedEpisodes().size, Modifier.weight(1f))
+                AccountStat("Anime", preferences.loadWatchedEpisodes().size, Modifier.weight(1f), onClick = { showAnimeWatched = true })
                 AccountStat("Favorite", preferences.loadFavoriteTitles().size, Modifier.weight(1f))
                 AccountStat("Diamonds", monetizationState.diamonds, Modifier.weight(1f))
             }
@@ -188,111 +180,50 @@ fun ProfileScreen(
                 AccountRow(Icons.Outlined.Star, "Premium", "Manage premium and diamonds") { onPremiumClick() }
                 AccountRow(Icons.Outlined.Notifications, "Notifications", "Episode updates and system notifications") { showNotifications = true }
                 AccountRow(Icons.Outlined.Info, "About KakaAnime", "Version, credits, and more") { showAbout = true }
+                AccountRow(Icons.Outlined.Person, "Anime Watched", "Anime yang pernah kamu tonton") { showAnimeWatched = true }
+                AccountRow(Icons.Outlined.Schedule, "Episode Watched", "Riwayat episode yang sudah ditonton") { showEpisodeWatched = true }
             }
         }
     }
 
     if (showAppearance) {
-        AlertDialog(
-            onDismissRequest = { showAppearance = false },
-            title = { Text("Appearance") },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Outlined.DarkMode, null)
-                        Spacer(Modifier.size(10.dp))
-                        Text("Dark mode", Modifier.weight(1f))
-                        Text(
-                            if (themeState.darkMode) "ON" else "OFF",
-                            color = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.clickable {
-                                themeState.darkMode = !themeState.darkMode
-                                preferences.saveDarkMode(themeState.darkMode)
-                            }
-                        )
-                    }
-                    Text("Accent color", style = MaterialTheme.typography.titleSmall)
-                    Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-                        KakaAccent.entries.forEach { accent ->
-                            Surface(
-                                Modifier.weight(1f).height(34.dp).clickable {
-                                    themeState.accent = accent
-                                    preferences.saveAccentName(accent.name)
-                                },
-                                RoundedCornerShape(9.dp),
-                                color = accent.primary.copy(alpha = if (themeState.accent == accent) .92f else .24f)
-                            ) {}
-                        }
-                    }
+        AlertDialog(onDismissRequest = { showAppearance = false }, title = { Text("Appearance") }, text = {
+            Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Outlined.DarkMode, null); Spacer(Modifier.size(10.dp)); Text("Dark mode", Modifier.weight(1f)); Text(if (themeState.darkMode) "ON" else "OFF", color = MaterialTheme.colorScheme.primary, modifier = Modifier.clickable { themeState.darkMode = !themeState.darkMode; preferences.saveDarkMode(themeState.darkMode) })
                 }
-            },
-            confirmButton = { TextButton(onClick = { showAppearance = false }) { Text("Selesai") } }
-        )
+                Text("Accent color", style = MaterialTheme.typography.titleSmall)
+                Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+                    KakaAccent.entries.forEach { accent -> Surface(Modifier.weight(1f).height(34.dp).clickable { themeState.accent = accent; preferences.saveAccentName(accent.name) }, RoundedCornerShape(9.dp), color = accent.primary.copy(alpha = if (themeState.accent == accent) .92f else .24f)) {}
+                }
+            }
+        }, confirmButton = { TextButton(onClick = { showAppearance = false }) { Text("Selesai") } })
     }
-
-    if (showSettings) {
-        AlertDialog(
-            onDismissRequest = { showSettings = false },
-            title = { Text("Settings") },
-            text = { Text("Pengaturan aplikasi dan data akan ditempatkan di sini. Struktur menu sudah dikunci agar mudah dikembangkan tanpa mengubah layout Account Dashboard.") },
-            confirmButton = { TextButton(onClick = { showSettings = false }) { Text("Tutup") } }
-        )
-    }
-
-    if (showNotifications) {
-        AlertDialog(
-            onDismissRequest = { showNotifications = false },
-            title = { Text("Notifications") },
-            text = { Text("Notifikasi episode baru dan notifikasi sistem akan ditempatkan di sini. Integrasi notifikasi aktual tetap masuk tahap berikutnya.") },
-            confirmButton = { TextButton(onClick = { showNotifications = false }) { Text("Tutup") } }
-        )
-    }
-
-    if (showAbout) {
-        AlertDialog(
-            onDismissRequest = { showAbout = false },
-            title = { Text("About KakaAnime") },
-            text = { Text("KakaAnime — anime always with you.\n\nCore UI follows the KakaAnime concept with ReDantotsu-inspired navigation, typography, spacing, and interaction patterns.") },
-            confirmButton = { TextButton(onClick = { showAbout = false }) { Text("Tutup") } }
-        )
-    }
+    if (showSettings) AlertDialog(onDismissRequest = { showSettings = false }, title = { Text("Settings") }, text = { Text("Pengaturan aplikasi dan data akan ditempatkan di sini. Struktur menu sudah dikunci agar mudah dikembangkan tanpa mengubah layout Account Dashboard.") }, confirmButton = { TextButton(onClick = { showSettings = false }) { Text("Tutup") } })
+    if (showNotifications) AlertDialog(onDismissRequest = { showNotifications = false }, title = { Text("Notifications") }, text = { Text("Notifikasi episode baru dan notifikasi sistem akan ditempatkan di sini. Integrasi notifikasi aktual tetap masuk tahap berikutnya.") }, confirmButton = { TextButton(onClick = { showNotifications = false }) { Text("Tutup") } })
+    if (showAbout) AlertDialog(onDismissRequest = { showAbout = false }, title = { Text("About KakaAnime") }, text = { Text("KakaAnime — anime always with you.\n\nCore UI follows the KakaAnime concept with ReDantotsu-inspired navigation, typography, spacing, and interaction patterns.") }, confirmButton = { TextButton(onClick = { showAbout = false }) { Text("Tutup") } })
 }
 
 @Composable
 private fun AccountSection(content: @Composable ColumnScope.() -> Unit) {
-    Surface(
-        Modifier.fillMaxWidth(),
-        RoundedCornerShape(22.dp),
-        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = .45f)
-    ) {
+    Surface(Modifier.fillMaxWidth(), RoundedCornerShape(22.dp), color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = .45f)) {
         Column(content = content, modifier = Modifier.padding(vertical = 4.dp))
     }
 }
 
 @Composable
-private fun AccountRow(
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
-    title: String,
-    subtitle: String,
-    onClick: () -> Unit
-) {
-    Row(
-        Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 15.dp, vertical = 13.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
+private fun AccountRow(icon: androidx.compose.ui.graphics.vector.ImageVector, title: String, subtitle: String, onClick: () -> Unit) {
+    Row(Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 15.dp, vertical = 13.dp), verticalAlignment = Alignment.CenterVertically) {
         Icon(icon, null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(22.dp))
         Spacer(Modifier.size(13.dp))
-        Column(Modifier.weight(1f)) {
-            Text(title, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
-            Text(subtitle, fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
+        Column(Modifier.weight(1f)) { Text(title, fontWeight = FontWeight.SemiBold, fontSize = 14.sp); Text(subtitle, fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant) }
         Text("›", fontSize = 23.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 
 @Composable
-private fun AccountStat(label: String, value: Int, modifier: Modifier = Modifier) {
-    Surface(modifier, RoundedCornerShape(16.dp), color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = .48f)) {
+private fun AccountStat(label: String, value: Int, modifier: Modifier = Modifier, onClick: (() -> Unit)? = null) {
+    Surface(modifier.then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier), RoundedCornerShape(16.dp), color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = .48f)) {
         Column(Modifier.padding(vertical = 13.dp), horizontalAlignment = Alignment.CenterHorizontally) {
             Text(value.toString(), fontSize = 18.sp, fontWeight = FontWeight.Bold)
             Text(label, fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
