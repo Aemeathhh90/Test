@@ -5,6 +5,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.*
@@ -12,17 +13,22 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.kakaanime.app.monetization.MonetizationState
 
+private val SettingsOuterPadding = 18.dp
+private val SettingsSectionRadius = 22.dp
+private val SettingsRowMinHeight = 56.dp
+private val SettingsIconSize = 22.dp
+
 @Composable
 fun SettingsScreen(
     monetizationState: MonetizationState,
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    onPremiumClick: () -> Unit = {}
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val settings = remember(context) { context.getSharedPreferences("kakaanime_settings", Context.MODE_PRIVATE) }
@@ -39,18 +45,21 @@ fun SettingsScreen(
     var message by remember { mutableStateOf<String?>(null) }
 
     fun save(key: String, value: Any) = settings.edit().apply {
-        when (value) { is Boolean -> putBoolean(key, value); is String -> putString(key, value) }
+        when (value) {
+            is Boolean -> putBoolean(key, value)
+            is String -> putString(key, value)
+        }
     }.apply()
 
     val cacheSizeMb = remember { (context.cacheDir.walkTopDown().filter { it.isFile }.sumOf { it.length() } / (1024 * 1024)).coerceAtLeast(0) }
 
     LazyColumn(
-        Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background),
-        contentPadding = PaddingValues(18.dp, 12.dp, 18.dp, 32.dp),
+        modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background),
+        contentPadding = PaddingValues(SettingsOuterPadding, 12.dp, SettingsOuterPadding, 32.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
         item {
-            Row(verticalAlignment = Alignment.CenterVertically) {
+            Row(Modifier.fillMaxWidth().heightIn(min = 52.dp), verticalAlignment = Alignment.CenterVertically) {
                 IconButton(onClick = onBack) { Icon(Icons.Outlined.ArrowBack, "Back") }
                 Column(Modifier.weight(1f)) {
                     Text("Settings", fontSize = 28.sp, fontWeight = FontWeight.Bold)
@@ -65,12 +74,8 @@ fun SettingsScreen(
                 SettingsRow(Icons.Outlined.OndemandVideo, "Video Player", "Configure video player options") { dialog = SettingsDialog.Player }
                 SettingsRow(Icons.Outlined.HighQuality, "Default Quality", "Select default video quality", defaultQuality) { dialog = SettingsDialog.Quality }
                 SettingsSwitch(Icons.Outlined.SkipNext, "Auto Next Episode", "Automatically play next episode", autoNext) { autoNext = it; save("auto_next", it) }
-                SettingsSwitch(Icons.Outlined.FastForward, "Auto Skip Intro", "Automatically skip anime intros", autoSkipIntro, premium = true, enabled = monetizationState.isPremium) {
-                    autoSkipIntro = it; save("auto_skip_intro", it)
-                }
-                SettingsSwitch(Icons.Outlined.FastForward, "Auto Skip Outro", "Automatically skip anime outros", autoSkipOutro, premium = true, enabled = monetizationState.isPremium) {
-                    autoSkipOutro = it; save("auto_skip_outro", it)
-                }
+                SettingsSwitch(Icons.Outlined.FastForward, "Auto Skip Intro", "Automatically skip anime intros", autoSkipIntro, premium = true, enabled = monetizationState.isPremium, onLockedClick = onPremiumClick) { autoSkipIntro = it; save("auto_skip_intro", it) }
+                SettingsSwitch(Icons.Outlined.FastForward, "Auto Skip Outro", "Automatically skip anime outros", autoSkipOutro, premium = true, enabled = monetizationState.isPremium, onLockedClick = onPremiumClick) { autoSkipOutro = it; save("auto_skip_outro", it) }
             }
         }
 
@@ -109,8 +114,8 @@ fun SettingsScreen(
 
     when (dialog) {
         SettingsDialog.Player -> SimpleSettingsDialog("Video Player", "Pengaturan lanjutan player seperti orientasi layar, gesture seek, brightness/volume gesture, dan kontrol player akan ditempatkan di sini.") { dialog = null }
-        SettingsDialog.Quality -> QualityDialog(defaultQuality, listOf("Auto", "360p", "480p", "720p", "1080p"), monetizationState.isPremium) { value -> defaultQuality = value; save("default_quality", value); dialog = null }
-        SettingsDialog.DownloadQuality -> QualityDialog(downloadQuality, listOf("360p", "480p", "720p", "1080p"), monetizationState.isPremium) { value -> downloadQuality = value; save("download_quality", value); dialog = null }
+        SettingsDialog.Quality -> QualityDialog(defaultQuality, listOf("Auto", "360p", "480p", "720p", "1080p"), monetizationState.isPremium, onPremiumClick) { value -> defaultQuality = value; save("default_quality", value); dialog = null }
+        SettingsDialog.DownloadQuality -> QualityDialog(downloadQuality, listOf("360p", "480p", "720p", "1080p"), monetizationState.isPremium, onPremiumClick) { value -> downloadQuality = value; save("download_quality", value); dialog = null }
         null -> Unit
     }
     message?.let { SimpleSettingsDialog("KakaAnime", it) { message = null } }
@@ -118,48 +123,98 @@ fun SettingsScreen(
 
 private enum class SettingsDialog { Player, Quality, DownloadQuality }
 
-@Composable private fun SettingsSection(icon: ImageVector, title: String, subtitle: String, content: @Composable ColumnScope.() -> Unit) {
-    Surface(Modifier.fillMaxWidth(), RoundedCornerShape(20.dp), color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = .46f)) {
+@Composable
+private fun SettingsSection(icon: ImageVector, title: String, subtitle: String, content: @Composable ColumnScope.() -> Unit) {
+    Surface(Modifier.fillMaxWidth(), RoundedCornerShape(SettingsSectionRadius), color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = .46f)) {
         Column(Modifier.padding(10.dp)) {
             Row(Modifier.padding(7.dp), verticalAlignment = Alignment.CenterVertically) {
-                Surface(Modifier.size(42.dp), CircleShape, color = MaterialTheme.colorScheme.primary.copy(alpha = .16f)) { Box(contentAlignment = Alignment.Center) { Icon(icon, null, tint = MaterialTheme.colorScheme.primary) } }
-                Spacer(Modifier.width(11.dp)); Column { Text(title, fontSize = 17.sp, fontWeight = FontWeight.Bold); Text(subtitle, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                Surface(Modifier.size(42.dp), CircleShape, color = MaterialTheme.colorScheme.primary.copy(alpha = .16f)) {
+                    Box(contentAlignment = Alignment.Center) { Icon(icon, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(21.dp)) }
+                }
+                Spacer(Modifier.width(11.dp))
+                Column { Text(title, fontSize = 17.sp, fontWeight = FontWeight.Bold); Text(subtitle, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant) }
             }
             Column(content = content)
         }
     }
 }
 
-@Composable private fun SettingsRow(icon: ImageVector, title: String, subtitle: String, value: String? = null, destructive: Boolean = false, onClick: () -> Unit) {
-    Row(Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 7.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-        Icon(icon, null, tint = if (destructive) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(23.dp))
-        Spacer(Modifier.width(12.dp)); Column(Modifier.weight(1f)) { Text(title, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = if (destructive) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface); Text(subtitle, fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+@Composable
+private fun SettingsRow(icon: ImageVector, title: String, subtitle: String, value: String? = null, destructive: Boolean = false, onClick: () -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().heightIn(min = SettingsRowMinHeight).clickable(onClick = onClick).padding(horizontal = 7.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(icon, null, tint = if (destructive) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(SettingsIconSize))
+        Spacer(Modifier.width(12.dp))
+        Column(Modifier.weight(1f)) {
+            Text(title, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = if (destructive) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface)
+            Text(subtitle, fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
         if (value != null) Text(value, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        Spacer(Modifier.width(6.dp)); Icon(Icons.Outlined.ChevronRight, null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(20.dp))
+        Spacer(Modifier.width(6.dp))
+        Icon(Icons.Outlined.ChevronRight, null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(20.dp))
     }
 }
 
-@Composable private fun SettingsSwitch(icon: ImageVector, title: String, subtitle: String, checked: Boolean, premium: Boolean = false, enabled: Boolean = true, onCheckedChange: (Boolean) -> Unit) {
-    Row(Modifier.fillMaxWidth().padding(horizontal = 7.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
-        Icon(icon, null, tint = if (enabled) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = .45f), modifier = Modifier.size(23.dp))
-        Spacer(Modifier.width(12.dp)); Column(Modifier.weight(1f)) { Row(verticalAlignment = Alignment.CenterVertically) { Text(title, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = if (enabled) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant); if (premium) { Spacer(Modifier.width(6.dp)); Text("👑", fontSize = 11.sp) } }; Text(subtitle, fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant) }
-        Switch(checked = checked, onCheckedChange = { if (enabled) onCheckedChange(it) }, enabled = enabled)
+@Composable
+private fun SettingsSwitch(
+    icon: ImageVector,
+    title: String,
+    subtitle: String,
+    checked: Boolean,
+    premium: Boolean = false,
+    enabled: Boolean = true,
+    onLockedClick: () -> Unit = {},
+    onCheckedChange: (Boolean) -> Unit
+) {
+    Row(Modifier.fillMaxWidth().heightIn(min = SettingsRowMinHeight).padding(horizontal = 7.dp, vertical = 7.dp), verticalAlignment = Alignment.CenterVertically) {
+        Icon(icon, null, tint = if (enabled) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = .45f), modifier = Modifier.size(SettingsIconSize))
+        Spacer(Modifier.width(12.dp))
+        Column(Modifier.weight(1f)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(title, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = if (enabled) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant)
+                if (premium) { Spacer(Modifier.width(6.dp)); Icon(Icons.Outlined.WorkspacePremium, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(15.dp)) }
+            }
+            Text(subtitle, fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        Switch(checked = checked, onCheckedChange = { if (enabled) onCheckedChange(it) else onLockedClick() }, enabled = enabled)
     }
 }
 
-@Composable private fun StorageSummary(context: Context) {
+@Composable
+private fun StorageSummary(context: Context) {
     val usedMb = remember { (context.filesDir.parentFile?.walkTopDown()?.filter { it.isFile }?.sumOf { it.length() } ?: 0L) / (1024 * 1024) }
     Column(Modifier.padding(horizontal = 7.dp, vertical = 8.dp)) {
         Text("Storage", fontSize = 14.sp, fontWeight = FontWeight.Bold)
         Text("KakaAnime app data: ${usedMb.coerceAtLeast(0)} MB", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        Spacer(Modifier.height(7.dp)); LinearProgressIndicator(progress = { 0.18f }, modifier = Modifier.fillMaxWidth().height(5.dp), trackColor = MaterialTheme.colorScheme.surfaceVariant)
+        Spacer(Modifier.height(7.dp))
+        LinearProgressIndicator(progress = { 0.18f }, modifier = Modifier.fillMaxWidth().height(5.dp), trackColor = MaterialTheme.colorScheme.surfaceVariant)
     }
 }
 
-@Composable private fun QualityDialog(selected: String, options: List<String>, premium: Boolean, onSelect: (String) -> Unit) {
-    AlertDialog(onDismissRequest = { onSelect(selected) }, title = { Text("Video Quality") }, text = { Column { options.forEach { option -> val locked = option == "1080p" && !premium; Row(Modifier.fillMaxWidth().clickable(enabled = !locked) { onSelect(option) }.padding(vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) { RadioButton(selected = selected == option, onClick = { if (!locked) onSelect(option) }, enabled = !locked); Text(option, modifier = Modifier.weight(1f)); if (locked) Text("Premium", color = MaterialTheme.colorScheme.primary, fontSize = 11.sp) } } } }, confirmButton = { TextButton(onClick = { onSelect(selected) }) { Text("Batal") } })
+@Composable
+private fun QualityDialog(selected: String, options: List<String>, premium: Boolean, onPremiumClick: () -> Unit, onSelect: (String) -> Unit) {
+    AlertDialog(
+        onDismissRequest = { onSelect(selected) },
+        title = { Text("Video Quality") },
+        text = {
+            Column {
+                options.forEach { option ->
+                    val locked = option == "1080p" && !premium
+                    Row(Modifier.fillMaxWidth().clickable { if (locked) onPremiumClick() else onSelect(option) }.padding(vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+                        RadioButton(selected = selected == option, onClick = { if (locked) onPremiumClick() else onSelect(option) }, enabled = !locked)
+                        Text(option, modifier = Modifier.weight(1f))
+                        if (locked) Text("Premium", color = MaterialTheme.colorScheme.primary, fontSize = 11.sp)
+                    }
+                }
+            }
+        },
+        confirmButton = { TextButton(onClick = { onSelect(selected) }) { Text("Batal") } }
+    )
 }
 
-@Composable private fun SimpleSettingsDialog(title: String, message: String, onClose: () -> Unit) {
+@Composable
+private fun SimpleSettingsDialog(title: String, message: String, onClose: () -> Unit) {
     AlertDialog(onDismissRequest = onClose, title = { Text(title) }, text = { Text(message) }, confirmButton = { TextButton(onClick = onClose) { Text("Tutup") } })
 }
