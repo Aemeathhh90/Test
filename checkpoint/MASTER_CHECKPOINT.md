@@ -4,7 +4,7 @@
 **Repo:** `KakaAnime/KakaAnime` — Private  
 **Platform:** Android  
 **Source of truth:** `main`  
-**Prioritas:** P0 — Provider E2E & Streaming Foundation
+**Prioritas:** P0 — Core App First; Provider menjadi integration-testing layer
 
 > MASTER ini sengaja dibuat ringkas. Detail teknis dan sejarah berada di folder `checkpoint/`.
 
@@ -12,19 +12,19 @@
 
 ## 🚦 Status Utama
 
-### P0 — Provider E2E
+### P0 — Core App First
 
-**Confirmed:** `1 / 29`
+Provider tidak lagi menjadi blocker utama setelah E2E provider yang sedang berjalan selesai divalidasi.
 
-| Provider | Status | Keterangan |
+| Area | Status | Keterangan |
 |---|---|---|
-| 🟢 Otakudesu | **E2E PASS** | First frame terbukti di Media3; LOCKED |
-| 🟡 Samehadaku | **Sedang dites** | Target One Piece Episode 7; extensionless-embed fix applied, E2E pending |
-| 🔴 27 provider lainnya | Belum tervalidasi | Belum boleh dihitung green |
-
-**P0:** 🔴 Belum selesai
+| 🟡 Provider E2E aktif | **Otakudesu/Samehadaku validation** | Selesaikan test yang sedang berjalan; jangan melakukan perubahan provider tanpa audit hasil test |
+| 🔴 Core App | **Prioritas berikutnya** | Home → Detail → Episode → Player dan fitur inti aplikasi |
+| 🔴 Provider expansion | **Ditunda** | Provider tambahan dikerjakan setelah core aplikasi stabil |
 
 ### Provider Gate
+
+Provider hanya dinyatakan 🟢 jika alur berikut terbukti sampai Media3:
 
 ```text
 Search → Anime Detail → Episode → Stream Resolution
@@ -32,6 +32,92 @@ Search → Anime Detail → Episode → Stream Resolution
 ```
 
 Build/compile sukses saja **tidak cukup**.
+
+### Aturan perpindahan prioritas
+
+```text
+E2E provider yang sedang berjalan
+        ↓
+   🟢 PASS → checkpoint → lanjut Core App
+        │
+   🔴 FAIL → audit hasil/log → checkpoint
+        ↓
+   jika bukan blocker yang jelas/core tidak bergantung padanya
+        ↓
+   PROVIDER PAUSE → lanjut Core App
+        ↓
+   Provider dibuka kembali di fase Integration Testing
+```
+
+**Prinsip:** jangan menghabiskan fase pengembangan inti hanya untuk mengejar resolver/provider yang belum stabil. Provider tetap dicatat, tidak dihapus, dan akan menjadi target integration testing + bug hunting setelah core aplikasi siap.
+
+---
+
+## 🎯 Core App Roadmap — PRIORITAS
+
+Setelah E2E provider yang sedang berjalan selesai dicatat, fokus utama berpindah ke:
+
+1. 🔴 **Home V1**
+   - layout utama
+   - daftar anime
+   - Search
+   - New Update
+   - navigation/loading/error state
+
+2. 🔴 **Anime Detail**
+   - poster
+   - judul
+   - genre
+   - sinopsis
+   - episode list
+   - status episode/watch indicator
+
+3. 🔴 **Favorite / Library**
+   - tambah/hapus Favorite
+   - daftar Favorite
+   - persistence
+
+4. 🔴 **History / Watching**
+   - episode terakhir
+   - progress
+   - Continue Watching
+
+5. 🔴 **Video Player**
+   - UI mengikuti level referensi ReDantotsu yang sudah disepakati
+   - progress bar kecil + thumb bulat
+   - maju/mundur 10 detik
+   - next/previous episode
+   - auto-next
+   - landscape layout
+
+6. 🔴 **Subscription / Premium**
+   - 1080p premium
+   - skip intro/outro premium
+
+7. 🔴 **Diamond + Ads**
+   - 2 diamond per iklan
+   - 1 diamond = 1 video
+   - diamond 0 → wajib menonton iklan sebelum video
+   - tidak menggunakan popup yang mengganggu
+
+8. 🔴 **Settings / Customization**
+   - theme
+   - custom accent color
+   - color picker tanpa input HEX manual
+
+9. 🔴 **New Update / Notification**
+   - update episode untuk anime yang diikuti/difavorite
+
+10. 🧪 **Integration Testing & Bug Hunting**
+   - Search → Detail → Episode → Provider → Stream → Player
+   - network failure
+   - loading/error state
+   - state/history/favorite
+   - player lifecycle
+   - provider failover
+   - bug yang muncul dari pemakaian aplikasi end-to-end
+
+Provider tambahan dikerjakan **setelah** core app cukup stabil untuk menjadi target integration testing.
 
 ---
 
@@ -67,7 +153,7 @@ onRenderedFirstFrame()
 
 ## 🟢 Foundation Terbukti
 
-- Otakudesu E2E berhasil sampai `onRenderedFirstFrame()`.
+- Otakudesu E2E sebelumnya berhasil sampai `onRenderedFirstFrame()`; jalur yang sudah terbukti tidak boleh diubah tanpa alasan teknis kuat.
 - Extractor Registry teruji.
 - Stream Resolver teruji.
 - Stream Validator teruji.
@@ -78,7 +164,11 @@ onRenderedFirstFrame()
 
 ---
 
-## 🟡 Aktif Sekarang — Samehadaku
+## 🟡 Aktif Sekarang — Provider Validation Terakhir
+
+Saat ini provider yang sedang dikerjakan hanya diselesaikan sampai titik validasi yang sedang ditunggu. Setelah hasilnya dicatat, **jangan otomatis lanjut mengejar provider berikutnya**.
+
+### Samehadaku
 
 ```text
 Samehadaku HTML source
@@ -93,7 +183,7 @@ Samehadaku HTML source
  → onRenderedFirstFrame()
 ```
 
-### Latest fix — extensionless embed
+### Latest Samehadaku fix — extensionless embed
 
 Bitrise Build #57 proved the flow could reach stream resolution but still selected an `UNKNOWN` stream type. The reference audit found that CloudStream's Samehadaku implementation performs a second-stage GET on extensionless embed URLs and extracts `<video><source>` / equivalent media URLs.
 
@@ -107,15 +197,18 @@ AniLab now implements that pattern natively in `SamehadakuEpisodeExtractor`:
 Code commit: `68fb9f51d689b8139d507b2393a05f90a1909fbd`  
 Checkpoint: `checkpoint/builds/BUILD_061_SAMEHADAKU_EXTENSIONLESS_EMBED_FIX.md`
 
-Previous UNKNOWN-stream fix remains:
-- `StreamValidator`: UNKNOWN + HTTP 206 is no longer accepted as valid; supported formats are probed before classification.
-- `StreamResolver`: browser fallback tries extracted URLs plus original input URLs.
-- Checkpoint: `checkpoint/builds/BUILD_060_UNKNOWN_STREAM_FIX.md`
+### Otakudesu host resolver
 
-E2E validation is still pending. Status remains 🟡 until `onRenderedFirstFrame()` is proven.
+A dedicated native `OtakudesuHostExtractor` was added and registered to cover host patterns observed in the CloudStream reference audit, including FileDon/UserVideo/UserDrive/SameVideo, VidHide, Blogger/Blogspot, Mp4Upload, YourUpload/Yuplod, StreamWish/FileLions.
 
-Bitrise `provider_e2e` / GitHub Actions provider workflow targets:
-`SamehadakuProviderE2ETest#onePieceEpisodeSevenRendersFirstFrame`
+Relevant commits:
+- `2616c9651a6bb89c0bf393a2c5cb71ddbfd20740`
+- `a39a92626535141bc7c170794822b6cc1167f175`
+- `39b54f51df572f11225105e5d065ede1a3646b0c`
+- checkpoint: `e577bd26607011785e8622df6abd0519a21a9cf8`
+- checkpoint file: `checkpoint/builds/BUILD_064_OTAKUDESU_HOST_RESOLVER.md`
+
+E2E validation remains the source of truth. Do not mark a provider green without `onRenderedFirstFrame()`.
 
 ---
 
@@ -138,6 +231,8 @@ FAIL → Pastikan bukan BUG → Cari akar masalah
 → Implementasi native AniLab → E2E
 → Jika tetap mustahil karena batasan eksternal → ⚫ BLOCKED
 ```
+
+**Tambahan aturan provider:** jika provider E2E gagal dan kegagalan tersebut tidak memblokir core app, jangan stacking patch tanpa batas. Catat root cause + status, checkpoint, lalu **pause provider** dan lanjutkan core app. Provider dibuka kembali saat Integration Testing.
 
 ---
 
@@ -173,12 +268,15 @@ FIX jika root cause sudah cukup kuat
 E2E / VALIDASI
  ↓
 Jika gagal → audit ulang dan tentukan apakah referensi tambahan diperlukan
+ ↓
+Jika provider terus menjadi blocker non-core → checkpoint → PAUSE PROVIDER → CORE APP
 ```
 
 - Cari referensi jika masalah menyangkut extractor/provider, Media3/player, WebView, parsing/stream resolution, atau ada kemungkinan solusi mapan sudah tersedia.
 - Tidak perlu mencari referensi tambahan jika root cause sudah jelas dan fix sederhana/terverifikasi.
 - Referensi adalah pola/validasi teknis; jangan copy-paste dependency CloudStream ke AniLab.
 - Jangan menambal berdasarkan tebakan ketika root cause belum cukup kuat.
+- Provider expansion bukan prioritas selama core app belum stabil.
 
 ---
 
@@ -208,17 +306,35 @@ Fondasi tersedia; detail backend perlu diaudit terhadap source terbaru sebelum p
 
 ## 🔴 Berikutnya
 
-1. Jalankan Bitrise Samehadaku E2E setelah extensionless-embed fix.
-2. Jika FAIL, baca error/log baru sebelum perubahan berikutnya.
-3. Jika masalah baru membutuhkan pengetahuan eksternal, lakukan reference check lagi.
-4. Sahkan Samehadaku hanya dengan `onRenderedFirstFrame()`.
-5. Audit backend dari `main`.
-6. Lanjut provider berikutnya setelah path stabil.
-7. Target P0: **29/29 provider E2E PASS**.
+1. Jalankan E2E provider yang sedang ditunggu dan catat hasilnya.
+2. Jika PASS → checkpoint → jangan jadikan provider sebagai blocker; pindah ke Core App.
+3. Jika FAIL → audit error/log baru satu kali secara terarah.
+4. Jika FAIL tersebut tidak memblokir core → checkpoint penyebab → **PAUSE PROVIDER**.
+5. Mulai **Core App Roadmap**: Home V1 → Detail → Favorite/Library → History → Video Player → Premium/Diamond/Ads → Settings → Notification.
+6. Setelah core cukup stabil → **Integration Testing & Bug Hunting** memakai provider yang tersedia.
+7. Buka kembali provider tambahan satu per satu berdasarkan bug/coverage yang ditemukan saat integration testing.
+
+### Target baru
+
+```text
+CORE APP STABLE
+      ↓
+INTEGRATION TESTING
+      ↓
+PROVIDER + REAL STREAM
+      ↓
+BUG HUNTING
+      ↓
+FIX + E2E
+      ↓
+PROVIDER EXPANSION
+```
+
+Target `29/29 provider E2E PASS` tetap menjadi target coverage jangka panjang, **bukan blocker untuk menyelesaikan core app**.
 
 ---
 
-## 📋 Rules
+## 📋 Rules — LOCKED
 
 - `main` adalah source of truth.
 - Jangan membuat branch untuk workflow provider rutin.
@@ -226,3 +342,7 @@ Fondasi tersedia; detail backend perlu diaudit terhadap source terbaru sebelum p
 - Jangan menghapus/overwrite checkpoint historis.
 - Setiap perubahan kode/config/arsitektur nyata wajib dicatat.
 - CloudStream adalah referensi pola, bukan dependency AniLab.
+- **Core app lebih dulu daripada provider expansion.**
+- **Jika provider gagal dan tidak memblokir core, checkpoint lalu pause provider.**
+- **Provider akan digunakan kembali sebagai integration-testing dan bug-hunting layer setelah core stabil.**
+- **Jangan mengubah komponen yang sudah LOCKED tanpa alasan teknis kuat.**
