@@ -6,14 +6,15 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import java.nio.charset.StandardCharsets
 import java.util.concurrent.TimeUnit
 
 /**
  * Lightweight playback preflight.
  *
  * Extension-less/signed URLs are classified from the actual HTTP response
- * before Media3 sees them. This prevents Media3 from falling back to
- * progressive extractors for HLS/DASH manifests without recognizable suffixes.
+ * before Media3 sees them. UNKNOWN is never considered valid by itself:
+ * a partial-content response must still prove that it is a supported format.
  */
 class StreamValidator {
     private val client = OkHttpClient.Builder()
@@ -32,7 +33,6 @@ class StreamValidator {
                 .header("Accept", "application/vnd.apple.mpegurl, application/dash+xml, video/*, */*")
                 .apply {
                     stream.headers.forEach { (key, value) -> header(key, value) }
-                    // UNKNOWN must receive the complete manifest for reliable sniffing.
                     if (stream.type == StreamType.MP4) {
                         header("Range", "bytes=0-4095")
                     }
@@ -44,23 +44,23 @@ class StreamValidator {
 
                 val finalUrl = response.request.url.toString()
                 val contentType = response.header("Content-Type").orEmpty().lowercase()
-                val body = when (stream.type) {
-                    StreamType.HLS, StreamType.DASH, StreamType.UNKNOWN ->
-                        response.body?.string().orEmpty().take(65_536)
-                    StreamType.MP4 -> ""
-                }
+                val probeBytes = response.peekBody(65_536).bytes()
+                val probeText = probeBytes.toString(StandardCharsets.UTF_8)
 
                 val detectedType = stream.type.takeIf { it != StreamType.UNKNOWN }
-                    ?: detectType(finalUrl, contentType, body)
+                    ?: detectType(finalUrl, contentType, probeText, probeBytes)
 
+                // HTTP 206 only proves that a byte range was served. It is not
+                // enough to classify an UNKNOWN stream as playable media.
                 val valid = when (detectedType) {
-                    StreamType.HLS -> body.contains("#EXTM3U", ignoreCase = true) ||
+                    StreamType.HLS -> probeText.contains("#EXTM3U", ignoreCase = true) ||
                         contentType.contains("mpegurl") || contentType.contains("m3u8")
-                    StreamType.DASH -> body.contains("<MPD", ignoreCase = true) ||
+                    StreamType.DASH -> probeText.contains("<MPD", ignoreCase = true) ||
                         contentType.contains("dash") || contentType.contains("mpd")
                     StreamType.MP4 -> contentType.contains("video") ||
-                        contentType.contains("octet-stream") || response.code == 206
-                    StreamType.UNKNOWN -> response.code == 206
+                        contentType.contains("octet-stream") || hasMp4Signature(probeBytes) ||
+                        response.code == 206 && stream.type == StreamType.MP4
+                    StreamType.UNKNOWN -> false
                 }
 
                 if (!valid) return@runCatching null
@@ -70,21 +70,32 @@ class StreamValidator {
         }.getOrNull()
     }
 
-    private fun detectType(url: String, contentType: String, body: String): StreamType {
+    private fun detectType(
+        url: String,
+        contentType: String,
+        probeText: String,
+        probeBytes: ByteArray
+    ): StreamType {
         val clean = url.substringBefore('?').substringBefore('#').lowercase()
         return when {
             clean.endsWith(".m3u8") ||
                 contentType.contains("mpegurl") ||
                 contentType.contains("m3u8") ||
-                body.contains("#EXTM3U") -> StreamType.HLS
+                probeText.contains("#EXTM3U") -> StreamType.HLS
             clean.endsWith(".mpd") ||
                 contentType.contains("dash") ||
                 contentType.contains("mpd") ||
-                body.contains("<MPD", ignoreCase = true) -> StreamType.DASH
-            contentType.contains("video") || clean.endsWith(".mp4") -> StreamType.MP4
+                probeText.contains("<MPD", ignoreCase = true) -> StreamType.DASH
+            contentType.contains("video/mp4") ||
+                clean.endsWith(".mp4") ||
+                hasMp4Signature(probeBytes) -> StreamType.MP4
             else -> StreamType.UNKNOWN
         }
     }
+
+    private fun hasMp4Signature(bytes: ByteArray): Boolean =
+        bytes.size >= 8 &&
+            bytes.copyOfRange(4, 8).toString(StandardCharsets.US_ASCII) == "ftyp"
 
     private companion object {
         const val UA = "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 Chrome/124.0.0.0 Mobile Safari/537.36"
