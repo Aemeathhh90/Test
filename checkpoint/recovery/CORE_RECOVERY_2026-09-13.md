@@ -10,10 +10,12 @@
 - 🟢 Exact individually-watched episode locking restored
 - 🟢 Watched state is recorded only after a valid stream resolves
 - 🟢 Home Continue Watching refresh trigger added after watched state changes
-- 🟢 Android release build verification passed for the previous recovery changes
-- 🟡 Android release build verification pending for the Home refresh change
+- 🟢 Appearance settings now load from persisted preferences before the first UI render
+- 🟢 Android Build #435 passed for the appearance persistence fix
 - 🟡 Core behavioral/UI audit in progress
+- 🟡 Provider/real-stream E2E remains pending
 - ⏸️ New feature expansion remains paused during recovery audit
+- ⏸️ Download + Offline Mode remains deferred to the final Download stage
 
 ## Recovery changes
 - `6be7e121ee6ba7b77e236a3dfc89e0067c871928` — attempted EditProfile clip recovery
@@ -35,23 +37,26 @@
 - `ba28b970118efc0b42c6206d46bf2f7d2ebabddc` — checkpoint update after the watched-state fix
 - `7f56cb73d4199b564eeb252488edd116283f0bdd` — refresh Home Continue Watching from persisted history when the watched-state refresh key changes
 - `4772c1b116ab5fe02baded3d3a4def9280947b35` — increment Home refresh key when a playable episode is recorded as watched
+- `f901db30c0c4ed77df98222102ff2ef3f59de900` — restore persisted Appearance state on app startup
 
 ## Verification
 - Android Build `#427` — 🟢 success for `b514a1848458cf631b631bcbde467d464f43166a`
 - Android Build `#428` — 🟢 success for `ffaf9fe1ac17c0041893414005547138450d68f0`; release APK uploaded
 - Android Build `#429` — 🟢 success for `ba28b970118efc0b42c6206d46bf2f7d2ebabddc`; release APK uploaded
-- Android Build for `7f56cb73d4199b564eeb252488edd116283f0bdd` / `4772c1b116ab5fe02baded3d3a4def9280947b35` — 🟡 pending
+- Android Build `#434` — 🟢 success for `c75542bdd799226e9e43c903acdeacbc37d609ae`; repaired Home syntax after refresh wiring
+- Android Build `#435` — 🟢 success for `f901db30c0c4ed77df98222102ff2ef3f59de900`; persisted Appearance startup fix
 
 ## Technical notes
 - Free episode access remains 1 diamond per video; if no diamond is available, the rewarded-ad flow is used before opening the episode.
 - Premium users continue to bypass diamond consumption.
 - Watched state is persisted only when `ProviderPlaybackResolver.resolve(...)` returns a non-null playable URL; failed provider resolution no longer creates a false watched record.
-- Home Continue Watching now reloads persisted Watch History whenever the in-app watched-state refresh key changes, so newly watched episodes are reflected after returning from Player.
+- Home Continue Watching reloads persisted Watch History whenever the in-app watched-state refresh key changes.
 - Watch History retains Anime Watched and Episode Watched with search, sort, grid/list, and thumbnail support.
 - Player settings for Auto Next, Auto Skip Intro/Outro, and Default Quality are persisted and consumed by the player.
+- Appearance now initializes from persisted dark-mode and accent settings in `MainActivity`, preventing a startup flash/reset to default settings.
 - Player Back returns from portrait Player to the selected Detail screen; landscape Back still exits fullscreen to portrait.
-- Download remains intentionally untouched because the Download stage has not started.
+- Download remains intentionally untouched because Download + Offline Mode is a later stage.
 - Main remains the source of truth; do not merge PR #2.
 
 ## Next step
-Verify the Actions build for the Home refresh change. If green, continue the core behavioral audit with Detail → Episode List → Lock/Watched → Player entry → Back to Detail → Home/Continue Watching and Watch History refresh. Do not expand new features until the recovery audit is stable.
+Continue the core behavioral audit from the source of truth: Detail → Episode List → individual Lock/Watched state → Player entry → Back to Detail → Home/Continue Watching → Watch History. Audit persistence and state restoration before expanding features. Provider/real-stream testing remains a separate later integration track, and Download/Offline Mode stays deferred.
