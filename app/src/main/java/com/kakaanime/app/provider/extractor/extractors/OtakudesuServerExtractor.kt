@@ -9,6 +9,7 @@ import kotlinx.coroutines.withContext
 import okhttp3.FormBody
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import org.json.JSONObject
 import java.net.URI
 import java.util.concurrent.TimeUnit
 
@@ -57,24 +58,36 @@ class OtakudesuServerExtractor : StreamExtractor {
         val origin = runCatching { URI(pageUrl).let { "${it.scheme}://${it.authority}" } }.getOrNull() ?: return emptyList()
         val script = Regex("<script[^>]*>(.*?)</script>", setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL))
             .findAll(html).map { it.groupValues[1] }
-            .firstOrNull { it.contains("{action:", true) && it.contains("action:\"", true) }
+            .firstOrNull {
+                it.contains("window.__x__nonce", true) ||
+                    (it.contains("{action:", true) && it.contains("action:\"", true)) ||
+                    it.contains("mirrorstream", true)
+            }
             ?: return emptyList()
 
-        val nonceAction = script.substringAfter("{action:\"").substringBefore('"')
-        val action = script.substringAfter("action:\"").substringBefore('"')
+        val nonceAction = Regex("(?:window\\.__x__nonce|\\{action):?\\s*\\\"([^\\\"]+)\\\"", RegexOption.IGNORE_CASE)
+            .find(script)?.groupValues?.getOrNull(1)
+            ?: script.substringAfter("{action:\"").substringBefore('"')
+        val action = Regex("action\\s*:\\s*[\\\"']([^\\\"']+)[\\\"']", RegexOption.IGNORE_CASE)
+            .find(script)?.groupValues?.getOrNull(1)
+            ?: script.substringAfter("action:\"").substringBefore('"')
         if (nonceAction.isBlank() || action.isBlank()) return emptyList()
 
-        val nonce = postAjax("$origin/wp-admin/admin-ajax.php", mapOf("action" to nonceAction)) ?: return emptyList()
+        val nonceRaw = postAjaxRaw("$origin/wp-admin/admin-ajax.php", mapOf("action" to nonceAction)) ?: return emptyList()
+        val nonce = extractAjaxData(nonceRaw) ?: return emptyList()
+
         val entries = Regex("data-content\\s*=\\s*[\\\"']([^\\\"']+)[\\\"']", RegexOption.IGNORE_CASE)
-            .findAll(html).mapNotNull { parseMirrorEntry(decodeHtml(it.groupValues[1])) }.toList()
+            .findAll(html)
+            .mapNotNull { parseMirrorEntry(decodeHtml(it.groupValues[1])) }
+            .toList()
 
         val results = linkedMapOf<String, PlaybackCandidate>()
         for (entry in entries.distinctBy { "${it.id}|${it.i}|${it.q}" }) {
-            val response = postAjax(
+            val response = postAjaxRaw(
                 "$origin/wp-admin/admin-ajax.php",
                 mapOf("id" to entry.id, "i" to entry.i, "q" to entry.q, "nonce" to nonce, "action" to action),
             ) ?: continue
-            val decoded = decodeBase64(response) ?: response
+            val decoded = extractAjaxData(response)?.let(::decodeBase64) ?: decodeBase64(response) ?: response
             extractIframeUrls(decoded, pageUrl).forEach { results.putIfAbsent(it, PlaybackCandidate(it, entry.q)) }
             extractInlineMedia(decoded, pageUrl).forEach { results.putIfAbsent(it, PlaybackCandidate(it, entry.q)) }
         }
@@ -88,9 +101,13 @@ class OtakudesuServerExtractor : StreamExtractor {
             clean.isDirectMediaUrl() -> listOf(ProviderStream("otakudesu", clean, quality = normalizedQuality, type = clean.toStreamType(), headers = mediaHeaders(referer)))
             clean.contains("pixeldrain.com", true) -> pixeldrain.extract(clean, referer).map { it.copy(providerId = "otakudesu", quality = it.quality ?: normalizedQuality) }
             clean.contains("krakenfiles.com", true) -> kraken.extract(clean, referer).map { it.copy(providerId = "otakudesu", quality = it.quality ?: normalizedQuality) }
-            clean.contains("desustream", true) -> resolveDesuStream(clean, referer, normalizedQuality)
+            clean.contains("desustream", true) || clean.contains("desudrive", true) || clean.contains("odstream", true) || clean.contains("odcdn", true) || clean.contains("otakuwatch", true) -> resolveDesuStream(clean, referer, normalizedQuality)
             clean.contains("mp4upload", true) -> resolveMp4Upload(clean, referer, normalizedQuality)
-            clean.contains("yourupload", true) -> resolveGenericEmbed("https://yourupload.com/embed/${clean.substringAfter("id=", "").substringBefore('&')}", referer, normalizedQuality)
+            clean.contains("yourupload", true) || clean.contains("yuplod", true) -> {
+                val id = Regex("[?&]id=([^&]+)", RegexOption.IGNORE_CASE).find(clean)?.groupValues?.getOrNull(1)
+                val normalized = if (!id.isNullOrBlank()) "https://yourupload.com/embed/$id" else clean
+                resolveGenericEmbed(normalized, referer, normalizedQuality)
+            }
             clean.contains("vidhide", true) -> resolveGenericEmbed(clean, referer, normalizedQuality)
             else -> resolveGenericEmbed(clean, referer, normalizedQuality)
         }
@@ -98,22 +115,32 @@ class OtakudesuServerExtractor : StreamExtractor {
 
     private suspend fun resolveDesuStream(url: String, referer: String, quality: String?): List<ProviderStream> {
         val html = get(url, referer) ?: return emptyList()
-        val script = Regex("<script[^>]*>(.*?)</script>", setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL))
-            .findAll(html).firstOrNull { it.groupValues[1].contains("sources", true) }?.groupValues?.get(1)
-            ?: return resolveGenericEmbed(url, referer, quality)
-        val media = Regex("file\\s*['\"]?\\s*[:=]\\s*['\"]([^'\"]+)", RegexOption.IGNORE_CASE)
-            .find(script)?.groupValues?.getOrNull(1)?.let { resolveUrl(url, decodeHtml(it)) }
-        return if (media != null) listOf(ProviderStream("otakudesu", media, quality, type = media.toStreamType(), headers = mediaHeaders(url))) else resolveGenericEmbed(url, referer, quality)
+        val scripts = Regex("<script[^>]*>(.*?)</script>", setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL))
+            .findAll(html).map { it.groupValues[1] }.toList()
+        val rawSource = Regex("(?:file|src)\\s*['\"]?\\s*[:=]\\s*['\"]([^'\"]+)", RegexOption.IGNORE_CASE)
+            .find(scripts.joinToString("\n"))?.groupValues?.getOrNull(1)
+            ?: Regex("https?://[^\\s\\\"'<>]+\\.(?:m3u8|mp4)(?:\\?[^\\s\\\"'<>]*)?", RegexOption.IGNORE_CASE)
+                .find(html)?.value
+        val media = rawSource?.let { resolveUrl(url, decodeHtml(it)) }
+        return if (media != null) {
+            listOf(ProviderStream("otakudesu", media, quality, type = media.toStreamType(), headers = mediaHeaders(url)))
+        } else {
+            resolveGenericEmbed(url, referer, quality)
+        }
     }
 
     private suspend fun resolveMp4Upload(url: String, referer: String, quality: String?): List<ProviderStream> {
         val html = get(url, referer) ?: return emptyList()
         val script = Regex("<script[^>]*>(.*?)</script>", setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL))
-            .findAll(html).firstOrNull { it.groupValues[1].contains("player.src", true) }?.groupValues?.get(1)
-            ?: return resolveGenericEmbed(url, referer, quality)
-        val media = Regex("src\\s*:\\s*['\"]([^'\"]+)", RegexOption.IGNORE_CASE)
-            .find(script)?.groupValues?.getOrNull(1)?.let { resolveUrl(url, decodeHtml(it)) }
-        return if (media != null) listOf(ProviderStream("otakudesu", media, quality, type = media.toStreamType(), headers = mediaHeaders(url))) else resolveGenericEmbed(url, referer, quality)
+            .findAll(html).map { it.groupValues[1] }.firstOrNull { it.contains("player.src", true) }
+        val media = script?.let {
+            Regex("src\\s*:\\s*['\"]([^'\"]+)", RegexOption.IGNORE_CASE).find(it)?.groupValues?.getOrNull(1)
+        }?.let { resolveUrl(url, decodeHtml(it)) }
+        return if (media != null) {
+            listOf(ProviderStream("otakudesu", media, quality, type = media.toStreamType(), headers = mediaHeaders(url)))
+        } else {
+            resolveGenericEmbed(url, referer, quality)
+        }
     }
 
     private suspend fun resolveGenericEmbed(url: String, referer: String, quality: String?): List<ProviderStream> =
@@ -144,8 +171,15 @@ class OtakudesuServerExtractor : StreamExtractor {
     }
 
     private fun parseMirrorEntry(value: String): MirrorEntry? {
-        val payload = value.removePrefix("[").removeSuffix("]")
-        val parts = payload.split(",")
+        val decoded = value.trim().removePrefix("[").removeSuffix("]")
+        val json = runCatching { JSONObject(decoded) }.getOrNull()
+        if (json != null) {
+            val id = json.optString("id").takeIf(String::isNotBlank)
+            val mirror = json.optString("i").takeIf(String::isNotBlank)
+            val quality = json.optString("q").takeIf(String::isNotBlank)
+            if (id != null && mirror != null && quality != null) return MirrorEntry(id, mirror, quality)
+        }
+        val parts = decoded.split(",")
         if (parts.size < 3) return null
         fun field(index: Int) = parts[index].substringAfter(":").replace("\"", "").trim()
         val id = field(0)
@@ -154,20 +188,36 @@ class OtakudesuServerExtractor : StreamExtractor {
         return if (id.isNotBlank() && mirror.isNotBlank()) MirrorEntry(id, mirror, quality) else null
     }
 
-    private suspend fun postAjax(endpoint: String, fields: Map<String, String>): String? = withContext(Dispatchers.IO) {
+    private suspend fun postAjaxRaw(endpoint: String, fields: Map<String, String>): String? = withContext(Dispatchers.IO) {
         runCatching {
             val body = FormBody.Builder().apply { fields.forEach { (k, v) -> add(k, v) } }.build()
-            val request = Request.Builder().url(endpoint).post(body).header("User-Agent", UA).header("X-Requested-With", "XMLHttpRequest").build()
+            val request = Request.Builder()
+                .url(endpoint)
+                .post(body)
+                .header("User-Agent", UA)
+                .header("Referer", "https://otakudesu.blog/")
+                .header("X-Requested-With", "XMLHttpRequest")
+                .build()
             client.newCall(request).execute().use { response ->
-                if (!response.isSuccessful) null else response.body?.string()?.trim()?.let { raw ->
-                    raw.substringAfter(":\"").substringBefore('"')
-                }
+                if (response.isSuccessful) response.body?.string()?.trim() else null
             }
         }.getOrNull()
     }
 
+    private fun extractAjaxData(raw: String): String? {
+        val json = runCatching { JSONObject(raw) }.getOrNull()
+        return json?.optString("data")?.takeIf(String::isNotBlank)
+            ?: Regex("[\"']data[\"']\\s*:\\s*[\"']([^\"']+)[\"']", RegexOption.IGNORE_CASE)
+                .find(raw)?.groupValues?.getOrNull(1)
+            ?: raw.substringAfter(":\\\"").substringBefore('"').takeIf { it.isNotBlank() && it != raw }
+    }
+
     private suspend fun resolveRedirect(url: String, referer: String): String? = withContext(Dispatchers.IO) {
-        runCatching { Request.Builder().url(url).header("User-Agent", UA).header("Referer", referer).build().let { request -> client.newCall(request).execute().use { it.request.url.toString() } } }.getOrNull()
+        runCatching {
+            Request.Builder().url(url).header("User-Agent", UA).header("Referer", referer).build().let { request ->
+                client.newCall(request).execute().use { it.request.url.toString() }
+            }
+        }.getOrNull()
     }
 
     private suspend fun get(url: String, referer: String?): String? = withContext(Dispatchers.IO) {
