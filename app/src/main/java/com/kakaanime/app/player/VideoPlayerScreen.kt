@@ -15,7 +15,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
+import androidx.compose.ui.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
@@ -35,7 +35,7 @@ import com.kakaanime.app.provider.StreamQuality
 import kotlinx.coroutines.delay
 
 @Composable
-fun VideoPlayerScreen(videoUrl: String, title: String = "One Piece", episodeNumber: Int = 1140, description: String = "", introStart: Long = 0L, introEnd: Long = 0L, outroStart: Long = 0L, outroEnd: Long = 0L, isPremium: Boolean = false, episodes: List<ProviderEpisode> = emptyList(), watchedEpisodes: Set<Int> = emptySet(), modifier: Modifier = Modifier, onBack: () -> Unit = {}, onPreviousEpisode: () -> Unit = {}, onNextEpisode: () -> Unit = {}, onEpisodeClick: (Int) -> Unit = {}) {
+fun VideoPlayerScreen(videoUrl: String, title: String = "One Piece", episodeNumber: Int = 1140, description: String = "", introStart: Long = 0L, introEnd: Long = 0L, outroStart: Long = 0L, outroEnd: Long = 0L, isPremium: Boolean = false, episodes: List<ProviderEpisode> = emptyList(), watchedEpisodes: Set<Int> = emptySet(), modifier: Modifier = Modifier, onBack: () -> Unit = {}, onPreviousEpisode: () -> Unit = {}, onNextEpisode: () -> Unit = {}, onEpisodeClick: (Int) -> Unit = {}, onRenderedFirstFrame: () -> Unit = {}) {
     val context = LocalContext.current
     val activity = context as? Activity
     val configuration = LocalConfiguration.current
@@ -56,6 +56,16 @@ fun VideoPlayerScreen(videoUrl: String, title: String = "One Piece", episodeNumb
     val playerController = rememberPlayerController(context)
     val playerState = rememberPlayerState(playerController)
     val player = playerController.player
+
+    DisposableEffect(player, videoUrl, episodeNumber) {
+        val listener = object : Player.Listener {
+            override fun onRenderedFirstFrame() {
+                onRenderedFirstFrame()
+            }
+        }
+        player.addListener(listener)
+        onDispose { player.removeListener(listener) }
+    }
 
     LaunchedEffect(videoUrl) { playerController.setVideo(videoUrl) }
     LaunchedEffect(Unit) {
@@ -187,10 +197,7 @@ fun VideoPlayerScreen(videoUrl: String, title: String = "One Piece", episodeNumb
                             listOf("360p", "480p", "720p").forEach { quality ->
                                 DropdownMenuItem(text = { Text(if (quality == selectedQuality) "✓ $quality" else quality) }, onClick = { qualityRequest = quality; showQualityMenu = false })
                             }
-                            DropdownMenuItem(
-                                text = { Row(verticalAlignment = Alignment.CenterVertically) { Text("1080p"); Spacer(Modifier.width(8.dp)); Icon(Icons.Filled.Lock, "Premium", tint = colors.primary, modifier = Modifier.size(16.dp)) } },
-                                onClick = { if (isPremium) { qualityRequest = "1080p"; showQualityMenu = false } }
-                            )
+                            DropdownMenuItem(text = { Row(verticalAlignment = Alignment.CenterVertically) { Text("1080p"); Spacer(Modifier.width(8.dp)); Icon(Icons.Filled.Lock, "Premium", tint = colors.primary, modifier = Modifier.size(16.dp)) } }, onClick = { if (isPremium) { qualityRequest = "1080p"; showQualityMenu = false } })
                         }
                     }
                 }
