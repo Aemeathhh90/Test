@@ -36,8 +36,6 @@ class OtakudesuHostExtractor : StreamExtractor {
         val html = get(url, referer) ?: return@withContext emptyList()
         val results = linkedMapOf<String, ProviderStream>()
 
-        // CloudStream's FileDon/UserVideo/UserDrive/SameVideo path reads
-        // div#app[data-page] and takes props.url from the embedded JSON.
         Regex("<div[^>]+id=[\\\"']app[\\\"'][^>]+data-page=[\\\"']([^\\\"']+)[\\\"']", RegexOption.IGNORE_CASE)
             .find(html)?.groupValues?.getOrNull(1)?.let { raw ->
                 runCatching {
@@ -48,9 +46,6 @@ class OtakudesuHostExtractor : StreamExtractor {
                 }
             }
 
-        // Generic host-page sources are intentionally accepted even when the
-        // final URL has no extension; StreamValidator will classify it from
-        // response headers/body instead of guessing MP4 here.
         val patterns = listOf(
             "<source[^>]+(?:src|data-src)=[\\\"']([^\\\"']+)",
             "<video[^>]+(?:src|data-src)=[\\\"']([^\\\"']+)",
@@ -74,12 +69,11 @@ class OtakudesuHostExtractor : StreamExtractor {
     private fun addMedia(results: MutableMap<String, ProviderStream>, url: String, referer: String) {
         val clean = url.trim()
         if (!clean.startsWith("http", true)) return
+        val path = clean.substringBefore('?').substringBefore('#')
         val type = when {
-            clean.substringBefore('?').substringBefore('#').endsWith(".m3u8", true) -> StreamType.HLS
-            clean.substringBefore('?').substringBefore('#').endsWith(".mpd", true) -> StreamType.DASH
-            clean.substringBefore('?').substringBefore('#").endsWith(".mp4", true) ||
-                clean.substringBefore('?').substringBefore('#").endsWith(".mkv", true) ||
-                clean.substringBefore('?').substringBefore('#").endsWith(".webm", true) -> StreamType.MP4
+            path.endsWith(".m3u8", true) -> StreamType.HLS
+            path.endsWith(".mpd", true) -> StreamType.DASH
+            path.endsWith(".mp4", true) || path.endsWith(".mkv", true) || path.endsWith(".webm", true) -> StreamType.MP4
             else -> StreamType.UNKNOWN
         }
         results.putIfAbsent(clean, ProviderStream("otakudesu", clean, type = type, headers = mapOf("User-Agent" to UA, "Referer" to referer)))
