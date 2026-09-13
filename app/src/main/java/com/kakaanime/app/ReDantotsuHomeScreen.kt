@@ -28,6 +28,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -39,6 +40,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.kakaanime.app.network.AnimeRepository
 
 @Composable
 fun ReDantotsuHomeScreen(
@@ -46,7 +48,13 @@ fun ReDantotsuHomeScreen(
     onAnimeClick: (Anime) -> Unit
 ) {
     var search by remember { mutableStateOf("") }
-    val filtered = animeList.filter { it.title.contains(search, ignoreCase = true) }
+    var backendAnime by remember(animeList) { mutableStateOf(animeList) }
+
+    LaunchedEffect(animeList) {
+        backendAnime = AnimeRepository.loadAnime(animeList)
+    }
+
+    val filtered = backendAnime.filter { it.title.contains(search, ignoreCase = true) }
 
     LazyColumn(
         modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background),
@@ -60,12 +68,12 @@ fun ReDantotsuHomeScreen(
             if (filtered.isEmpty()) item { EmptyHomeState() }
             else items(filtered) { anime -> SearchAnimeRow(anime, onAnimeClick) }
         } else {
-            item { FeaturedReferenceCard(animeList.firstOrNull(), onAnimeClick) }
-            item { HomeAnimeSection("Continue Watching", animeList, onAnimeClick, showProgress = true) }
-            item { HomeAnimeSection("Trending", animeList, onAnimeClick) }
-            item { HomeAnimeSection("New Updates", animeList.reversed(), onAnimeClick, badge = "NEW") }
-            item { HomeAnimeSection("Anime Completed", animeList.filter { it.status == "Finished" }, onAnimeClick, badge = "COMPLETED") }
-            item { HomeAnimeSection("Recommended", animeList.reversed(), onAnimeClick) }
+            item { FeaturedReferenceCard(backendAnime.firstOrNull(), onAnimeClick) }
+            item { HomeAnimeSection("Continue Watching", backendAnime, onAnimeClick, showProgress = true) }
+            item { HomeAnimeSection("Trending", backendAnime, onAnimeClick) }
+            item { HomeAnimeSection("New Updates", backendAnime.sortedByDescending { it.latestEpisode }, onAnimeClick, badge = "NEW") }
+            item { HomeAnimeSection("Anime Completed", backendAnime.filter { it.status.equals("Finished", ignoreCase = true) }, onAnimeClick, badge = "COMPLETED") }
+            item { HomeAnimeSection("Recommended", backendAnime.reversed(), onAnimeClick) }
             item { HomePremiumReferenceCard() }
         }
     }
@@ -90,11 +98,7 @@ private fun HomeReferenceHeader(search: String, onSearchChanged: (String) -> Uni
             }
         }
 
-        Surface(
-            Modifier.fillMaxWidth(),
-            RoundedCornerShape(22.dp),
-            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = .72f)
-        ) {
+        Surface(Modifier.fillMaxWidth(), RoundedCornerShape(22.dp), color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = .72f)) {
             Row(Modifier.padding(horizontal = 15.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
                 Icon(Icons.Outlined.Search, contentDescription = "Cari", tint = MaterialTheme.colorScheme.onSurfaceVariant)
                 Spacer(Modifier.width(10.dp))
@@ -117,10 +121,7 @@ private fun HomeReferenceHeader(search: String, onSearchChanged: (String) -> Uni
 @Composable
 private fun FeaturedReferenceCard(anime: Anime?, onClick: (Anime) -> Unit) {
     if (anime == null) return
-    Box(
-        Modifier.fillMaxWidth().height(285.dp).clip(RoundedCornerShape(26.dp)).clickable { onClick(anime) }
-            .background(Brush.verticalGradient(listOf(MaterialTheme.colorScheme.surfaceVariant, MaterialTheme.colorScheme.surface, MaterialTheme.colorScheme.background)))
-    ) {
+    Box(Modifier.fillMaxWidth().height(285.dp).clip(RoundedCornerShape(26.dp)).clickable { onClick(anime) }.background(Brush.verticalGradient(listOf(MaterialTheme.colorScheme.surfaceVariant, MaterialTheme.colorScheme.surface, MaterialTheme.colorScheme.background)))) {
         Column(Modifier.align(Alignment.BottomStart).padding(20.dp)) {
             Text("FEATURED", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
             Spacer(Modifier.height(4.dp))
