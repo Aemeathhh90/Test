@@ -26,8 +26,9 @@ import com.kakaanime.app.player.VideoPlayerScreen
 import com.kakaanime.app.premium.PremiumScreen
 import com.kakaanime.app.provider.ProviderEpisode
 import com.kakaanime.app.provider.ProviderPlaybackResolver
+import com.kakaanime.app.ui.theme.KakaAccent
 import com.kakaanime.app.ui.theme.KakaAnimeTheme
-import com.kakaanime.app.ui.theme.rememberKakaThemeState
+import com.kakaanime.app.ui.theme.KakaThemeState
 
 data class Anime(val title:String,val latestEpisode:Int,val genre:String,val description:String,val studio:String,val season:String,val year:String,val type:String,val status:String,val rating:String,val introStart:Long=0L,val introEnd:Long=0L,val outroStart:Long=0L,val outroEnd:Long=0L)
 val localAnime=listOf(Anime("One Piece",1140,"Action, Adventure, Fantasy","Monkey D. Luffy dan kru Topi Jerami melanjutkan perjalanan mereka menuju One Piece.","Toei Animation","Ongoing","1999","TV","Ongoing","9.0",90L,180L,1380L,1440L),Anime("Solo Leveling",25,"Action, Fantasy","Sung Jin-woo berkembang dari hunter terlemah menjadi hunter yang sangat kuat.","A-1 Pictures","Season 2","2025","TV","Finished","8.8",75L,165L,1380L,1440L))
@@ -35,7 +36,7 @@ private enum class AnimeScreen{HOME,DETAIL,PLAYER,PREMIUM}
 enum class BottomTab{HOME,CALENDAR,HISTORY,FAVORITE,PROFILE}
 class MainActivity:ComponentActivity(){override fun onCreate(savedInstanceState:Bundle?){super.onCreate(savedInstanceState);setContent{KakaAnimeApp()}}}
 @Composable fun KakaAnimeApp(){
- val themeState=rememberKakaThemeState(); val context=LocalContext.current; val preferences=remember(context){KakaAnimePreferences(context)}; val rewardedAds=remember(context){AdMobRewardedAdGateway(context)}
+ val context=LocalContext.current; val preferences=remember(context){KakaAnimePreferences(context)}; val themeState=remember(preferences){KakaThemeState(accent=runCatching{KakaAccent.valueOf(preferences.loadAccentName())}.getOrDefault(KakaAccent.Blue),darkMode=preferences.loadDarkMode())}; val rewardedAds=remember(context){AdMobRewardedAdGateway(context)}
  var selectedAnime by remember{mutableStateOf<Anime?>(null)}; var selectedEpisode by remember{mutableStateOf<Int?>(null)}; var selectedTab by remember{mutableStateOf(BottomTab.HOME)}; var showPremium by remember{mutableStateOf(false)}; var resolvedStreamUrl by remember{mutableStateOf<String?>(null)}; var streamLoading by remember{mutableStateOf(false)}; var streamRetry by remember{mutableIntStateOf(0)}; var providerEpisodes by remember{mutableStateOf<List<ProviderEpisode>>(emptyList())}; var episodeListLoading by remember{mutableStateOf(false)}; var homeRefreshKey by remember{mutableIntStateOf(0)}
  var favoriteTitles by remember(preferences){mutableStateOf(preferences.loadFavoriteTitles())}; var watchedEpisodes by remember(preferences){mutableStateOf(preferences.loadWatchedEpisodes())}; var watchedEpisodeNumbers by remember(preferences){mutableStateOf(preferences.loadWatchHistory().groupBy { it.title }.mapValues { (_, entries) -> entries.map { it.episode }.toSet() })}; var monetizationState by remember(preferences){mutableStateOf(MonetizationState(preferences.loadDiamonds(),preferences.loadPremium()))}
  fun recordWatched(anime:Anime,episode:Int){val providerEpisode=providerEpisodes.firstOrNull{it.number==episode}; preferences.recordWatchedEpisode(anime.title,episode,providerEpisode?.title,providerEpisode?.thumbnailUrl); watchedEpisodes=watchedEpisodes+(anime.title to episode); preferences.saveWatchedEpisodes(watchedEpisodes); watchedEpisodeNumbers=watchedEpisodeNumbers.toMutableMap().apply{put(anime.title,(get(anime.title).orEmpty()+episode).toSet())}; homeRefreshKey++}
