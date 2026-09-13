@@ -7,7 +7,8 @@ object ProviderPlaybackResolver {
     suspend fun resolve(
         title: String,
         episodeNumber: Int,
-        premium: Boolean
+        premium: Boolean,
+        preferredQuality: StreamQuality? = null
     ): NormalizedStream? {
         val candidates = engine.search(title)
         if (candidates.isEmpty()) return null
@@ -20,6 +21,7 @@ object ProviderPlaybackResolver {
                 engine.getBestStream(
                     animeId = candidate.id,
                     episodeNumber = episodeNumber,
+                    preferredQuality = preferredQuality,
                     premium = premium
                 )
             }.getOrNull()
