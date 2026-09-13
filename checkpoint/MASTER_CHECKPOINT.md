@@ -19,7 +19,7 @@ Provider tidak lagi menjadi blocker utama setelah E2E provider yang sedang berja
 | Area | Status | Keterangan |
 |---|---|---|
 | 🟡 Provider E2E aktif | **Otakudesu/Samehadaku validation** | Selesaikan test yang sedang berjalan; jangan melakukan perubahan provider tanpa audit hasil test |
-| 🔴 Core App | **Prioritas berikutnya** | Home → Detail → Episode → Player dan fitur inti aplikasi |
+| 🟡 Core App | **UI + feature implementation berjalan** | Home/Detail/Player progress aktif; Calendar UI reference implementation selesai, menunggu build/runtime verification |
 | 🔴 Provider expansion | **Ditunda** | Provider tambahan dikerjakan setelah core aplikasi stabil |
 
 ### Provider Gate
@@ -108,7 +108,14 @@ Setelah E2E provider yang sedang berjalan selesai dicatat, fokus utama berpindah
 9. 🔴 **New Update / Notification**
    - update episode untuk anime yang diikuti/difavorite
 
-10. 🧪 **Integration Testing & Bug Hunting**
+10. 🟡 **Calendar / Schedule UI**
+   - reference screenshot audit: 🟢
+   - AniList schedule metadata: 🟢
+   - seven-day selector + timeline + airing/countdown cards: 🟢
+   - Android build/runtime verification: 🟡
+   - visual device comparison: 🟡
+
+11. 🧪 **Integration Testing & Bug Hunting**
    - Search → Detail → Episode → Provider → Stream → Player
    - network failure
    - loading/error state
@@ -118,6 +125,8 @@ Setelah E2E provider yang sedang berjalan selesai dicatat, fokus utama berpindah
    - bug yang muncul dari pemakaian aplikasi end-to-end
 
 Provider tambahan dikerjakan **setelah** core app cukup stabil untuk menjadi target integration testing.
+
+Provider expansion bukan blocker untuk Calendar/Core UI.
 
 ---
 
@@ -304,13 +313,35 @@ Fondasi tersedia; detail backend perlu diaudit terhadap source terbaru sebelum p
 
 ---
 
+## 🔵 Calendar / Schedule Audit Addendum
+
+Reference utama adalah screenshot Schedule yang diberikan Shin. ReDantotsu v1.0.7 mengonfirmasi pola countdown badge pada Calendar/Home dan indikator episode yang tayang hari ini. AniSync menjadi referensi tambahan untuk weekly airing calendar native Android. KakaAnime mengimplementasikan pola tersebut secara native Compose tanpa menambah library calendar.
+
+Commit UI/data:
+- `8fbf1a209aa3bed89ed4e7517c7557639ce2f573` — enrich AniList schedule metadata + pagination + include today's aired entries.
+- `8c9afab9e896fa26616d7554828c237261fff26b` — Schedule UI redesign.
+- `514691be036794f393835a27da12f933bf678687` — Calendar checkpoint.
+
+Detail checkpoint: `checkpoint/ui/CALENDAR_UI_REFERENCE_2026-09-13.md`
+
+Status:
+- 🟢 Reference audit
+- 🟢 AniList metadata mapping
+- 🟢 Seven-day selector
+- 🟢 Timeline + cards
+- 🟢 Aired/Airing Soon + countdown
+- 🟡 Android build/runtime verification
+- 🟡 Real-device visual comparison
+
+---
+
 ## 🔴 Berikutnya
 
 1. Jalankan E2E provider yang sedang ditunggu dan catat hasilnya.
 2. Jika PASS → checkpoint → jangan jadikan provider sebagai blocker; pindah ke Core App.
 3. Jika FAIL → audit error/log baru satu kali secara terarah.
 4. Jika FAIL tersebut tidak memblokir core → checkpoint penyebab → **PAUSE PROVIDER**.
-5. Mulai **Core App Roadmap**: Home V1 → Detail → Favorite/Library → History → Video Player → Premium/Diamond/Ads → Settings → Notification.
+5. Lanjutkan Core App Roadmap dan lakukan Android build/runtime verification untuk Calendar serta fitur UI yang baru diubah.
 6. Setelah core cukup stabil → **Integration Testing & Bug Hunting** memakai provider yang tersedia.
 7. Buka kembali provider tambahan satu per satu berdasarkan bug/coverage yang ditemukan saat integration testing.
 
