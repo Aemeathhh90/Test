@@ -18,8 +18,8 @@
 
 | Provider | Status | Keterangan |
 |---|---|---|
-| 🟢 Otakudesu | **E2E PASS** | First frame terbukti di Media3 |
-| 🟡 Samehadaku | **Sedang dites** | Target One Piece Episode 7; discovery HTML-first; UNKNOWN stream fix applied, E2E pending |
+| 🟢 Otakudesu | **E2E PASS** | First frame terbukti di Media3; LOCKED |
+| 🟡 Samehadaku | **Sedang dites** | Target One Piece Episode 7; extensionless-embed fix applied, E2E pending |
 | 🔴 27 provider lainnya | Belum tervalidasi | Belum boleh dihitung green |
 
 **P0:** 🔴 Belum selesai
@@ -87,21 +87,35 @@ Samehadaku HTML source
  → SamehadakuEpisodeExtractor
  → Host Extractor Registry
  → Stream Resolver / Validator
- → Browser fallback over extracted player URLs when needed
+ → extensionless embed-page fallback
+ → Browser fallback when needed
  → Media3
  → onRenderedFirstFrame()
 ```
 
-Latest UNKNOWN-stream fix:
+### Latest fix — extensionless embed
+
+Bitrise Build #57 proved the flow could reach stream resolution but still selected an `UNKNOWN` stream type. The reference audit found that CloudStream's Samehadaku implementation performs a second-stage GET on extensionless embed URLs and extracts `<video><source>` / equivalent media URLs.
+
+AniLab now implements that pattern natively in `SamehadakuEpisodeExtractor`:
+- existing host extractor path remains first;
+- if no typed host stream is produced, fetch the embed page;
+- parse `video source`, `source`, `video` media URLs and `data-page` URL payloads;
+- preserve embed URL as Referer;
+- extensionless media remains UNKNOWN initially so the existing strict `StreamValidator` can prove its actual type.
+
+Code commit: `68fb9f51d689b8139d507b2393a05f90a1909fbd`  
+Checkpoint: `checkpoint/builds/BUILD_061_SAMEHADAKU_EXTENSIONLESS_EMBED_FIX.md`
+
+Previous UNKNOWN-stream fix remains:
 - `StreamValidator`: UNKNOWN + HTTP 206 is no longer accepted as valid; supported formats are probed before classification.
-- `StreamResolver`: browser fallback now tries extracted URLs plus original input URLs.
+- `StreamResolver`: browser fallback tries extracted URLs plus original input URLs.
 - Checkpoint: `checkpoint/builds/BUILD_060_UNKNOWN_STREAM_FIX.md`
-- E2E validation is still pending.
+
+E2E validation is still pending. Status remains 🟡 until `onRenderedFirstFrame()` is proven.
 
 Bitrise `provider_e2e` / GitHub Actions provider workflow targets:
 `SamehadakuProviderE2ETest#onePieceEpisodeSevenRendersFirstFrame`
-
-Status tetap 🟡 sampai first-frame PASS terbukti.
 
 ---
 
@@ -194,7 +208,7 @@ Fondasi tersedia; detail backend perlu diaudit terhadap source terbaru sebelum p
 
 ## 🔴 Berikutnya
 
-1. Rerun Samehadaku E2E setelah UNKNOWN stream fix.
+1. Jalankan Bitrise Samehadaku E2E setelah extensionless-embed fix.
 2. Jika FAIL, baca error/log baru sebelum perubahan berikutnya.
 3. Jika masalah baru membutuhkan pengetahuan eksternal, lakukan reference check lagi.
 4. Sahkan Samehadaku hanya dengan `onRenderedFirstFrame()`.
