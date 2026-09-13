@@ -9,17 +9,10 @@ import kotlinx.coroutines.withContext
 import okhttp3.FormBody
 import okhttp3.OkHttpClient
 import okhttp3.Request
-import org.json.JSONArray
-import org.json.JSONObject
 import java.net.URI
 import java.util.concurrent.TimeUnit
 
-/**
- * Otakudesu-specific server resolver.
- *
- * CloudStream-style flow:
- * episode page -> mirror/server discovery -> host extractor -> final media.
- */
+/** Otakudesu: episode -> mirror AJAX -> embed host -> final media URL. */
 class OtakudesuServerExtractor : StreamExtractor {
     override val id = "otakudesu-server"
     override val priority = 100
@@ -39,7 +32,7 @@ class OtakudesuServerExtractor : StreamExtractor {
     override fun canHandle(url: String): Boolean {
         val value = url.trim().lowercase()
         return value.startsWith("http") && value.contains("otakudesu.") &&
-            (value.contains("/episode/") || value.contains("/episodes/") || value.contains("-episode-"))
+            (value.contains("/episode") || value.contains("-episode-"))
     }
 
     override suspend fun extract(url: String, referer: String?): List<ProviderStream> = withContext(Dispatchers.IO) {
@@ -47,72 +40,95 @@ class OtakudesuServerExtractor : StreamExtractor {
         val results = linkedMapOf<String, ProviderStream>()
 
         resolveMirrorStream(url, html).forEach { candidate ->
-            resolveExternal(candidate, url).forEach { stream -> results.putIfAbsent(stream.url, stream) }
+            resolveExternal(candidate.url, url, candidate.quality).forEach { results.putIfAbsent(it.url, it) }
         }
         discoverDownloadLinks(url, html).forEach { candidate ->
-            resolveExternal(candidate.url, url, candidate.quality).forEach { stream -> results.putIfAbsent(stream.url, stream) }
+            resolveExternal(candidate.url, url, candidate.quality).forEach { results.putIfAbsent(it.url, it) }
         }
         if (results.isEmpty()) {
             extractInlineMedia(html, url).forEach { media ->
-                results.putIfAbsent(media, ProviderStream("otakudesu", media, type = media.toStreamType(), headers = mapOf("Referer" to url)))
+                results.putIfAbsent(media, ProviderStream("otakudesu", media, type = media.toStreamType(), headers = mediaHeaders(url)))
             }
         }
         results.values.toList()
     }
 
-    private suspend fun resolveMirrorStream(pageUrl: String, html: String): List<String> {
-        val host = runCatching { URI(pageUrl).let { "${it.scheme}://${it.authority}" } }.getOrNull() ?: return emptyList()
-        val scripts = Regex("<script[^>]*>(.*?)</script>", setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL))
-            .findAll(html).map { it.groupValues[1] }.filter { it.contains("action:", true) }.toList()
-        if (scripts.isEmpty()) return emptyList()
+    private suspend fun resolveMirrorStream(pageUrl: String, html: String): List<PlaybackCandidate> {
+        val origin = runCatching { URI(pageUrl).let { "${it.scheme}://${it.authority}" } }.getOrNull() ?: return emptyList()
+        val script = Regex("<script[^>]*>(.*?)</script>", setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL))
+            .findAll(html).map { it.groupValues[1] }
+            .firstOrNull { it.contains("{action:", true) && it.contains("action:\"", true) }
+            ?: return emptyList()
 
-        val actions = scripts.asSequence().flatMap { script ->
-            Regex("(?:^|[,\\{\\s])action\\s*:\\s*[\\\"']([^\\\"']+)[\\\"']", RegexOption.IGNORE_CASE)
-                .findAll(script).map { it.groupValues[1] }.asSequence()
-        }.distinct().toList()
-        if (actions.size < 2) return emptyList()
+        val nonceAction = script.substringAfter("{action:\"").substringBefore('"')
+        val action = script.substringAfter("action:\"").substringBefore('"')
+        if (nonceAction.isBlank() || action.isBlank()) return emptyList()
 
-        val nonce = postAjax(host, mapOf("action" to actions.first())) ?: return emptyList()
-        val action = actions[1]
-        val mirrorEntries = Regex("(?:data-content|data-video|data-src)\\s*=\\s*[\\\"']([^\\\"']+)[\\\"']", RegexOption.IGNORE_CASE)
-            .findAll(html).flatMap { match ->
-                val raw = decodeHtml(match.groupValues[1])
-                (decodeBase64(raw)?.let { parseMirrorEntries(it) } ?: parseMirrorEntries(raw)).asSequence()
-            }.toList()
+        val nonce = postAjax("$origin/wp-admin/admin-ajax.php", mapOf("action" to nonceAction)) ?: return emptyList()
+        val entries = Regex("data-content\\s*=\\s*[\\\"']([^\\\"']+)[\\\"']", RegexOption.IGNORE_CASE)
+            .findAll(html).mapNotNull { parseMirrorEntry(decodeHtml(it.groupValues[1])) }.toList()
 
-        val results = linkedSetOf<String>()
-        for (entry in mirrorEntries.distinctBy { "${it.id}|${it.i}|${it.q}" }) {
-            val response = postAjax("$host/wp-admin/admin-ajax.php", mapOf("id" to entry.id, "i" to entry.i, "q" to entry.q, "nonce" to nonce, "action" to action)) ?: continue
+        val results = linkedMapOf<String, PlaybackCandidate>()
+        for (entry in entries.distinctBy { "${it.id}|${it.i}|${it.q}" }) {
+            val response = postAjax(
+                "$origin/wp-admin/admin-ajax.php",
+                mapOf("id" to entry.id, "i" to entry.i, "q" to entry.q, "nonce" to nonce, "action" to action),
+            ) ?: continue
             val decoded = decodeBase64(response) ?: response
-            extractIframeUrls(decoded, pageUrl).forEach(results::add)
-            extractInlineMedia(decoded, pageUrl).forEach(results::add)
+            extractIframeUrls(decoded, pageUrl).forEach { results.putIfAbsent(it, PlaybackCandidate(it, entry.q)) }
+            extractInlineMedia(decoded, pageUrl).forEach { results.putIfAbsent(it, PlaybackCandidate(it, entry.q)) }
         }
-        return results.toList()
-    }
-
-    private suspend fun discoverDownloadLinks(pageUrl: String, html: String): List<DownloadCandidate> {
-        val result = mutableListOf<DownloadCandidate>()
-        val liPattern = Regex("<li[^>]*>(.*?)</li>", setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL))
-        for (li in liPattern.findAll(html)) {
-            val block = li.groupValues[1]
-            if (!block.contains("href=", true)) continue
-            val quality = Regex("(\\d{3,4})\\s*[pP]").find(block)?.groupValues?.getOrNull(1)
-            Regex("href\\s*=\\s*[\\\"']([^\\\"']+)[\\\"']", RegexOption.IGNORE_CASE).findAll(block).forEach { match ->
-                resolveUrl(pageUrl, decodeHtml(match.groupValues[1]))?.let { result += DownloadCandidate(it, quality) }
-            }
-        }
-        return result.distinctBy { it.url }
+        return results.values.toList()
     }
 
     private suspend fun resolveExternal(url: String, referer: String, quality: String? = null): List<ProviderStream> {
         val clean = resolveRedirect(url, referer) ?: url
         val normalizedQuality = quality ?: Regex("(\\d{3,4})[pP]").find(clean)?.groupValues?.getOrNull(1)
         return when {
-            clean.isDirectMediaUrl() -> listOf(ProviderStream("otakudesu", clean, quality = normalizedQuality, type = clean.toStreamType(), headers = mapOf("Referer" to referer)))
-            clean.contains("pixeldrain.com", true) -> pixeldrain.extract(clean, referer).map { it.copy(quality = it.quality ?: normalizedQuality) }
-            clean.contains("krakenfiles.com", true) -> kraken.extract(clean, referer).map { it.copy(quality = it.quality ?: normalizedQuality) }
-            else -> genericEmbed.extract(clean, referer).map { it.copy(providerId = "otakudesu", quality = it.quality ?: normalizedQuality) }
+            clean.isDirectMediaUrl() -> listOf(ProviderStream("otakudesu", clean, quality = normalizedQuality, type = clean.toStreamType(), headers = mediaHeaders(referer)))
+            clean.contains("pixeldrain.com", true) -> pixeldrain.extract(clean, referer).map { it.copy(providerId = "otakudesu", quality = it.quality ?: normalizedQuality) }
+            clean.contains("krakenfiles.com", true) -> kraken.extract(clean, referer).map { it.copy(providerId = "otakudesu", quality = it.quality ?: normalizedQuality) }
+            clean.contains("desustream", true) -> resolveDesuStream(clean, referer, normalizedQuality)
+            clean.contains("mp4upload", true) -> resolveMp4Upload(clean, referer, normalizedQuality)
+            clean.contains("yourupload", true) -> resolveGenericEmbed("https://yourupload.com/embed/${clean.substringAfter("id=", "").substringBefore('&')}", referer, normalizedQuality)
+            clean.contains("vidhide", true) -> resolveGenericEmbed(clean, referer, normalizedQuality)
+            else -> resolveGenericEmbed(clean, referer, normalizedQuality)
         }
+    }
+
+    private suspend fun resolveDesuStream(url: String, referer: String, quality: String?): List<ProviderStream> {
+        val html = get(url, referer) ?: return emptyList()
+        val script = Regex("<script[^>]*>(.*?)</script>", setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL))
+            .findAll(html).firstOrNull { it.groupValues[1].contains("sources", true) }?.groupValues?.get(1)
+            ?: return resolveGenericEmbed(url, referer, quality)
+        val media = Regex("file\\s*['\"]?\\s*[:=]\\s*['\"]([^'\"]+)", RegexOption.IGNORE_CASE)
+            .find(script)?.groupValues?.getOrNull(1)?.let { resolveUrl(url, decodeHtml(it)) }
+        return if (media != null) listOf(ProviderStream("otakudesu", media, quality, type = media.toStreamType(), headers = mediaHeaders(url))) else resolveGenericEmbed(url, referer, quality)
+    }
+
+    private suspend fun resolveMp4Upload(url: String, referer: String, quality: String?): List<ProviderStream> {
+        val html = get(url, referer) ?: return emptyList()
+        val script = Regex("<script[^>]*>(.*?)</script>", setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL))
+            .findAll(html).firstOrNull { it.groupValues[1].contains("player.src", true) }?.groupValues?.get(1)
+            ?: return resolveGenericEmbed(url, referer, quality)
+        val media = Regex("src\\s*:\\s*['\"]([^'\"]+)", RegexOption.IGNORE_CASE)
+            .find(script)?.groupValues?.getOrNull(1)?.let { resolveUrl(url, decodeHtml(it)) }
+        return if (media != null) listOf(ProviderStream("otakudesu", media, quality, type = media.toStreamType(), headers = mediaHeaders(url))) else resolveGenericEmbed(url, referer, quality)
+    }
+
+    private suspend fun resolveGenericEmbed(url: String, referer: String, quality: String?): List<ProviderStream> =
+        genericEmbed.extract(url, referer).map { it.copy(providerId = "otakudesu", quality = it.quality ?: quality) }
+
+    private suspend fun discoverDownloadLinks(pageUrl: String, html: String): List<PlaybackCandidate> {
+        val result = mutableListOf<PlaybackCandidate>()
+        Regex("<li[^>]*>(.*?)</li>", setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL)).findAll(html).forEach { match ->
+            val block = match.groupValues[1]
+            val quality = Regex("(\\d{3,4})\\s*[pP]").find(block)?.groupValues?.getOrNull(1)
+            Regex("href\\s*=\\s*[\\\"']([^\\\"']+)[\\\"']", RegexOption.IGNORE_CASE).findAll(block).forEach { href ->
+                resolveUrl(pageUrl, decodeHtml(href.groupValues[1]))?.let { result += PlaybackCandidate(it, quality) }
+            }
+        }
+        return result.distinctBy { it.url }
     }
 
     private fun extractIframeUrls(html: String, baseUrl: String): List<String> = Regex("<iframe[^>]+(?:src|data-src)\\s*=\\s*[\\\"']([^\\\"']+)[\\\"']", RegexOption.IGNORE_CASE)
@@ -120,54 +136,53 @@ class OtakudesuServerExtractor : StreamExtractor {
 
     private fun extractInlineMedia(html: String, baseUrl: String): List<String> {
         val urls = linkedSetOf<String>()
-        listOf(
-            Regex("(?:file|src|source|hls|m3u8|videoUrl|video_url|playlist)\\s*[=:]\\s*[\\\"']([^\\\"']+)[\\\"']", RegexOption.IGNORE_CASE),
-            Regex("https?://[^\\s\\\"'<>]+\\.(?:m3u8|mpd|mp4|mkv|webm)(?:\\?[^\\s\\\"'<>]*)?", RegexOption.IGNORE_CASE)
-        ).forEach { pattern ->
-            pattern.findAll(html).forEach { match ->
-                val raw = match.groupValues.getOrNull(1)?.ifBlank { match.value } ?: return@forEach
-                resolveUrl(baseUrl, decodeHtml(raw))?.takeIf { it.isDirectMediaUrl() }?.let(urls::add)
-            }
-        }
+        Regex("(?:file|src|source|hls|m3u8|videoUrl|video_url|playlist)\\s*[=:]\\s*[\\\"']([^\\\"']+)[\\\"']", RegexOption.IGNORE_CASE)
+            .findAll(html).forEach { match -> resolveUrl(baseUrl, decodeHtml(match.groupValues[1]))?.takeIf { it.isDirectMediaUrl() }?.let(urls::add) }
+        Regex("https?://[^\\s\\\"'<>]+\\.(?:m3u8|mpd|mp4|mkv|webm)(?:\\?[^\\s\\\"'<>]*)?", RegexOption.IGNORE_CASE)
+            .findAll(html).forEach { urls.add(it.value) }
         return urls.toList()
     }
 
-    private suspend fun resolveRedirect(url: String, referer: String): String? = withContext(Dispatchers.IO) {
-        runCatching {
-            val request = Request.Builder().url(url).header("User-Agent", UA).header("Referer", referer).build()
-            client.newCall(request).execute().use { response -> response.request.url.toString() }
-        }.getOrNull()
-    }
-
-    private suspend fun get(url: String, referer: String?): String? = withContext(Dispatchers.IO) {
-        runCatching {
-            val request = Request.Builder().url(url).header("User-Agent", UA).header("Accept-Language", "id-ID,id;q=0.9,en-US;q=0.8").apply { if (!referer.isNullOrBlank()) header("Referer", referer) }.build()
-            client.newCall(request).execute().use { response -> if (response.isSuccessful) response.body?.string() else null }
-        }.getOrNull()
+    private fun parseMirrorEntry(value: String): PlaybackCandidate? {
+        val payload = value.removePrefix("[").removeSuffix("]")
+        val parts = payload.split(",")
+        if (parts.size < 3) return null
+        fun field(index: Int) = parts[index].substringAfter(":").replace("\"", "").trim()
+        val id = field(0); val mirror = field(1); val quality = field(2)
+        return if (id.isNotBlank() && mirror.isNotBlank()) PlaybackCandidate("$id|$mirror", quality).copy(url = "$id|$mirror") else null
     }
 
     private suspend fun postAjax(endpoint: String, fields: Map<String, String>): String? = withContext(Dispatchers.IO) {
         runCatching {
             val body = FormBody.Builder().apply { fields.forEach { (k, v) -> add(k, v) } }.build()
-            val request = Request.Builder().url(if (endpoint.endsWith("admin-ajax.php")) endpoint else "$endpoint/wp-admin/admin-ajax.php").post(body).header("User-Agent", UA).build()
+            val request = Request.Builder().url(endpoint).post(body).header("User-Agent", UA).header("X-Requested-With", "XMLHttpRequest").build()
             client.newCall(request).execute().use { response ->
-                if (!response.isSuccessful) null else response.body?.string()?.trim()?.takeIf { it.isNotBlank() }?.let { raw -> runCatching { JSONObject(raw).optString("data").ifBlank { raw } }.getOrDefault(raw) }
+                if (!response.isSuccessful) null else response.body?.string()?.trim()?.let { raw ->
+                    raw.substringAfter(":\"").substringBefore('"')
+                }
             }
         }.getOrNull()
     }
 
-    private fun parseMirrorEntries(value: String): List<MirrorEntry> {
-        val array = runCatching { JSONArray(value.trim()) }.getOrNull() ?: return emptyList()
-        return buildList { for (i in 0 until array.length()) { val item = array.optJSONObject(i) ?: continue; val id = item.optString("id").trim(); val mirror = item.optString("i").trim(); val q = item.optString("q").trim(); if (id.isNotBlank() && mirror.isNotBlank()) add(MirrorEntry(id, mirror, q)) } }
+    private suspend fun resolveRedirect(url: String, referer: String): String? = withContext(Dispatchers.IO) {
+        runCatching { Request.Builder().url(url).header("User-Agent", UA).header("Referer", referer).build().let { request -> client.newCall(request).execute().use { it.request.url.toString() } } }.getOrNull()
     }
 
-    private fun decodeBase64(value: String?): String? = runCatching { String(Base64.decode(value?.trim()?.replace("-", "+")?.replace("_", "/"), Base64.DEFAULT), Charsets.UTF_8) }.getOrNull()
+    private suspend fun get(url: String, referer: String?): String? = withContext(Dispatchers.IO) {
+        runCatching {
+            val builder = Request.Builder().url(url).header("User-Agent", UA).header("Accept-Language", "id-ID,id;q=0.9,en-US;q=0.8")
+            if (!referer.isNullOrBlank()) builder.header("Referer", referer)
+            client.newCall(builder.build()).execute().use { response -> if (response.isSuccessful) response.body?.string() else null }
+        }.getOrNull()
+    }
+
+    private fun decodeBase64(value: String?): String? = runCatching { String(Base64.decode(value?.trim(), Base64.DEFAULT), Charsets.UTF_8) }.getOrNull()
     private fun resolveUrl(base: String, candidate: String): String? = runCatching { URI(base).resolve(candidate).toString() }.getOrNull()
     private fun decodeHtml(value: String): String = value.replace("&amp;", "&").replace("&quot;", "\"").replace("&#039;", "'").replace("&lt;", "<").replace("&gt;", ">")
     private fun String.isDirectMediaUrl(): Boolean { val clean = substringBefore('?').substringBefore('#').lowercase(); return clean.endsWith(".m3u8") || clean.endsWith(".mpd") || clean.endsWith(".mp4") || clean.endsWith(".mkv") || clean.endsWith(".webm") }
     private fun String.toStreamType(): StreamType { val clean = substringBefore('?').substringBefore('#').lowercase(); return when { clean.endsWith(".m3u8") -> StreamType.HLS; clean.endsWith(".mpd") -> StreamType.DASH; else -> StreamType.MP4 } }
+    private fun mediaHeaders(referer: String) = mapOf("User-Agent" to UA, "Referer" to referer)
 
-    private data class MirrorEntry(val id: String, val i: String, val q: String)
-    private data class DownloadCandidate(val url: String, val quality: String?)
+    private data class PlaybackCandidate(val url: String, val quality: String?)
     private companion object { const val UA = "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 Chrome/124.0.0.0 Mobile Safari/537.36" }
 }
