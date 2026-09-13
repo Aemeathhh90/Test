@@ -30,13 +30,22 @@ Commits:
 
 Status watched masih ditentukan setelah ambang 15 detik, bukan setelah episode selesai. Ini dipertahankan untuk V1 dan perlu keputusan foundation terpisah jika nanti ingin resume/progress yang lebih akurat.
 
+### 🟢 FIXED — Quality switch dapat memicu resolver/restart ganda
+
+Akar masalahnya adalah effect berbasis `selectedQuality` dan effect berbasis `qualityRequest` sama-sama melakukan resolution. Setelah user memilih kualitas, `selectedQuality` berubah dan dapat menjalankan resolver kedua kalinya.
+
+Fix:
+- Resolution hanya dijalankan dari `qualityRequest`.
+- Effect quality tidak lagi bergantung pada `selectedQuality` sebagai trigger resolver.
+- Hasil resolver yang sama dengan media URL aktif tidak dipasang ulang.
+- Posisi playback tetap dipertahankan saat URL kualitas benar-benar berubah.
+
+Commit:
+- `8ae6cdd442ad54564f36897d5878af6f5857fe35`
+
 ### 🟡 Risk — Stream resolver/provider behavior
 
 `ProviderPlaybackResolver` tetap perlu diuji pada network/device nyata. Tidak ada klaim provider green dari perubahan ini.
-
-### 🟡 Next — Quality switching
-
-`VideoPlayerScreen` memiliki dua effect yang dapat menyentuh quality resolution. Perlu audit berikutnya untuk memastikan pergantian kualitas tidak memicu resolver/restart ganda.
 
 ## Locked / no change
 
@@ -55,11 +64,11 @@ Provider E2E: 🟡 pending actual first-frame/device evidence
 
 ## Next bug-hunt targets
 
-1. Quality switch duplicate resolver/restart.
-2. Detail → episode → gate → rewarded ad → player.
-3. Reopen same unlocked episode and verify zero additional diamond charge.
-4. Kill/relaunch app and verify unlocked episode persists.
-5. Player → previous/next → gate behavior.
-6. Stream failure → retry → no duplicate charge.
-7. Rotation/landscape lifecycle and player state.
-8. Watched state/history consistency after Library changes.
+1. Detail → episode → gate → rewarded ad → player.
+2. Reopen same unlocked episode and verify zero additional diamond charge.
+3. Kill/relaunch app and verify unlocked episode persists.
+4. Player → previous/next → gate behavior.
+5. Stream failure → retry → no duplicate charge.
+6. Rotation/landscape lifecycle and player state.
+7. Watched state/history consistency after Library changes.
+8. Build/CI verification for the latest commits.
