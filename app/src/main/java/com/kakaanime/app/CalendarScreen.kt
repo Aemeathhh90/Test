@@ -82,10 +82,27 @@ fun CalendarScreen(
         } else {
             items(entries, key = { "${it.id}-${it.episode}-${it.airingAt}" }) { entry ->
                 val matchedAnime = animeList.firstOrNull { it.title.equals(entry.title, ignoreCase = true) }
-                ScheduleTimelineItem(entry, matchedAnime != null, matchedAnime?.title in favoriteTitles) { matchedAnime?.let(onAnimeClick) }
+                val calendarAnime = matchedAnime ?: entry.toAnime()
+                ScheduleTimelineItem(entry, true, calendarAnime.title in favoriteTitles) { onAnimeClick(calendarAnime) }
             }
         }
     }
+}
+
+private fun AniListScheduleEntry.toAnime(): Anime {
+    val title = title.trim()
+    return Anime(
+        title = title,
+        latestEpisode = episode.coerceAtLeast(1),
+        genre = genres.joinToString(", ").ifBlank { "Unknown" },
+        description = "Anime dari jadwal AniList. Detail dan daftar episode akan dimuat dari provider KakaAnime.",
+        studio = "Unknown",
+        season = "Ongoing",
+        year = "—",
+        type = format?.replace('_', ' ')?.lowercase(Locale.ENGLISH)?.replaceFirstChar { it.uppercase() } ?: "TV",
+        status = "Ongoing",
+        rating = score?.let { "%.1f".format(Locale.ENGLISH, it / 10.0) } ?: "—"
+    )
 }
 
 @Composable private fun CalendarHeader() {
@@ -99,7 +116,7 @@ fun CalendarScreen(
 @Composable private fun ScheduleDayCard(day: ScheduleDay, selected: Boolean, onClick: () -> Unit) {
     val dayName = day.date.dayOfWeek.name.take(3).uppercase(Locale.ENGLISH)
     val monthName = day.date.month.name.take(3).replaceFirstChar { it.uppercase() }
-    Surface(Modifier.width(68.dp).height(78.dp).clickable { onClick() }, RoundedCornerShape(18.dp), color = if (selected) MaterialTheme.colorScheme.primary.copy(alpha = .18f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = .35f), tonalElevation = if (selected) 2.dp else 0.dp) {
+    Surface(Modifier.width(68.dp).height(78.dp).clickable { onClick() }, shape = RoundedCornerShape(18.dp), color = if (selected) MaterialTheme.colorScheme.primary.copy(alpha = .18f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = .35f), tonalElevation = if (selected) 2.dp else 0.dp) {
         Column(Modifier.fillMaxSize().padding(vertical = 7.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.SpaceBetween) {
             Text(dayName, fontSize = 9.sp, fontWeight = FontWeight.Bold, color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
             Text(day.date.dayOfMonth.toString(), fontSize = 22.sp, fontWeight = FontWeight.Bold, color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface)
