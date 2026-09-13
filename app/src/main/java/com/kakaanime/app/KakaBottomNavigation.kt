@@ -13,8 +13,8 @@ import androidx.compose.ui.unit.dp
 
 @Composable
 fun KakaBottomNavigation(selectedTab: Any, onTabSelected: (Any) -> Unit) {
-    val labels = listOf("Home", "Calendar", "History", "Favorite", "Profile")
-    val icons = listOf(Icons.Outlined.Home, Icons.Outlined.CalendarMonth, Icons.Outlined.History, Icons.Outlined.Favorite, Icons.Outlined.Person)
+    val labels = listOf("Home", "Calendar", "Social", "Library", "Profile")
+    val icons = listOf(Icons.Outlined.Home, Icons.Outlined.CalendarMonth, Icons.Outlined.Groups, Icons.Outlined.CollectionsBookmark, Icons.Outlined.Person)
     Surface(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp), RoundedCornerShape(26.dp), color = MaterialTheme.colorScheme.surface.copy(alpha = .96f), tonalElevation = 6.dp, shadowElevation = 10.dp) {
         Row(Modifier.fillMaxWidth().padding(6.dp), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
             labels.indices.forEach { index ->
