@@ -16,6 +16,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.clip
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.layout.ContentScale
@@ -180,7 +181,7 @@ fun ReDantotsuHomeScreen(animeList: List<Anime>, onAnimeClick: (Anime) -> Unit, 
 
 @Composable private fun HomePremiumReferenceCard() {
     Surface(Modifier.fillMaxWidth(), RoundedCornerShape(22.dp), color = MaterialTheme.colorScheme.primary.copy(alpha = .10f)) {
-        Column(Modifier.padding(18.dp)) { Text("PREMIUM", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary); Spacer(Modifier.height(3.dp)); Text("1080p • Auto Skip • Offline", fontSize = 20.sp, fontWeight = FontWeight.Bold); Text("Fitur premium KakaAnime akan terhubung di tahap berikutnya.", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+        Column(Modifier.padding(18.dp)) { Text("PREMIUM", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary); Spacer(Modifier.height(3.dp)); Text("1080p • Auto Skip • Premium", fontSize = 20.sp, fontWeight = FontWeight.Bold); Text("Fitur premium KakaAnime akan terhubung di tahap berikutnya.", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant) }
     }
 }
 
