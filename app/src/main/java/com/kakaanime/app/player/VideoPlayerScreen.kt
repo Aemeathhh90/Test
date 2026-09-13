@@ -92,18 +92,13 @@ fun VideoPlayerScreen(
 
     LaunchedEffect(videoUrl) { playerController.setVideo(videoUrl) }
 
-    // Auto skip is a Premium-only playback capability. The free player never
-    // seeks past intro/outro automatically.
     LaunchedEffect(isPremium, introStart, introEnd, outroStart, outroEnd, videoUrl) {
         if (!isPremium) return@LaunchedEffect
         while (true) {
             delay(500L)
             val position = player.currentPosition.coerceAtLeast(0L)
-            if (introEnd > introStart && position in introStart until introEnd) {
-                playerController.seekTo(introEnd)
-            } else if (outroEnd > outroStart && position in outroStart until outroEnd) {
-                playerController.seekTo(outroEnd)
-            }
+            if (introEnd > introStart && position in introStart until introEnd) playerController.seekTo(introEnd)
+            else if (outroEnd > outroStart && position in outroStart until outroEnd) playerController.seekTo(outroEnd)
         }
     }
 
@@ -175,8 +170,8 @@ fun VideoPlayerScreen(
                     Box {
                         QualityButton(selectedQuality) { showQualityMenu = true }
                         DropdownMenu(expanded = showQualityMenu, onDismissRequest = { showQualityMenu = false }) {
-                            listOf("240p", "480p", "720p").forEach { quality ->
-                                DropdownMenuItem(text = { Text(quality) }, onClick = { selectedQuality = quality; showQualityMenu = false })
+                            listOf("360p", "480p", "720p").forEach { quality ->
+                                DropdownMenuItem(text = { Text(if (quality == selectedQuality) "✓ $quality" else quality) }, onClick = { selectedQuality = quality; showQualityMenu = false })
                             }
                             DropdownMenuItem(
                                 text = { Row(verticalAlignment = Alignment.CenterVertically) { Text("1080p"); Spacer(Modifier.width(8.dp)); Icon(Icons.Filled.Lock, "Premium", tint = colors.primary, modifier = Modifier.size(16.dp)) } },
