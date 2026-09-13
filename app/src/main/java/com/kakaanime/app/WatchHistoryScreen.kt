@@ -29,130 +29,50 @@ import com.kakaanime.app.data.AniListPosterService
 import com.kakaanime.app.data.KakaAnimePreferences
 import com.kakaanime.app.data.WatchHistoryEntry
 
-private enum class WatchLayout { GRID, LIST }
+private enum class Layout { GRID, LIST }
 private enum class AnimeFilter { ALL, IN_PROGRESS, COMPLETED, DROPPED }
 private enum class EpisodeFilter { ALL, TODAY, WEEK, MONTH }
 
 @Composable
-fun AnimeWatchedScreen(preferences: KakaAnimePreferences, animeList: List<Anime>, onBack: () -> Unit, onAnimeClick: (Anime) -> Unit) {
-    var layout by remember { mutableStateOf(WatchLayout.GRID) }
-    var filter by remember { mutableStateOf(AnimeFilter.ALL) }
-    var query by remember { mutableStateOf("") }
-    var sort by remember { mutableStateOf("Last Watched") }
-    var sortOpen by remember { mutableStateOf(false) }
-    var posters by remember { mutableStateOf(emptyMap<String, String>()) }
-    val legacy = preferences.loadWatchedEpisodes()
-    val history = preferences.loadWatchHistory()
-    val records = history.groupBy { it.title }.values.mapNotNull { entries ->
-        val entry = entries.maxByOrNull { it.watchedAt } ?: return@mapNotNull null
-        animeList.firstOrNull { it.title.equals(entry.title, true) }?.let { it to entry }
-    }.ifEmpty { legacy.mapNotNull { (title, ep) -> animeList.firstOrNull { it.title.equals(title, true) }?.let { it to WatchHistoryEntry(title, ep, null, 0L, 0L) } } }
-    val shown = records.filter { (anime, entry) ->
-        val status = animeStatus(anime, entry.episode)
-        (filter == AnimeFilter.ALL || status == filter) && (query.isBlank() || anime.title.contains(query, true) || anime.genre.contains(query, true))
-    }.let { if (sort == "Last Watched") it.sortedByDescending { it.second.watchedAt } else it.sortedBy { it.first.title.lowercase() } }
+fun AnimeWatchedScreen(p: KakaAnimePreferences, animeList: List<Anime>, onBack: () -> Unit, onAnimeClick: (Anime) -> Unit) {
+    var layout by remember { mutableStateOf(Layout.GRID) }; var filter by remember { mutableStateOf(AnimeFilter.ALL) }
+    var query by remember { mutableStateOf("") }; var sort by remember { mutableStateOf("Last Watched") }; var sortOpen by remember { mutableStateOf(false) }
+    var posters by remember { mutableStateOf(emptyMap<String,String>()) }
+    val legacy = p.loadWatchedEpisodes(); val history = p.loadWatchHistory()
+    val records = history.groupBy { it.title }.values.mapNotNull { e -> e.maxByOrNull { it.watchedAt }?.let { h -> animeList.firstOrNull { it.title.equals(h.title,true) }?.let { a -> a to h } } }.ifEmpty { legacy.mapNotNull { (t,e) -> animeList.firstOrNull { it.title.equals(t,true) }?.let { it to WatchHistoryEntry(t,e,null,0,0) } } }
+    val shown = records.filter { (a,h) -> (filter==AnimeFilter.ALL || animeStatus(a,h.episode)==filter) && (query.isBlank() || a.title.contains(query,true) || a.genre.contains(query,true)) }.let { if(sort=="Last Watched") it.sortedByDescending { x->x.second.watchedAt } else it.sortedBy { x->x.first.title.lowercase() } }
     LaunchedEffect(records.map { it.first.title }) { posters = AniListPosterService().getPosterUrls(records.map { it.first.title }) }
-
-    WatchShell("Anime Watched", onBack, query, { query = it }, layout, { layout = it }, sort, { sortOpen = true }, sortOpen, { sortOpen = false }, { sort = it; sortOpen = false }, listOf("Last Watched", "Title"), shown.size, {
-        listOf(AnimeFilter.ALL to "All", AnimeFilter.IN_PROGRESS to "In Progress", AnimeFilter.COMPLETED to "Completed", AnimeFilter.DROPPED to "Dropped").forEach { (value, label) -> FilterChip(filter == value, { filter = value }, label = { Text(label, fontSize = 11.sp) }) }
-    }) {
-        if (layout == WatchLayout.GRID) LazyVerticalGrid(GridCells.Fixed(4), Modifier.fillMaxSize(), contentPadding = PaddingValues(12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            items(shown, key = { it.first.title }) { (anime, entry) -> AnimeGridCard(anime, entry, posters[anime.title]) { onAnimeClick(anime) } }
-        } else LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(horizontal = 14.dp, vertical = 4.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            items(shown, key = { it.first.title }) { (anime, entry) -> AnimeListCard(anime, entry, posters[anime.title]) { onAnimeClick(anime) } }
-        }
+    WatchShell("Anime Watched", onBack, query, {query=it}, layout, {layout=it}, sort, sortOpen, {sortOpen=true}, {sortOpen=false}, {sort=it;sortOpen=false}, listOf("Last Watched","Title"), shown.size) {
+        listOf(AnimeFilter.ALL to "All",AnimeFilter.IN_PROGRESS to "In Progress",AnimeFilter.COMPLETED to "Completed",AnimeFilter.DROPPED to "Dropped").forEach { (v,l) -> FilterChip(selected=filter==v,onClick={filter=v},label={Text(l,fontSize=11.sp)}) }
+    } {
+        if(layout==Layout.GRID) LazyVerticalGrid(GridCells.Fixed(4),Modifier.fillMaxSize(),contentPadding=PaddingValues(12.dp),horizontalArrangement=Arrangement.spacedBy(8.dp),verticalArrangement=Arrangement.spacedBy(10.dp)){items(shown,key={it.first.title}){(a,h)->AnimeGrid(a,h,posters[a.title]){onAnimeClick(a)}}}
+        else LazyColumn(Modifier.fillMaxSize(),contentPadding=PaddingValues(14.dp),verticalArrangement=Arrangement.spacedBy(8.dp)){items(shown,key={it.first.title}){(a,h)->AnimeList(a,h,posters[a.title]){onAnimeClick(a)}}}
     }
 }
 
 @Composable
-fun EpisodeWatchedScreen(preferences: KakaAnimePreferences, animeList: List<Anime>, onBack: () -> Unit, onEpisodeClick: (Anime, Int) -> Unit) {
-    var layout by remember { mutableStateOf(WatchLayout.GRID) }
-    var filter by remember { mutableStateOf(EpisodeFilter.ALL) }
-    var query by remember { mutableStateOf("") }
-    var sort by remember { mutableStateOf("Newest") }
-    var sortOpen by remember { mutableStateOf(false) }
-    var posters by remember { mutableStateOf(emptyMap<String, String>()) }
-    val history = preferences.loadWatchHistory()
-    val now = System.currentTimeMillis()
-    val shown = history.filter { entry ->
-        val age = if (entry.watchedAt > 0L) now - entry.watchedAt else Long.MAX_VALUE
-        val timeOk = when (filter) { EpisodeFilter.ALL -> true; EpisodeFilter.TODAY -> age <= 86_400_000L; EpisodeFilter.WEEK -> age <= 604_800_000L; EpisodeFilter.MONTH -> age <= 2_678_400_000L }
-        timeOk && (query.isBlank() || entry.title.contains(query, true) || entry.episodeTitle?.contains(query, true) == true)
-    }.let { if (sort == "Newest") it.sortedByDescending { it.watchedAt } else it.sortedBy { it.title.lowercase() } }
-    LaunchedEffect(shown.map { it.title }) { posters = AniListPosterService().getPosterUrls(shown.map { it.title }) }
-
-    WatchShell("Episode Watched", onBack, query, { query = it }, layout, { layout = it }, sort, { sortOpen = true }, sortOpen, { sortOpen = false }, { sort = it; sortOpen = false }, listOf("Newest", "Title"), shown.size, {
-        listOf(EpisodeFilter.ALL to "All", EpisodeFilter.TODAY to "Today", EpisodeFilter.WEEK to "This Week", EpisodeFilter.MONTH to "This Month").forEach { (value, label) -> FilterChip(filter == value, { filter = value }, label = { Text(label, fontSize = 11.sp) }) }
-    }) {
-        if (layout == WatchLayout.GRID) LazyVerticalGrid(GridCells.Fixed(4), Modifier.fillMaxSize(), contentPadding = PaddingValues(12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            items(shown, key = { "${it.title}-${it.episode}" }) { entry -> EpisodeGridCard(entry, posters[entry.title]) { animeList.firstOrNull { it.title.equals(entry.title, true) }?.let { onEpisodeClick(it, entry.episode) } } }
-        } else LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(horizontal = 14.dp, vertical = 4.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            items(shown, key = { "${it.title}-${it.episode}" }) { entry -> EpisodeListCard(entry, posters[entry.title]) { animeList.firstOrNull { it.title.equals(entry.title, true) }?.let { onEpisodeClick(it, entry.episode) } } }
-        }
+fun EpisodeWatchedScreen(p: KakaAnimePreferences, animeList: List<Anime>, onBack: () -> Unit, onEpisodeClick: (Anime,Int)->Unit) {
+    var layout by remember { mutableStateOf(Layout.GRID) }; var filter by remember { mutableStateOf(EpisodeFilter.ALL) }
+    var query by remember { mutableStateOf("") }; var sort by remember { mutableStateOf("Newest") }; var sortOpen by remember { mutableStateOf(false) }
+    var posters by remember { mutableStateOf(emptyMap<String,String>()) }; val now=System.currentTimeMillis(); val history=p.loadWatchHistory()
+    val shown=history.filter { h -> val age=if(h.watchedAt>0) now-h.watchedAt else Long.MAX_VALUE; val ok=when(filter){EpisodeFilter.ALL->true;EpisodeFilter.TODAY->age<=86400000L;EpisodeFilter.WEEK->age<=604800000L;EpisodeFilter.MONTH->age<=2678400000L}; ok&&(query.isBlank()||h.title.contains(query,true)||h.episodeTitle?.contains(query,true)==true)}.let{if(sort=="Newest")it.sortedByDescending{h->h.watchedAt}else it.sortedBy{h->h.title.lowercase()}}
+    LaunchedEffect(shown.map { it.title }){posters=AniListPosterService().getPosterUrls(shown.map{it.title})}
+    WatchShell("Episode Watched",onBack,query,{query=it},layout,{layout=it},sort,sortOpen,{sortOpen=true},{sortOpen=false},{sort=it;sortOpen=false},listOf("Newest","Title"),shown.size){listOf(EpisodeFilter.ALL to "All",EpisodeFilter.TODAY to "Today",EpisodeFilter.WEEK to "This Week",EpisodeFilter.MONTH to "This Month").forEach{(v,l)->FilterChip(selected=filter==v,onClick={filter=v},label={Text(l,fontSize=11.sp)})}}{
+        if(layout==Layout.GRID) LazyVerticalGrid(GridCells.Fixed(4),Modifier.fillMaxSize(),contentPadding=PaddingValues(12.dp),horizontalArrangement=Arrangement.spacedBy(8.dp),verticalArrangement=Arrangement.spacedBy(10.dp)){items(shown,key={"${it.title}-${it.episode}"}){h->EpisodeGrid(h,posters[h.title]){animeList.firstOrNull{it.title.equals(h.title,true)}?.let{a->onEpisodeClick(a,h.episode)}}}}
+        else LazyColumn(Modifier.fillMaxSize(),contentPadding=PaddingValues(14.dp),verticalArrangement=Arrangement.spacedBy(8.dp)){items(shown,key={"${it.title}-${it.episode}"}){h->EpisodeList(h,posters[h.title]){animeList.firstOrNull{it.title.equals(h.title,true)}?.let{a->onEpisodeClick(a,h.episode)}}}}
     }
 }
 
-@Composable
-private fun WatchShell(title: String, onBack: () -> Unit, query: String, onQuery: (String) -> Unit, layout: WatchLayout, onLayout: (WatchLayout) -> Unit, sort: String, onSort: () -> Unit, sortOpen: Boolean, onDismissSort: () -> Unit, onSelectSort: (String) -> Unit, sortValues: List<String>, total: Int, filters: @Composable RowScope.() -> Unit, content: @Composable () -> Unit) {
-    Column(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).navigationBarsPadding()) {
-        Row(Modifier.fillMaxWidth().padding(8.dp), verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = onBack) { Icon(Icons.Outlined.ArrowBack, "Back") }
-            Text(title, 22.sp, FontWeight.Bold, modifier = Modifier.weight(1f))
-            IconButton(onClick = {}) { Icon(Icons.Outlined.MoreVert, "More") }
-        }
-        OutlinedTextField(query, onQuery, Modifier.fillMaxWidth().padding(horizontal = 14.dp).height(52.dp), singleLine = true, leadingIcon = { Icon(Icons.Outlined.Search, null) }, placeholder = { Text("Search", fontSize = 12.sp) })
-        Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 12.dp, vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(7.dp), content = filters)
-        Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp), verticalAlignment = Alignment.CenterVertically) {
-            Icon(Icons.Outlined.Sort, null, Modifier.size(18.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant); Spacer(Modifier.width(6.dp))
-            Text("Sort: $sort", 12.sp, modifier = Modifier.clickable(onClick = onSort)); Spacer(Modifier.weight(1f)); Text("Total: $total", 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            IconButton(onClick = { onLayout(if (layout == WatchLayout.GRID) WatchLayout.LIST else WatchLayout.GRID) }) { Icon(if (layout == WatchLayout.GRID) Icons.Outlined.ViewList else Icons.Outlined.GridView, "Toggle layout") }
-            DropdownMenu(sortOpen, onDismissRequest = onDismissSort) { sortValues.forEach { value -> DropdownMenuItem(text = { Text(if (value == sort) "✓ $value" else value) }, onClick = { onSelectSort(value) }) } }
-        }
-        Box(Modifier.weight(1f)) { content() }
-    }
-}
+@Composable private fun WatchShell(title:String,onBack:()->Unit,query:String,onQuery:(String)->Unit,layout:Layout,onLayout:(Layout)->Unit,sort:String,sortOpen:Boolean,onSort:()->Unit,onDismiss:()->Unit,onSelect:(String)->Unit,sorts:List<String>,total:Int,filters:@Composable RowScope.()->Unit,content:@Composable()->Unit){Column(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).navigationBarsPadding()){Row(Modifier.fillMaxWidth().padding(8.dp),verticalAlignment=Alignment.CenterVertically){IconButton(onClick=onBack){Icon(Icons.Outlined.ArrowBack,"Back")};Text(title,modifier=Modifier.weight(1f),fontSize=22.sp,fontWeight=FontWeight.Bold);IconButton(onClick={}){Icon(Icons.Outlined.MoreVert,"More")}};OutlinedTextField(value=query,onValueChange=onQuery,modifier=Modifier.fillMaxWidth().padding(horizontal=14.dp).height(52.dp),singleLine=true,leadingIcon={Icon(Icons.Outlined.Search,null)},placeholder={Text("Search",fontSize=12.sp)});Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal=12.dp,vertical=8.dp),horizontalArrangement=Arrangement.spacedBy(7.dp),content=filters);Row(Modifier.fillMaxWidth().padding(horizontal=14.dp),verticalAlignment=Alignment.CenterVertically){Icon(Icons.Outlined.Sort,null,Modifier.size(18.dp));Spacer(Modifier.width(6.dp));Text("Sort: $sort",fontSize=12.sp,modifier=Modifier.clickable(onClick=onSort));Spacer(Modifier.weight(1f));Text("Total: $total",fontSize=12.sp,color=MaterialTheme.colorScheme.onSurfaceVariant);IconButton(onClick={onLayout(if(layout==Layout.GRID)Layout.LIST else Layout.GRID)}){Icon(if(layout==Layout.GRID)Icons.Outlined.ViewList else Icons.Outlined.GridView,"Toggle layout")};DropdownMenu(sortOpen,onDismiss){sorts.forEach{v->DropdownMenuItem(text={Text(if(v==sort)"✓ $v" else v)},onClick={onSelect.bind(v)})}}};Box(Modifier.weight(1f)){content()}}}
 
-@Composable
-private fun AnimeGridCard(anime: Anime, entry: WatchHistoryEntry, poster: String?, onClick: () -> Unit) {
-    val progress = if (anime.latestEpisode > 0) (entry.episode.toFloat() / anime.latestEpisode).coerceIn(0f, 1f) else 0f
-    Surface(Modifier.fillMaxWidth().clickable(onClick = onClick), RoundedCornerShape(11.dp), color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = .48f)) {
-        Column(Modifier.padding(4.dp)) { Poster(poster, Modifier.fillMaxWidth().aspectRatio(2f / 3f)); Text(anime.title, Modifier.padding(3.dp), 10.sp, FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis); Text("${entry.episode} / ${anime.latestEpisode}", Modifier.padding(horizontal = 3.dp), 9.sp, color = MaterialTheme.colorScheme.onSurfaceVariant); Progress(progress) }
-    }
-}
+private fun <T> ((T)->Unit).bind(value:T):()->Unit = { this(value) }
 
-@Composable
-private fun AnimeListCard(anime: Anime, entry: WatchHistoryEntry, poster: String?, onClick: () -> Unit) {
-    val progress = if (anime.latestEpisode > 0) (entry.episode.toFloat() / anime.latestEpisode).coerceIn(0f, 1f) else 0f
-    Surface(Modifier.fillMaxWidth().clickable(onClick = onClick), RoundedCornerShape(16.dp), color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = .45f)) {
-        Row(Modifier.padding(9.dp), verticalAlignment = Alignment.CenterVertically) { Poster(poster, Modifier.size(82.dp, 112.dp)); Spacer(Modifier.width(11.dp)); Column(Modifier.weight(1f)) { Text(anime.title, 15.sp, FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis); Text(anime.genre, 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis); Spacer(Modifier.height(6.dp)); Text("Episode ${entry.episode} / ${anime.latestEpisode}", 12.sp); Progress(progress); Text("${animeStatusLabel(anime, entry.episode)} • ${watchedAgo(entry.watchedAt)}", 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant) }; Icon(Icons.Outlined.MoreVert, "More", Modifier.size(20.dp)) }
-    }
-}
-
-@Composable
-private fun EpisodeGridCard(entry: WatchHistoryEntry, poster: String?, onClick: () -> Unit) {
-    Surface(Modifier.fillMaxWidth().clickable(onClick = onClick), RoundedCornerShape(11.dp), color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = .48f)) {
-        Column(Modifier.padding(4.dp)) { Box(Modifier.fillMaxWidth().aspectRatio(16f / 10f)) { Poster(poster, Modifier.fillMaxSize()); DurationBadge(entry.durationMs, Modifier.align(Alignment.BottomEnd).padding(5.dp)); Icon(Icons.Outlined.MoreVert, "More", Modifier.align(Alignment.TopEnd).size(17.dp)) }; Text(entry.title, Modifier.padding(3.dp), 10.sp, FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis); Text("Episode ${entry.episode}", Modifier.padding(horizontal = 3.dp), 9.sp); Text(entry.episodeTitle ?: "Judul episode belum tersedia", Modifier.padding(horizontal = 3.dp), 8.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis); Text(watchedAgo(entry.watchedAt), Modifier.padding(3.dp), 8.sp, color = MaterialTheme.colorScheme.onSurfaceVariant) }
-    }
-}
-
-@Composable
-private fun EpisodeListCard(entry: WatchHistoryEntry, poster: String?, onClick: () -> Unit) {
-    Surface(Modifier.fillMaxWidth().clickable(onClick = onClick), RoundedCornerShape(16.dp), color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = .45f)) {
-        Row(Modifier.padding(8.dp), verticalAlignment = Alignment.CenterVertically) { Box(Modifier.size(118.dp, 76.dp)) { Poster(poster, Modifier.fillMaxSize()); DurationBadge(entry.durationMs, Modifier.align(Alignment.BottomEnd).padding(5.dp)) }; Spacer(Modifier.width(10.dp)); Column(Modifier.weight(1f)) { Text(entry.title, 14.sp, FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis); Text("Episode ${entry.episode}", 12.sp); Text(entry.episodeTitle ?: "Judul episode belum tersedia", 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis); Text(watchedAgo(entry.watchedAt), 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant) }; Icon(Icons.Outlined.MoreVert, "More", Modifier.size(20.dp)) }
-    }
-}
-
-@Composable
-private fun Poster(url: String?, modifier: Modifier) {
-    Surface(modifier, RoundedCornerShape(8.dp), color = MaterialTheme.colorScheme.surfaceVariant) { if (url.isNullOrBlank()) Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text("K", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary) } else AsyncImage(url, null, Modifier.fillMaxSize().clip(RoundedCornerShape(8.dp)), contentScale = ContentScale.Crop) }
-}
-
-@Composable
-private fun Progress(value: Float) { Box(Modifier.fillMaxWidth().padding(horizontal = 3.dp, vertical = 4.dp).height(4.dp).clip(RoundedCornerShape(4.dp)).background(MaterialTheme.colorScheme.onSurface.copy(alpha = .12f))) { Box(Modifier.fillMaxWidth(value).fillMaxHeight().background(MaterialTheme.colorScheme.primary)) } }
-
-@Composable
-private fun DurationBadge(durationMs: Long, modifier: Modifier) { Surface(modifier, RoundedCornerShape(5.dp), color = MaterialTheme.colorScheme.scrim.copy(alpha = .8f)) { Text(if (durationMs > 0) "%d:%02d".format(durationMs / 60000, (durationMs / 1000) % 60) else "—:—", Modifier.padding(horizontal = 5.dp, vertical = 2.dp), 8.sp, color = MaterialTheme.colorScheme.onPrimary) } }
-
-private fun watchedAgo(timestamp: Long): String = if (timestamp <= 0L) "Riwayat lama" else DateUtils.getRelativeTimeSpanString(timestamp, System.currentTimeMillis(), DateUtils.MINUTE_IN_MILLIS).toString()
-private fun animeStatus(anime: Anime, episode: Int): AnimeFilter = if (anime.latestEpisode > 0 && episode >= anime.latestEpisode) AnimeFilter.COMPLETED else AnimeFilter.IN_PROGRESS
-private fun animeStatusLabel(anime: Anime, episode: Int): String = if (animeStatus(anime, episode) == AnimeFilter.COMPLETED) "Completed" else "In Progress"
+@Composable private fun AnimeGrid(a:Anime,h:WatchHistoryEntry,url:String?,click:()->Unit){val progress=if(a.latestEpisode>0)(h.episode.toFloat()/a.latestEpisode).coerceIn(0f,1f)else 0f;Surface(Modifier.fillMaxWidth().clickable(onClick=click),RoundedCornerShape(11.dp),color=MaterialTheme.colorScheme.surfaceVariant.copy(alpha=.48f)){Column(Modifier.padding(4.dp)){Poster(url,Modifier.fillMaxWidth().aspectRatio(2f/3f));Text(a.title,modifier=Modifier.padding(3.dp),fontSize=10.sp,fontWeight=FontWeight.SemiBold,maxLines=1,overflow=TextOverflow.Ellipsis);Text("${h.episode} / ${a.latestEpisode}",modifier=Modifier.padding(horizontal=3.dp),fontSize=9.sp,color=MaterialTheme.colorScheme.onSurfaceVariant);Progress(progress)}}}
+@Composable private fun AnimeList(a:Anime,h:WatchHistoryEntry,url:String?,click:()->Unit){val progress=if(a.latestEpisode>0)(h.episode.toFloat()/a.latestEpisode).coerceIn(0f,1f)else 0f;Surface(Modifier.fillMaxWidth().clickable(onClick=click),RoundedCornerShape(16.dp),color=MaterialTheme.colorScheme.surfaceVariant.copy(alpha=.45f)){Row(Modifier.padding(9.dp),verticalAlignment=Alignment.CenterVertically){Poster(url,Modifier.size(82.dp,112.dp));Spacer(Modifier.width(11.dp));Column(Modifier.weight(1f)){Text(a.title,fontSize=15.sp,fontWeight=FontWeight.Bold,maxLines=1,overflow=TextOverflow.Ellipsis);Text(a.genre,fontSize=10.sp,color=MaterialTheme.colorScheme.onSurfaceVariant,maxLines=1,overflow=TextOverflow.Ellipsis);Text("Episode ${h.episode} / ${a.latestEpisode}",fontSize=12.sp);Progress(progress);Text("${if(animeStatus(a,h.episode)==AnimeFilter.COMPLETED)"Completed" else "In Progress"} • ${ago(h.watchedAt)}",fontSize=10.sp,color=MaterialTheme.colorScheme.onSurfaceVariant)};Icon(Icons.Outlined.MoreVert,"More")}}}
+@Composable private fun EpisodeGrid(h:WatchHistoryEntry,url:String?,click:()->Unit){Surface(Modifier.fillMaxWidth().clickable(onClick=click),RoundedCornerShape(11.dp),color=MaterialTheme.colorScheme.surfaceVariant.copy(alpha=.48f)){Column(Modifier.padding(4.dp)){Box(Modifier.fillMaxWidth().aspectRatio(16f/10f)){Poster(url,Modifier.fillMaxSize());Duration(h.durationMs,Modifier.align(Alignment.BottomEnd).padding(5.dp))};Text(h.title,modifier=Modifier.padding(3.dp),fontSize=10.sp,fontWeight=FontWeight.SemiBold,maxLines=1,overflow=TextOverflow.Ellipsis);Text("Episode ${h.episode}",modifier=Modifier.padding(horizontal=3.dp),fontSize=9.sp);Text(h.episodeTitle?:"Judul episode belum tersedia",modifier=Modifier.padding(horizontal=3.dp),fontSize=8.sp,color=MaterialTheme.colorScheme.onSurfaceVariant,maxLines=1,overflow=TextOverflow.Ellipsis);Text(ago(h.watchedAt),modifier=Modifier.padding(3.dp),fontSize=8.sp,color=MaterialTheme.colorScheme.onSurfaceVariant)}}}
+@Composable private fun EpisodeList(h:WatchHistoryEntry,url:String?,click:()->Unit){Surface(Modifier.fillMaxWidth().clickable(onClick=click),RoundedCornerShape(16.dp),color=MaterialTheme.colorScheme.surfaceVariant.copy(alpha=.45f)){Row(Modifier.padding(8.dp),verticalAlignment=Alignment.CenterVertically){Box(Modifier.size(118.dp,76.dp)){Poster(url,Modifier.fillMaxSize());Duration(h.durationMs,Modifier.align(Alignment.BottomEnd).padding(5.dp))};Spacer(Modifier.width(10.dp));Column(Modifier.weight(1f)){Text(h.title,fontSize=14.sp,fontWeight=FontWeight.Bold,maxLines=1,overflow=TextOverflow.Ellipsis);Text("Episode ${h.episode}",fontSize=12.sp);Text(h.episodeTitle?:"Judul episode belum tersedia",fontSize=10.sp,color=MaterialTheme.colorScheme.onSurfaceVariant,maxLines=1,overflow=TextOverflow.Ellipsis);Text(ago(h.watchedAt),fontSize=10.sp,color=MaterialTheme.colorScheme.onSurfaceVariant)}}}}
+@Composable private fun Poster(url:String?,m:Modifier){Surface(m,RoundedCornerShape(8.dp),color=MaterialTheme.colorScheme.surfaceVariant){if(url==null)Box(Modifier.fillMaxSize(),contentAlignment=Alignment.Center){Text("K",fontWeight=FontWeight.Bold,color=MaterialTheme.colorScheme.primary)}else AsyncImage(model=url,contentDescription=null,modifier=Modifier.fillMaxSize().clip(RoundedCornerShape(8.dp)),contentScale=ContentScale.Crop)}}
+@Composable private fun Progress(v:Float){Box(Modifier.fillMaxWidth().padding(3.dp).height(4.dp).clip(RoundedCornerShape(4.dp)).background(MaterialTheme.colorScheme.onSurface.copy(alpha=.12f))){Box(Modifier.fillMaxWidth(v).fillMaxHeight().background(MaterialTheme.colorScheme.primary))}}
+@Composable private fun Duration(ms:Long,m:Modifier){Surface(m,RoundedCornerShape(5.dp),color=MaterialTheme.colorScheme.scrim.copy(alpha=.8f)){Text(if(ms>0)"%d:%02d".format(ms/60000,(ms/1000)%60)else"—:—",modifier=Modifier.padding(5.dp),fontSize=8.sp,color=MaterialTheme.colorScheme.onPrimary)}}
+private fun ago(t:Long)=if(t<=0)"Riwayat lama"else DateUtils.getRelativeTimeSpanString(t,System.currentTimeMillis(),DateUtils.MINUTE_IN_MILLIS).toString()
+private fun animeStatus(a:Anime,e:Int)=if(a.latestEpisode>0&&e>=a.latestEpisode)AnimeFilter.COMPLETED else AnimeFilter.IN_PROGRESS
