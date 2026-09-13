@@ -54,6 +54,7 @@ import com.kakaanime.app.monetization.DiamondRules
 import com.kakaanime.app.monetization.MonetizationState
 import com.kakaanime.app.player.VideoPlayerScreen
 import com.kakaanime.app.premium.PremiumScreen
+import com.kakaanime.app.provider.ProviderEpisode
 import com.kakaanime.app.provider.ProviderPlaybackResolver
 import com.kakaanime.app.ui.theme.KakaAnimeTheme
 import com.kakaanime.app.ui.theme.rememberKakaThemeState
@@ -103,6 +104,8 @@ fun KakaAnimeApp() {
     var showPremium by remember { mutableStateOf(false) }
     var resolvedStreamUrl by remember { mutableStateOf<String?>(null) }
     var streamLoading by remember { mutableStateOf(false) }
+    var providerEpisodes by remember { mutableStateOf<List<ProviderEpisode>>(emptyList()) }
+    var episodeListLoading by remember { mutableStateOf(false) }
 
     var favoriteTitles by remember(preferences) {
         mutableStateOf(preferences.loadFavoriteTitles())
@@ -159,9 +162,6 @@ fun KakaAnimeApp() {
         )
     }
 
-    // Resolve the real provider stream whenever the selected anime/episode changes.
-    // The UI never falls back to the old Bunny trailer: a missing provider stream
-    // is surfaced as an unavailable playback state instead.
     LaunchedEffect(selectedAnime?.title, selectedEpisode, monetizationState.isPremium) {
         val anime = selectedAnime
         val episode = selectedEpisode
@@ -181,6 +181,19 @@ fun KakaAnimeApp() {
             )?.url
         }.getOrNull()
         streamLoading = false
+    }
+
+    LaunchedEffect(selectedAnime?.title) {
+        val anime = selectedAnime
+        if (anime == null) {
+            providerEpisodes = emptyList()
+            episodeListLoading = false
+            return@LaunchedEffect
+        }
+        episodeListLoading = true
+        providerEpisodes = runCatching { ProviderPlaybackResolver.episodes(anime.title) }
+            .getOrDefault(emptyList())
+        episodeListLoading = false
     }
 
     val screen = when {
@@ -218,6 +231,8 @@ fun KakaAnimeApp() {
                     anime = selectedAnime!!,
                     isFavorite = selectedAnime!!.title in favoriteTitles,
                     watchedEpisode = watchedEpisodes[selectedAnime!!.title],
+                    providerEpisodes = providerEpisodes,
+                    episodeListLoading = episodeListLoading,
                     onBack = { selectedAnime = null; selectedEpisode = null },
                     onFavorite = {
                         favoriteTitles = if (selectedAnime!!.title in favoriteTitles) {
@@ -324,10 +339,15 @@ private fun AnimeDetailScreen(
     anime: Anime,
     isFavorite: Boolean,
     watchedEpisode: Int?,
+    providerEpisodes: List<ProviderEpisode>,
+    episodeListLoading: Boolean,
     onBack: () -> Unit,
     onFavorite: () -> Unit,
     onEpisodeClick: (Int) -> Unit
 ) {
+    val episodes = if (providerEpisodes.isNotEmpty()) providerEpisodes else (anime.latestEpisode downTo maxOf(1, anime.latestEpisode - 19)).map {
+        ProviderEpisode(id = "local-${anime.title}-$it", animeId = anime.title, number = it)
+    }
     LazyColumn(
         Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background),
         contentPadding = PaddingValues(16.dp, 16.dp, 16.dp, 32.dp),
@@ -342,7 +362,7 @@ private fun AnimeDetailScreen(
             Text(anime.description)
             Spacer(Modifier.height(10.dp))
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                Button(onClick = { onEpisodeClick(watchedEpisode ?: anime.latestEpisode) }, modifier = Modifier.weight(1f), shape = RoundedCornerShape(14.dp)) {
+                Button(onClick = { onEpisodeClick(watchedEpisode ?: episodes.firstOrNull()?.number ?: anime.latestEpisode) }, modifier = Modifier.weight(1f), shape = RoundedCornerShape(14.dp)) {
                     Text(if (watchedEpisode != null) "▶  Lanjutkan" else "▶  Tonton")
                 }
                 Button(onClick = onFavorite, modifier = Modifier.weight(1f), shape = RoundedCornerShape(14.dp)) {
@@ -350,20 +370,28 @@ private fun AnimeDetailScreen(
                 }
             }
             Spacer(Modifier.height(8.dp))
-            Text("Episode", fontSize = 21.sp, fontWeight = FontWeight.Bold)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("Episode", fontSize = 21.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+                if (episodeListLoading) CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
+                else if (providerEpisodes.isNotEmpty()) Text("${providerEpisodes.size} episode", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
         }
-        items((anime.latestEpisode downTo maxOf(1, anime.latestEpisode - 19)).toList()) { episode ->
+        items(episodes) { providerEpisode ->
+            val episode = providerEpisode.number
             val watched = watchedEpisode != null && episode <= watchedEpisode
             Surface(
                 Modifier.fillMaxWidth().clickable { onEpisodeClick(episode) },
                 shape = RoundedCornerShape(14.dp),
                 color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = .55f)
             ) {
-                Row(Modifier.fillMaxWidth().padding(15.dp), horizontalArrangement = Arrangement.SpaceBetween) {
-                    Text("Episode $episode", fontWeight = if (watched) FontWeight.Bold else FontWeight.Medium)
+                Row(Modifier.fillMaxWidth().padding(15.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text(providerEpisode.title?.takeIf { it.isNotBlank() } ?: "Episode $episode", fontWeight = if (watched) FontWeight.Bold else FontWeight.Medium)
+                        if (providerEpisode.isNew) Text("Episode baru", fontSize = 11.sp, color = MaterialTheme.colorScheme.primary)
+                    }
                     when {
-                        episode == anime.latestEpisode -> Text("BARU", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
                         watched -> Text("✓", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+                        providerEpisode.isNew -> Text("BARU", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
                     }
                 }
             }
