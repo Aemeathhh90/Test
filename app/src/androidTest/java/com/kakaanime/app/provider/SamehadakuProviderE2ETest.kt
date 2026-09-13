@@ -3,6 +3,7 @@ package com.kakaanime.app.provider
 import android.os.Handler
 import android.os.HandlerThread
 import androidx.media3.common.MediaItem
+import androidx.media3.common.MimeTypes
 import androidx.media3.datasource.DefaultDataSource
 import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.exoplayer.ExoPlayer
@@ -55,6 +56,14 @@ class SamehadakuProviderE2ETest {
             streams.isEmpty()
         )
 
+        streams.forEachIndexed { index, candidate ->
+            println(
+                "E2E_STREAM[$index] provider=${candidate.providerId} type=${candidate.type} " +
+                    "quality=${candidate.quality} headers=${candidate.headers.keys} " +
+                    "url=${candidate.url.take(240)}"
+            )
+        }
+
         val stream = streams.firstOrNull {
             it.url.startsWith("https://") || it.url.startsWith("http://")
         }
@@ -63,7 +72,7 @@ class SamehadakuProviderE2ETest {
         val selected = stream!!
         println(
             "E2E_PROVIDER=samehadaku anime=${selectedAnime.title} episode=${selectedEpisode.number} " +
-                "type=${selected.type} quality=${selected.quality} url=${selected.url.take(180)}"
+                "type=${selected.type} quality=${selected.quality} url=${selected.url.take(240)}"
         )
 
         renderFirstFrame(selected)
@@ -74,6 +83,8 @@ class SamehadakuProviderE2ETest {
         val rendered = CountDownLatch(1)
         val failed = CountDownLatch(1)
         var failureMessage: String? = null
+        var failureCode: String? = null
+        var failureCause: String? = null
         var player: ExoPlayer? = null
 
         val playerThread = HandlerThread("AniLab-Samehadaku-E2E").apply { start() }
@@ -107,10 +118,31 @@ class SamehadakuProviderE2ETest {
                                     error: androidx.media3.common.PlaybackException
                                 ) {
                                     failureMessage = error.message ?: error.errorCodeName
+                                    failureCode = error.errorCodeName
+                                    failureCause = error.cause?.let { cause ->
+                                        generateSequence(cause) { it.cause }
+                                            .take(4)
+                                            .joinToString(" -> ") { it::class.java.simpleName + ": " + (it.message ?: "") }
+                                    }
+                                    println(
+                                        "E2E_MEDIA3_ERROR code=${failureCode ?: "unknown"} " +
+                                            "message=${failureMessage ?: "none"} cause=${failureCause ?: "none"}"
+                                    )
                                     failed.countDown()
                                 }
                             })
-                            exoPlayer.setMediaItem(MediaItem.fromUri(stream.url))
+
+                            val mediaItemBuilder = MediaItem.Builder()
+                                .setUri(stream.url)
+                            when (stream.type) {
+                                StreamType.HLS -> mediaItemBuilder.setMimeType(MimeTypes.APPLICATION_M3U8)
+                                StreamType.DASH -> mediaItemBuilder.setMimeType(MimeTypes.APPLICATION_MPD)
+                                else -> Unit
+                            }
+
+                            // A signed/redirected manifest may not retain a .m3u8/.mpd suffix.
+                            // The provider's normalized stream type is therefore authoritative.
+                            exoPlayer.setMediaItem(mediaItemBuilder.build())
                             exoPlayer.prepare()
                             exoPlayer.playWhenReady = true
                         }
@@ -124,11 +156,14 @@ class SamehadakuProviderE2ETest {
             if (!renderedInTime && failed.count == 0L) {
                 throw AssertionError(
                     "Media3 did not render the first frame within 90s. " +
-                        "Playback error=${failureMessage ?: "none reported"}"
+                        "Playback error=${failureMessage ?: "none reported"} " +
+                        "code=${failureCode ?: "none"} cause=${failureCause ?: "none"}"
                 )
             }
             assertTrue(
-                "Media3 playback failed before onRenderedFirstFrame: ${failureMessage ?: "unknown error"}",
+                "Media3 playback failed before onRenderedFirstFrame: " +
+                    "${failureMessage ?: "unknown error"} " +
+                    "code=${failureCode ?: "unknown"} cause=${failureCause ?: "unknown"}",
                 renderedInTime
             )
         } finally {
