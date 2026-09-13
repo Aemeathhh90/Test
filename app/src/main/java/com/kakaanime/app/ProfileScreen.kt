@@ -53,6 +53,7 @@ fun ProfileScreen(themeState: KakaThemeState, monetizationState: MonetizationSta
     if (showAnimeWatched) { AnimeWatchedScreen(prefs, localAnime, { showAnimeWatched = false }) { showAnimeWatched = false }; return }
     if (showEpisodeWatched) { EpisodeWatchedScreen(prefs, localAnime, { showEpisodeWatched = false }) { _, _ -> showEpisodeWatched = false }; return }
     if (showEdit) { EditProfileScreen(prefs, onBack = { name = prefs.loadProfileName(); bio = prefs.loadProfileBio(); avatar = prefs.loadProfileAvatarIndex(); profilePhotoUri = prefs.loadProfilePhotoUri(); bannerUri = prefs.loadProfileBannerUri(); premiumBannerUri = prefs.loadPremiumBannerUri(); animatedProfileUri = prefs.loadAnimatedProfileUri(); showEdit = false }, isPremium = monetizationState.isPremium, onPremiumClick = onPremiumClick); return }
+    if (showSettings) { SettingsScreen(monetizationState = monetizationState) { showSettings = false }; return }
 
     val initials = name.trim().take(2).ifBlank { "KA" }.uppercase()
     val avatarColor = listOf(Color(0xFFFF4D67), Color(0xFF9C6BFF), Color(0xFF20C8E8), Color(0xFF35C98A))[avatar.coerceIn(0, 3)]
@@ -108,7 +109,6 @@ fun ProfileScreen(themeState: KakaThemeState, monetizationState: MonetizationSta
         }
     }
     if (showAppearance) AlertDialog(onDismissRequest = { showAppearance = false }, title = { Text("Appearance") }, text = { Column(verticalArrangement = Arrangement.spacedBy(12.dp)) { Text("Dark mode: ${if (themeState.darkMode) "ON" else "OFF"}", modifier = Modifier.clickable { themeState.darkMode = !themeState.darkMode; prefs.saveDarkMode(themeState.darkMode) }); Text("Accent color", fontWeight = FontWeight.Bold); Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) { KakaAccent.entries.forEach { a -> Surface(Modifier.weight(1f).height(34.dp).clickable { themeState.accent = a; prefs.saveAccentName(a.name) }, RoundedCornerShape(8.dp), color = a.primary.copy(alpha = if (themeState.accent == a) .9f else .25f)) {} } } } }, confirmButton = { TextButton(onClick = { showAppearance = false }) { Text("Selesai") } })
-    if (showSettings) SimpleDialog("Settings", "Pengaturan aplikasi dan data akan ditempatkan di sini.") { showSettings = false }
     if (showNotifications) SimpleDialog("Notifications", "Notifikasi episode baru dan notifikasi sistem akan ditempatkan di sini.") { showNotifications = false }
     if (showAbout) SimpleDialog("About KakaAnime", "KakaAnime — anime always with you.\n\nUI/UX menggunakan arah KakaAnime dengan pola ReDantotsu.") { showAbout = false }
 }
