@@ -31,11 +31,13 @@ import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material.icons.outlined.Schedule
 import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -52,6 +54,7 @@ import com.kakaanime.app.monetization.DiamondRules
 import com.kakaanime.app.monetization.MonetizationState
 import com.kakaanime.app.player.VideoPlayerScreen
 import com.kakaanime.app.premium.PremiumScreen
+import com.kakaanime.app.provider.ProviderPlaybackResolver
 import com.kakaanime.app.ui.theme.KakaAnimeTheme
 import com.kakaanime.app.ui.theme.rememberKakaThemeState
 
@@ -98,6 +101,8 @@ fun KakaAnimeApp() {
     var selectedEpisode by remember { mutableStateOf<Int?>(null) }
     var selectedTab by remember { mutableStateOf(BottomTab.HOME) }
     var showPremium by remember { mutableStateOf(false) }
+    var resolvedStreamUrl by remember { mutableStateOf<String?>(null) }
+    var streamLoading by remember { mutableStateOf(false) }
 
     var favoriteTitles by remember(preferences) {
         mutableStateOf(preferences.loadFavoriteTitles())
@@ -114,17 +119,11 @@ fun KakaAnimeApp() {
         )
     }
 
-    fun saveUserState() {
-        preferences.saveFavoriteTitles(favoriteTitles)
-        preferences.saveWatchedEpisodes(watchedEpisodes)
-        preferences.saveDiamonds(monetizationState.diamonds)
-        preferences.savePremium(monetizationState.isPremium)
-    }
-
     fun openEpisode(anime: Anime, episode: Int) {
         if (monetizationState.isPremium) {
             watchedEpisodes = watchedEpisodes + (anime.title to episode)
             preferences.saveWatchedEpisodes(watchedEpisodes)
+            selectedAnime = anime
             selectedEpisode = episode
             return
         }
@@ -135,6 +134,7 @@ fun KakaAnimeApp() {
             watchedEpisodes = watchedEpisodes + (anime.title to episode)
             preferences.saveDiamonds(consumed.diamonds)
             preferences.saveWatchedEpisodes(watchedEpisodes)
+            selectedAnime = anime
             selectedEpisode = episode
             return
         }
@@ -151,11 +151,36 @@ fun KakaAnimeApp() {
                     watchedEpisodes = watchedEpisodes + (anime.title to episode)
                     preferences.saveDiamonds(afterReward.diamonds)
                     preferences.saveWatchedEpisodes(watchedEpisodes)
+                    selectedAnime = anime
                     selectedEpisode = episode
                 }
             },
             onUnavailable = { }
         )
+    }
+
+    // Resolve the real provider stream whenever the selected anime/episode changes.
+    // The UI never falls back to the old Bunny trailer: a missing provider stream
+    // is surfaced as an unavailable playback state instead.
+    LaunchedEffect(selectedAnime?.title, selectedEpisode, monetizationState.isPremium) {
+        val anime = selectedAnime
+        val episode = selectedEpisode
+        if (anime == null || episode == null) {
+            resolvedStreamUrl = null
+            streamLoading = false
+            return@LaunchedEffect
+        }
+
+        resolvedStreamUrl = null
+        streamLoading = true
+        resolvedStreamUrl = runCatching {
+            ProviderPlaybackResolver.resolve(
+                title = anime.title,
+                episodeNumber = episode,
+                premium = monetizationState.isPremium
+            )?.url
+        }.getOrNull()
+        streamLoading = false
     }
 
     val screen = when {
@@ -204,15 +229,48 @@ fun KakaAnimeApp() {
                     },
                     onEpisodeClick = { openEpisode(selectedAnime!!, it) }
                 )
-                AnimeScreen.PLAYER -> VideoPlayerScreen(
-                    videoUrl = "https://media.w3.org/2010/05/bunny/trailer.mp4",
-                    introStart = selectedAnime!!.introStart,
-                    introEnd = selectedAnime!!.introEnd,
-                    outroStart = selectedAnime!!.outroStart,
-                    outroEnd = selectedAnime!!.outroEnd,
-                    isPremium = monetizationState.isPremium,
-                    modifier = Modifier.fillMaxSize()
-                )
+                AnimeScreen.PLAYER -> {
+                    val anime = selectedAnime!!
+                    val episode = selectedEpisode!!
+                    if (streamLoading) {
+                        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                CircularProgressIndicator()
+                                Spacer(Modifier.height(12.dp))
+                                Text("Mencari stream Episode $episode...", color = MaterialTheme.colorScheme.onBackground)
+                            }
+                        }
+                    } else if (resolvedStreamUrl != null) {
+                        VideoPlayerScreen(
+                            videoUrl = resolvedStreamUrl!!,
+                            title = anime.title,
+                            episodeNumber = episode,
+                            description = anime.description,
+                            introStart = anime.introStart,
+                            introEnd = anime.introEnd,
+                            outroStart = anime.outroStart,
+                            outroEnd = anime.outroEnd,
+                            isPremium = monetizationState.isPremium,
+                            modifier = Modifier.fillMaxSize(),
+                            onPreviousEpisode = {
+                                if (episode > 1) selectedEpisode = episode - 1
+                            },
+                            onNextEpisode = {
+                                if (episode < anime.latestEpisode) selectedEpisode = episode + 1
+                            }
+                        )
+                    } else {
+                        Box(Modifier.fillMaxSize().padding(24.dp), contentAlignment = Alignment.Center) {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Text("Stream tidak ditemukan", fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                                Spacer(Modifier.height(8.dp))
+                                Text("Provider belum menemukan sumber untuk ${anime.title} Episode $episode.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Spacer(Modifier.height(16.dp))
+                                Button(onClick = { selectedEpisode = episode }) { Text("Coba lagi") }
+                            }
+                        }
+                    }
+                }
                 AnimeScreen.PREMIUM -> PremiumScreen(
                     state = monetizationState,
                     onBack = { showPremium = false },
