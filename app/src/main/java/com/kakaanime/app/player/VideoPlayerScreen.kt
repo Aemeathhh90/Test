@@ -56,6 +56,8 @@ import androidx.media3.ui.PlayerView
 import com.kakaanime.app.player.core.rememberPlayerController
 import com.kakaanime.app.player.core.rememberPlayerState
 import com.kakaanime.app.player.ui.ReDantotsuPlayerController
+import com.kakaanime.app.provider.ProviderPlaybackResolver
+import com.kakaanime.app.provider.StreamQuality
 import kotlinx.coroutines.delay
 
 @Composable
@@ -89,8 +91,40 @@ fun VideoPlayerScreen(
     var selectedQuality by remember { mutableStateOf("720p") }
     var showQualityMenu by remember { mutableStateOf(false) }
     var descriptionExpanded by remember { mutableStateOf(false) }
+    var qualityRequest by remember { mutableStateOf<String?>(null) }
+    var qualityLoading by remember { mutableStateOf(false) }
 
     LaunchedEffect(videoUrl) { playerController.setVideo(videoUrl) }
+
+    LaunchedEffect(qualityRequest, title, episodeNumber, isPremium) {
+        val requested = qualityRequest ?: return@LaunchedEffect
+        qualityLoading = true
+        val target = when (requested) {
+            "360p" -> StreamQuality.Q360
+            "480p" -> StreamQuality.Q480
+            "720p" -> StreamQuality.Q720
+            "1080p" -> StreamQuality.Q1080
+            else -> null
+        }
+        if (target != null && (requested != "1080p" || isPremium)) {
+            val position = player.currentPosition.coerceAtLeast(0L)
+            val resolved = runCatching {
+                ProviderPlaybackResolver.resolve(
+                    title = title,
+                    episodeNumber = episodeNumber,
+                    premium = isPremium,
+                    preferredQuality = target
+                )
+            }.getOrNull()
+            if (resolved != null && resolved.url.isNotBlank()) {
+                playerController.setVideo(resolved.url)
+                playerController.seekTo(position)
+                selectedQuality = requested
+            }
+        }
+        qualityRequest = null
+        qualityLoading = false
+    }
 
     LaunchedEffect(isPremium, introStart, introEnd, outroStart, outroEnd, videoUrl) {
         if (!isPremium) return@LaunchedEffect
@@ -168,14 +202,14 @@ fun VideoPlayerScreen(
                     ReactionPanel(modifier = Modifier.weight(1f))
                     Spacer(Modifier.width(8.dp))
                     Box {
-                        QualityButton(selectedQuality) { showQualityMenu = true }
+                        QualityButton(if (qualityLoading) "..." else selectedQuality) { if (!qualityLoading) showQualityMenu = true }
                         DropdownMenu(expanded = showQualityMenu, onDismissRequest = { showQualityMenu = false }) {
                             listOf("360p", "480p", "720p").forEach { quality ->
-                                DropdownMenuItem(text = { Text(if (quality == selectedQuality) "✓ $quality" else quality) }, onClick = { selectedQuality = quality; showQualityMenu = false })
+                                DropdownMenuItem(text = { Text(if (quality == selectedQuality) "✓ $quality" else quality) }, onClick = { qualityRequest = quality; showQualityMenu = false })
                             }
                             DropdownMenuItem(
                                 text = { Row(verticalAlignment = Alignment.CenterVertically) { Text("1080p"); Spacer(Modifier.width(8.dp)); Icon(Icons.Filled.Lock, "Premium", tint = colors.primary, modifier = Modifier.size(16.dp)) } },
-                                onClick = {}
+                                onClick = { if (isPremium) { qualityRequest = "1080p"; showQualityMenu = false } }
                             )
                         }
                     }
