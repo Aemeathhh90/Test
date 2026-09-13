@@ -8,6 +8,8 @@ import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONObject
 import java.time.Instant
+import java.time.LocalDate
+import java.time.ZoneId
 import java.util.concurrent.TimeUnit
 
 /** Runtime anime airing schedule backed by AniList's public GraphQL endpoint. */
@@ -17,24 +19,29 @@ data class AniListScheduleEntry(
     val episode: Int,
     val airingAt: Long,
     val imageUrl: String?,
-    val siteUrl: String?
+    val siteUrl: String?,
+    val format: String?,
+    val score: Double?,
+    val durationMinutes: Int?,
+    val genres: List<String>
 )
 
 class AniListCalendarService {
     private val client = OkHttpClient.Builder()
         .connectTimeout(10, TimeUnit.SECONDS)
         .readTimeout(15, TimeUnit.SECONDS)
-        .callTimeout(20, TimeUnit.SECONDS)
+        .callTimeout(25, TimeUnit.SECONDS)
         .build()
 
     suspend fun getSchedule(
-        from: Long = Instant.now().epochSecond,
+        from: Long = startOfTodayEpochSecond(),
         days: Int = 14
     ): List<AniListScheduleEntry> = withContext(Dispatchers.IO) {
         val to = from + days.coerceIn(1, 30) * 24L * 60L * 60L
         val query = """
-            query AiringSchedule(${'$'}from: Int!, ${'$'}to: Int!) {
-              Page(perPage: 50) {
+            query AiringSchedule(${'$'}page: Int!, ${'$'}from: Int!, ${'$'}to: Int!) {
+              Page(page: ${'$'}page, perPage: 50) {
+                pageInfo { hasNextPage }
                 airingSchedules(airingAt_greater: ${'$'}from, airingAt_lesser: ${'$'}to) {
                   id
                   episode
@@ -44,41 +51,63 @@ class AniListCalendarService {
                     siteUrl
                     title { romaji english native }
                     coverImage { large medium }
+                    format
+                    averageScore
+                    duration
+                    genres
                   }
                 }
               }
             }
         """.trimIndent()
 
-        runCatching {
-            val payload = JSONObject()
-                .put("query", query)
-                .put("variables", JSONObject().put("from", from.toInt()).put("to", to.toInt()))
+        buildList {
+            var page = 1
+            var hasNextPage = true
 
-            val request = Request.Builder()
-                .url("https://graphql.anilist.co")
-                .post(payload.toString().toRequestBody("application/json".toMediaType()))
-                .header("Accept", "application/json")
-                .header("User-Agent", "KakaAnime/0.1")
-                .build()
+            while (hasNextPage && page <= 5) {
+                val pageEntries = runCatching {
+                    val payload = JSONObject()
+                        .put("query", query)
+                        .put(
+                            "variables",
+                            JSONObject()
+                                .put("page", page)
+                                .put("from", from.toInt())
+                                .put("to", to.toInt())
+                        )
 
-            client.newCall(request).execute().use { response ->
-                if (!response.isSuccessful) return@runCatching emptyList()
-                val body = response.body?.string().orEmpty()
-                if (body.isBlank()) return@runCatching emptyList()
-                parse(body)
+                    val request = Request.Builder()
+                        .url("https://graphql.anilist.co")
+                        .post(payload.toString().toRequestBody("application/json".toMediaType()))
+                        .header("Accept", "application/json")
+                        .header("User-Agent", "KakaAnime/0.1")
+                        .build()
+
+                    client.newCall(request).execute().use { response ->
+                        if (!response.isSuccessful) return@runCatching emptyList()
+                        val body = response.body?.string().orEmpty()
+                        if (body.isBlank()) return@runCatching emptyList()
+                        parse(body)
+                    }
+                }.getOrElse { emptyList() }
+
+                addAll(pageEntries.first)
+                hasNextPage = pageEntries.second
+                if (pageEntries.first.isEmpty() && !hasNextPage) break
+                page++
             }
-        }.getOrElse { emptyList() }
+        }.distinctBy { "${it.id}-${it.episode}-${it.airingAt}" }
+            .sortedBy { it.airingAt }
     }
 
-    private fun parse(body: String): List<AniListScheduleEntry> {
+    private fun parse(body: String): Pair<List<AniListScheduleEntry>, Boolean> {
         val root = JSONObject(body)
-        val schedules = root.optJSONObject("data")
-            ?.optJSONObject("Page")
-            ?.optJSONArray("airingSchedules")
-            ?: return emptyList()
+        val page = root.optJSONObject("data")?.optJSONObject("Page") ?: return emptyList<AniListScheduleEntry>() to false
+        val schedules = page.optJSONArray("airingSchedules") ?: return emptyList<AniListScheduleEntry>() to false
+        val hasNextPage = page.optJSONObject("pageInfo")?.optBoolean("hasNextPage", false) ?: false
 
-        return buildList {
+        val entries = buildList {
             for (i in 0 until schedules.length()) {
                 val item = schedules.optJSONObject(i) ?: continue
                 val media = item.optJSONObject("media") ?: continue
@@ -91,6 +120,13 @@ class AniListCalendarService {
                 if (episode <= 0 || airingAt <= 0L) continue
 
                 val cover = media.optJSONObject("coverImage")
+                val genres = buildList {
+                    val values = media.optJSONArray("genres") ?: return@buildList
+                    for (index in 0 until values.length()) {
+                        values.optString(index).trim().takeIf { it.isNotBlank() }?.let(::add)
+                    }
+                }
+
                 add(
                     AniListScheduleEntry(
                         id = media.optInt("id", 0),
@@ -99,10 +135,20 @@ class AniListCalendarService {
                         airingAt = airingAt,
                         imageUrl = cover?.optString("large")?.takeIf { it.isNotBlank() }
                             ?: cover?.optString("medium")?.takeIf { it.isNotBlank() },
-                        siteUrl = media.optString("siteUrl").takeIf { it.isNotBlank() }
+                        siteUrl = media.optString("siteUrl").takeIf { it.isNotBlank() },
+                        format = media.optString("format").takeIf { it.isNotBlank() },
+                        score = media.optDouble("averageScore", Double.NaN).takeIf { !it.isNaN() },
+                        durationMinutes = media.optInt("duration", 0).takeIf { it > 0 },
+                        genres = genres
                     )
                 )
             }
-        }.sortedBy { it.airingAt }
+        }
+        return entries to hasNextPage
     }
+
+    private fun startOfTodayEpochSecond(): Long =
+        LocalDate.now()
+            .atStartOfDay(ZoneId.systemDefault())
+            .toEpochSecond()
 }
