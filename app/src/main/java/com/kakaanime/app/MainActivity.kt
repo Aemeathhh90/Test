@@ -55,4 +55,3 @@ class MainActivity:ComponentActivity(){override fun onCreate(savedInstanceState:
  }}}
  episodeGateTarget?.let{(anime,episode)->EpisodeGateDialog(episodeNumber=episode,episodeTitle=providerEpisodes.firstOrNull{it.number==episode}?.title,state=monetizationState,onDismiss={episodeGateTarget=null},onWatchAdAndUnlock={rewardAndOpenPendingEpisode()},onStartPremium={episodeGateTarget=null;showPremium=true})}
  }
-}
