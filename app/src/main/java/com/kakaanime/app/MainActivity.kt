@@ -32,7 +32,6 @@ import androidx.compose.material.icons.outlined.FavoriteBorder
 import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material.icons.outlined.Schedule
-import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
@@ -79,7 +78,7 @@ data class Anime(
     val outroEnd: Long = 0L
 )
 
-private val localAnime = listOf(
+val localAnime = listOf(
     Anime("One Piece", 1140, "Action, Adventure, Fantasy", "Monkey D. Luffy dan kru Topi Jerami melanjutkan perjalanan mereka menuju One Piece.", "Toei Animation", "Ongoing", "1999", "TV", "Ongoing", "9.0", 90L, 180L, 1380L, 1440L),
     Anime("Solo Leveling", 25, "Action, Fantasy", "Sung Jin-woo berkembang dari hunter terlemah menjadi hunter yang sangat kuat.", "A-1 Pictures", "Season 2", "2025", "TV", "Finished", "8.8", 75L, 165L, 1380L, 1440L)
 )
@@ -116,10 +115,15 @@ fun KakaAnimeApp() {
         mutableStateOf(MonetizationState(diamonds = preferences.loadDiamonds(), isPremium = preferences.loadPremium()))
     }
 
+    fun recordWatched(anime: Anime, episode: Int) {
+        preferences.recordWatchedEpisode(anime.title, episode)
+    }
+
     fun openEpisode(anime: Anime, episode: Int) {
         if (monetizationState.isPremium) {
             watchedEpisodes = watchedEpisodes + (anime.title to episode)
             preferences.saveWatchedEpisodes(watchedEpisodes)
+            recordWatched(anime, episode)
             selectedAnime = anime
             selectedEpisode = episode
             return
@@ -130,6 +134,7 @@ fun KakaAnimeApp() {
             watchedEpisodes = watchedEpisodes + (anime.title to episode)
             preferences.saveDiamonds(consumed.diamonds)
             preferences.saveWatchedEpisodes(watchedEpisodes)
+            recordWatched(anime, episode)
             selectedAnime = anime
             selectedEpisode = episode
             return
@@ -144,6 +149,7 @@ fun KakaAnimeApp() {
                     watchedEpisodes = watchedEpisodes + (anime.title to episode)
                     preferences.saveDiamonds(afterReward.diamonds)
                     preferences.saveWatchedEpisodes(watchedEpisodes)
+                    recordWatched(anime, episode)
                     selectedAnime = anime
                     selectedEpisode = episode
                 }
@@ -247,8 +253,8 @@ fun KakaAnimeApp() {
                             outroEnd = anime.outroEnd,
                             isPremium = monetizationState.isPremium,
                             modifier = Modifier.fillMaxSize(),
-                            onPreviousEpisode = { if (episode > 1) selectedEpisode = episode - 1 },
-                            onNextEpisode = { if (episode < anime.latestEpisode) selectedEpisode = episode + 1 }
+                            onPreviousEpisode = { if (episode > 1) { recordWatched(anime, episode - 1); selectedEpisode = episode - 1 } },
+                            onNextEpisode = { if (episode < anime.latestEpisode) { recordWatched(anime, episode + 1); selectedEpisode = episode + 1 } }
                         )
                     } else {
                         Box(Modifier.fillMaxSize().padding(24.dp), contentAlignment = Alignment.Center) {
