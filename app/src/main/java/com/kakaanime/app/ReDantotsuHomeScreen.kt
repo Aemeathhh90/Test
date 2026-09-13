@@ -8,14 +8,14 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.Search
-import androidx.compose.material.icons.outlined.Settings
+import androidx.compose.material.icons.outlined.Message
+import androidx.compose.material.icons.outlined.Notifications
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.clip
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.layout.ContentScale
@@ -34,7 +34,6 @@ fun ReDantotsuHomeScreen(animeList: List<Anime>, onAnimeClick: (Anime) -> Unit, 
     val context = LocalContext.current
     val preferences = remember(context) { KakaAnimePreferences(context) }
     val metadataService = remember { AniListMetadataService() }
-    var search by remember { mutableStateOf("") }
     var backendAnime by remember(animeList) { mutableStateOf(animeList) }
     var watchedEpisodes by remember(preferences) { mutableStateOf(preferences.loadWatchedEpisodes()) }
     var watchHistory by remember(preferences) { mutableStateOf(preferences.loadWatchHistory()) }
@@ -53,7 +52,7 @@ fun ReDantotsuHomeScreen(animeList: List<Anime>, onAnimeClick: (Anime) -> Unit, 
         watchHistory = preferences.loadWatchHistory()
     }
 
-    val filtered = backendAnime.filter { it.title.contains(search, true) }
+    val profileBackground = posterUrls[backendAnime.firstOrNull()?.title]
     val continueWatching = watchHistory.groupBy { it.title }.values
         .mapNotNull { it.maxByOrNull { h -> h.watchedAt } }
         .mapNotNull { h -> backendAnime.firstOrNull { it.title.equals(h.title, true) }?.let { it to h } }
@@ -63,63 +62,112 @@ fun ReDantotsuHomeScreen(animeList: List<Anime>, onAnimeClick: (Anime) -> Unit, 
         contentPadding = PaddingValues(16.dp, 10.dp, 16.dp, 116.dp),
         verticalArrangement = Arrangement.spacedBy(22.dp)
     ) {
-        item { HomeReferenceHeader(search) { search = it } }
-        if (search.isNotBlank()) {
-            item { Text("Hasil Pencarian", fontSize = 20.sp, fontWeight = FontWeight.Bold) }
-            if (filtered.isEmpty()) item { EmptyHomeState() }
-            else items(filtered, key = { it.title }) { anime -> SearchAnimeRow(anime, posterUrls[anime.title], onAnimeClick) }
-        } else {
-            item { FeaturedReferenceCard(backendAnime.firstOrNull(), posterUrls[backendAnime.firstOrNull()?.title], onAnimeClick) }
-            if (continueWatching.isNotEmpty()) item { HomeEpisodeSection("Continue Watching", continueWatching, onContinueWatchingClick) }
-            item { HomeAnimeSection("Trending", backendAnime, posterUrls, onAnimeClick) }
-            item { HomeAnimeSection("New Updates", backendAnime.sortedByDescending { it.latestEpisode }, posterUrls, onAnimeClick, "NEW") }
-            item { HomeAnimeSection("Anime Completed", backendAnime.filter { it.status.equals("Finished", true) }, posterUrls, onAnimeClick, "COMPLETED") }
-            item { HomeAnimeSection("Recommended", backendAnime.reversed(), posterUrls, onAnimeClick) }
-            item { HomePremiumReferenceCard() }
+        item { HomeTopBar() }
+        item { HomeProfileHeader(backgroundUrl = profileBackground) }
+        if (continueWatching.isNotEmpty()) item { HomeEpisodeSection("Lanjut Nonton", continueWatching, onContinueWatchingClick) }
+        item { HomeAnimeSection("New Updates", backendAnime.sortedByDescending { it.latestEpisode }, posterUrls, onAnimeClick, "NEW") }
+        item { HomeAnimeSection("Trending Now", backendAnime, posterUrls, onAnimeClick) }
+        item { HomeAnimeSection("Anime Completed", backendAnime.filter { it.status.equals("Finished", true) }, posterUrls, onAnimeClick, "COMPLETED") }
+        item { HomeAnimeSection("Recommended", backendAnime.reversed(), posterUrls, onAnimeClick) }
+        item { HomePremiumReferenceCard() }
+    }
+}
+
+@Composable
+private fun HomeTopBar() {
+    Row(Modifier.fillMaxWidth().padding(horizontal = 2.dp), verticalAlignment = Alignment.CenterVertically) {
+        Column(Modifier.weight(1f)) {
+            Text("KakaAnime", fontSize = 24.sp, fontWeight = FontWeight.ExtraBold)
+            Text("Watch Anime, Together.", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        Surface(shape = CircleShape, color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = .72f)) {
+            Icon(Icons.Outlined.Message, "Pesan", modifier = Modifier.padding(11.dp))
+        }
+        Spacer(Modifier.width(8.dp))
+        Surface(shape = CircleShape, color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = .72f)) {
+            Box {
+                Icon(Icons.Outlined.Notifications, "Notifikasi", modifier = Modifier.padding(11.dp))
+                Box(Modifier.align(Alignment.TopEnd).padding(7.dp).size(7.dp).clip(CircleShape).background(MaterialTheme.colorScheme.error))
+            }
         }
     }
 }
 
-@Composable private fun HomeReferenceHeader(search: String, onSearchChanged: (String) -> Unit) {
-    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            Surface(Modifier.size(44.dp), CircleShape, color = MaterialTheme.colorScheme.primary.copy(alpha = .14f)) {
-                Box(contentAlignment = Alignment.Center) { Text("KA", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary) }
-            }
-            Spacer(Modifier.width(12.dp))
-            Column(Modifier.weight(1f)) {
-                Text("KakaAnime", fontSize = 21.sp, fontWeight = FontWeight.Bold)
-                Text("Temukan anime berikutnya", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-            Surface(shape = CircleShape, color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = .72f)) {
-                Icon(Icons.Outlined.Settings, "Pengaturan", modifier = Modifier.padding(11.dp))
-            }
-        }
-        Surface(Modifier.fillMaxWidth(), RoundedCornerShape(22.dp), color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = .72f)) {
-            Row(Modifier.padding(horizontal = 15.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Outlined.Search, "Cari", tint = MaterialTheme.colorScheme.onSurfaceVariant)
-                Spacer(Modifier.width(10.dp))
-                BasicTextField(
-                    value = search, onValueChange = onSearchChanged, modifier = Modifier.weight(1f), singleLine = true,
-                    textStyle = MaterialTheme.typography.bodyMedium.copy(color = MaterialTheme.colorScheme.onSurface),
-                    decorationBox = { inner -> if (search.isEmpty()) Text("Cari anime...", color = MaterialTheme.colorScheme.onSurfaceVariant); inner() }
+@Composable
+private fun HomeProfileHeader(backgroundUrl: String?) {
+    Surface(
+        Modifier.fillMaxWidth(),
+        RoundedCornerShape(26.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = .34f)
+    ) {
+        Box(Modifier.fillMaxWidth().height(278.dp).clip(RoundedCornerShape(26.dp))) {
+            if (backgroundUrl != null) {
+                AsyncImage(
+                    model = backgroundUrl,
+                    contentDescription = null,
+                    modifier = Modifier.fillMaxWidth().height(178.dp),
+                    contentScale = ContentScale.Crop,
+                    alignment = Alignment.Center
+                )
+                Box(
+                    Modifier.fillMaxWidth().height(178.dp)
+                        .background(Brush.horizontalGradient(listOf(MaterialTheme.colorScheme.background.copy(alpha = .90f), MaterialTheme.colorScheme.background.copy(alpha = .35f), MaterialTheme.colorScheme.background.copy(alpha = .82f))))
+                )
+                Box(
+                    Modifier.fillMaxWidth().height(178.dp)
+                        .background(Brush.verticalGradient(listOf(MaterialTheme.colorScheme.background.copy(alpha = .18f), MaterialTheme.colorScheme.background.copy(alpha = .78f))))
+                )
+            } else {
+                Box(
+                    Modifier.fillMaxWidth().height(178.dp)
+                        .background(Brush.horizontalGradient(listOf(MaterialTheme.colorScheme.primary.copy(alpha = .10f), MaterialTheme.colorScheme.secondary.copy(alpha = .18f))))
                 )
             }
+            Row(Modifier.fillMaxWidth().padding(18.dp), verticalAlignment = Alignment.Top) {
+                Surface(Modifier.size(112.dp), CircleShape, color = MaterialTheme.colorScheme.surfaceVariant) {
+                    Box(contentAlignment = Alignment.Center) { Text("KA", fontSize = 25.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary) }
+                }
+                Spacer(Modifier.width(14.dp))
+                Column(Modifier.weight(1f)) {
+                    Text("Shin Tempest", fontSize = 23.sp, fontWeight = FontWeight.ExtraBold)
+                    Spacer(Modifier.height(8.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+                        ProfileBadge("✦  WDRG")
+                        ProfileBadge("▰  Lv. 649")
+                    }
+                    Spacer(Modifier.height(10.dp))
+                    Text("Watch more anime, a happier you.", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2)
+                }
+            }
+            Row(
+                Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(10.dp),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                HomeShortcut("💎", "7.848", "Diamond", Modifier.weight(1f))
+                HomeShortcut("♛", "Premium", "1080p • Auto Skip", Modifier.weight(1f))
+                HomeShortcut("●●", "Watch Together", "Nonton bareng teman", Modifier.weight(1.2f))
+            }
         }
     }
 }
 
-@Composable private fun FeaturedReferenceCard(anime: Anime?, posterUrl: String?, onClick: (Anime) -> Unit) {
-    if (anime == null) return
-    Box(Modifier.fillMaxWidth().height(285.dp).clip(RoundedCornerShape(26.dp)).clickable { onClick(anime) }) {
-        if (posterUrl != null) AsyncImage(posterUrl, anime.title, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
-        else Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(MaterialTheme.colorScheme.surfaceVariant, MaterialTheme.colorScheme.surface, MaterialTheme.colorScheme.background))))
-        Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(MaterialTheme.colorScheme.background.copy(alpha = .05f), MaterialTheme.colorScheme.background.copy(alpha = .78f)))))
-        Column(Modifier.align(Alignment.BottomStart).padding(20.dp)) {
-            Text("FEATURED", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
-            Spacer(Modifier.height(4.dp)); Text(anime.title, fontSize = 28.sp, fontWeight = FontWeight.Bold, maxLines = 2)
-            Spacer(Modifier.height(4.dp)); Text("★ ${anime.rating}  •  ${anime.status}  •  ${anime.year}", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Spacer(Modifier.height(9.dp)); Text(anime.genre, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
+@Composable
+private fun ProfileBadge(text: String) {
+    Surface(shape = RoundedCornerShape(14.dp), color = MaterialTheme.colorScheme.primary.copy(alpha = .18f)) {
+        Text(text, Modifier.padding(horizontal = 10.dp, vertical = 5.dp), fontSize = 11.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+    }
+}
+
+@Composable
+private fun HomeShortcut(icon: String, title: String, subtitle: String, modifier: Modifier = Modifier) {
+    Surface(modifier, RoundedCornerShape(18.dp), color = MaterialTheme.colorScheme.surface.copy(alpha = .72f)) {
+        Row(Modifier.padding(horizontal = 10.dp, vertical = 11.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text(icon, fontSize = 18.sp)
+            Spacer(Modifier.width(7.dp))
+            Column(Modifier.weight(1f)) {
+                Text(title, fontSize = 12.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+                Text(subtitle, fontSize = 9.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
+            }
         }
     }
 }
@@ -169,19 +217,8 @@ fun ReDantotsuHomeScreen(animeList: List<Anime>, onAnimeClick: (Anime) -> Unit, 
     }
 }
 
-@Composable private fun SearchAnimeRow(anime: Anime, posterUrl: String?, onClick: (Anime) -> Unit) {
-    Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = .55f)).clickable { onClick(anime) }.padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
-        Box(Modifier.size(64.dp, 86.dp).clip(RoundedCornerShape(11.dp)).background(MaterialTheme.colorScheme.surfaceVariant), contentAlignment = Alignment.Center) {
-            if (posterUrl != null) AsyncImage(posterUrl, anime.title, Modifier.fillMaxSize(), contentScale = ContentScale.Crop) else Text("POSTER", fontSize = 8.sp, color = MaterialTheme.colorScheme.primary)
-        }
-        Spacer(Modifier.width(12.dp)); Column(Modifier.weight(1f)) { Text(anime.title, fontSize = 16.sp, fontWeight = FontWeight.Bold); Text(anime.genre, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1); Spacer(Modifier.height(5.dp)); Text("Ep ${anime.latestEpisode}  •  ★ ${anime.rating}", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant) }
-    }
-}
-
 @Composable private fun HomePremiumReferenceCard() {
     Surface(Modifier.fillMaxWidth(), RoundedCornerShape(22.dp), color = MaterialTheme.colorScheme.primary.copy(alpha = .10f)) {
         Column(Modifier.padding(18.dp)) { Text("PREMIUM", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary); Spacer(Modifier.height(3.dp)); Text("1080p • Auto Skip • Premium", fontSize = 20.sp, fontWeight = FontWeight.Bold); Text("Fitur premium KakaAnime akan terhubung di tahap berikutnya.", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant) }
     }
 }
-
-@Composable private fun EmptyHomeState() { Box(Modifier.fillMaxWidth().padding(vertical = 48.dp), contentAlignment = Alignment.Center) { Text("Anime tidak ditemukan", color = MaterialTheme.colorScheme.onSurfaceVariant) } }
