@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -26,6 +27,7 @@ import androidx.compose.material.icons.outlined.MoreVert
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -40,6 +42,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
@@ -63,9 +66,10 @@ fun CalendarScreen(
     val service = remember { AniListCalendarService() }
     val today = remember { LocalDate.now() }
     val days = remember(today) {
-        (0L..6L).map { date ->
-            val value = today.plusDays(date)
-            ScheduleDay(value, value == today)
+        val monday = today.minusDays((today.dayOfWeek.value - 1).toLong())
+        (0L..6L).map { offset ->
+            val date = monday.plusDays(offset)
+            ScheduleDay(date = date, isToday = date == today)
         }
     }
     var selectedDate by remember(today) { mutableStateOf(today) }
@@ -87,7 +91,9 @@ fun CalendarScreen(
     }
 
     LazyColumn(
-        modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background),
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background),
         contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 14.dp, bottom = 112.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
@@ -99,46 +105,29 @@ fun CalendarScreen(
                 contentPadding = PaddingValues(horizontal = 2.dp)
             ) {
                 items(days) { day ->
-                    ScheduleDayCard(day, selectedDate == day.date) { selectedDate = day.date }
+                    ScheduleDayCard(
+                        day = day,
+                        selected = selectedDate == day.date,
+                        onClick = { selectedDate = day.date }
+                    )
                 }
             }
         }
 
         item {
-            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Column(Modifier.weight(1f)) {
-                    Text(
-                        if (selectedDate == today) "Today" else formatDate(selectedDate),
-                        fontSize = 22.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Text(
-                        if (selectedDate == today) formatDate(selectedDate) else "Jadwal episode yang tayang",
-                        fontSize = 11.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-                if (!loading) {
-                    Surface(
-                        shape = RoundedCornerShape(50),
-                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = .55f)
-                    ) {
-                        Text(
-                            "${entries.size} Ep",
-                            modifier = Modifier.padding(horizontal = 11.dp, vertical = 7.dp),
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
-            }
+            ScheduleSectionHeader(
+                date = selectedDate,
+                today = today,
+                count = entries.size
+            )
         }
 
         if (loading) {
             item {
                 Box(
-                    Modifier.fillMaxWidth().padding(vertical = 56.dp),
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 56.dp),
                     contentAlignment = Alignment.Center
                 ) {
                     CircularProgressIndicator(modifier = Modifier.size(28.dp))
@@ -147,7 +136,10 @@ fun CalendarScreen(
         } else if (entries.isEmpty()) {
             item { EmptyScheduleState() }
         } else {
-            items(entries, key = { "${it.id}-${it.episode}-${it.airingAt}" }) { entry ->
+            items(
+                items = entries,
+                key = { "${it.id}-${it.episode}-${it.airingAt}" }
+            ) { entry ->
                 val matchedAnime = animeList.firstOrNull { anime ->
                     anime.title.equals(entry.title, ignoreCase = true)
                 }
@@ -163,117 +155,164 @@ fun CalendarScreen(
 
 @Composable
 private fun CalendarHeader() {
-    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
         Column(Modifier.weight(1f)) {
-            Text("Calendar", fontSize = 29.sp, fontWeight = FontWeight.Bold)
             Text(
-                "Anime yang akan tayang",
+                "Schedule",
+                fontSize = 29.sp,
+                fontWeight = FontWeight.Bold
+            )
+            Text(
+                "Track upcoming anime episodes",
                 fontSize = 12.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
-        Surface(
-            shape = CircleShape,
-            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = .52f)
-        ) {
-            Icon(Icons.Outlined.Search, "Cari jadwal", Modifier.padding(11.dp))
+        IconButton(onClick = { }) {
+            Icon(Icons.Outlined.Search, contentDescription = "Search schedule")
         }
-        Spacer(Modifier.width(8.dp))
-        Surface(
-            shape = CircleShape,
-            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = .52f)
-        ) {
-            Icon(Icons.Outlined.MoreVert, "Opsi jadwal", Modifier.padding(11.dp))
+        IconButton(onClick = { }) {
+            Icon(Icons.Outlined.MoreVert, contentDescription = "Schedule options")
         }
     }
 }
 
 @Composable
-private fun ScheduleDayCard(day: ScheduleDay, selected: Boolean, onClick: () -> Unit) {
-    val dayName = day.date.dayOfWeek.name.take(3).lowercase(Locale.ENGLISH).replaceFirstChar { it.uppercase() }
+private fun ScheduleDayCard(
+    day: ScheduleDay,
+    selected: Boolean,
+    onClick: () -> Unit
+) {
+    val dayName = day.date.dayOfWeek.name
+        .take(3)
+        .lowercase(Locale.ENGLISH)
+        .replaceFirstChar { it.uppercase() }
+    val monthName = day.date.month.name
+        .take(3)
+        .lowercase(Locale.ENGLISH)
+        .replaceFirstChar { it.uppercase() }
+
     Surface(
-        modifier = Modifier.width(66.dp).height(82.dp).clickable { onClick() },
-        shape = RoundedCornerShape(22.dp),
+        modifier = Modifier
+            .width(68.dp)
+            .height(78.dp)
+            .clickable { onClick() },
+        shape = RoundedCornerShape(18.dp),
         color = if (selected) {
-            MaterialTheme.colorScheme.primary.copy(alpha = .16f)
+            MaterialTheme.colorScheme.primary.copy(alpha = .18f)
         } else {
-            MaterialTheme.colorScheme.surfaceVariant.copy(alpha = .38f)
+            MaterialTheme.colorScheme.surfaceVariant.copy(alpha = .35f)
         },
         tonalElevation = if (selected) 2.dp else 0.dp
     ) {
         Column(
-            Modifier.fillMaxSize().padding(vertical = 8.dp),
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(vertical = 7.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.SpaceBetween
         ) {
-            Text(dayName, fontSize = 10.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(
+                dayName.uppercase(Locale.ENGLISH),
+                fontSize = 9.sp,
+                fontWeight = FontWeight.Bold,
+                color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+            )
             Text(
                 day.date.dayOfMonth.toString(),
-                fontSize = 24.sp,
+                fontSize = 22.sp,
                 fontWeight = FontWeight.Bold,
                 color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
             )
-            Text(day.date.month.name.take(3), fontSize = 9.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            if (day.isToday) {
-                Box(Modifier.size(5.dp).clip(CircleShape).background(MaterialTheme.colorScheme.primary))
-            } else if (selected) {
-                Box(Modifier.size(5.dp).clip(CircleShape).background(MaterialTheme.colorScheme.primary.copy(alpha = .55f)))
-            } else {
-                Spacer(Modifier.size(5.dp))
-            }
+            Text(
+                if (day.isToday) "Today" else monthName,
+                fontSize = 9.sp,
+                fontWeight = if (day.isToday) FontWeight.SemiBold else FontWeight.Normal,
+                color = if (day.isToday) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+            )
         }
     }
 }
 
 @Composable
-private fun ScheduleTimelineItem(entry: AniListScheduleEntry, isFavorite: Boolean, onClick: () -> Unit) {
+private fun ScheduleSectionHeader(
+    date: LocalDate,
+    today: LocalDate,
+    count: Int
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.Bottom
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text(
+                if (date == today) "Today · ${formatLongDate(date)}" else formatLongDate(date),
+                fontSize = 20.sp,
+                fontWeight = FontWeight.Bold
+            )
+            Text(
+                "$count episodes",
+                fontSize = 11.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    }
+}
+
+@Composable
+private fun ScheduleTimelineItem(
+    entry: AniListScheduleEntry,
+    isFavorite: Boolean,
+    onClick: () -> Unit
+) {
     val now = Instant.now()
     val airing = Instant.ofEpochSecond(entry.airingAt)
-    val isAiringToday = airing.atZone(ZoneId.systemDefault()).toLocalDate() == LocalDate.now()
-    val time = airing.atZone(ZoneId.systemDefault()).format(DateTimeFormatter.ofPattern("HH:mm"))
+    val zoneAiring = airing.atZone(ZoneId.systemDefault())
+    val time = zoneAiring.format(DateTimeFormatter.ofPattern("HH:mm"))
+    val isAired = airing <= now
     val countdown = countdownText(now, airing)
 
     Row(
-        Modifier.fillMaxWidth().clickable(enabled = onClick != {}) { onClick() },
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(enabled = isFavorite || onClick !== {}) { onClick() },
         verticalAlignment = Alignment.Top
     ) {
-        Column(Modifier.width(54.dp).padding(top = 12.dp), horizontalAlignment = Alignment.End) {
-            Text(time, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
-            Text("LOCAL", fontSize = 8.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Column(
+            modifier = Modifier
+                .width(48.dp)
+                .padding(top = 11.dp),
+            horizontalAlignment = Alignment.End
+        ) {
+            Text(time, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
         }
 
-        Box(Modifier.width(20.dp).height(126.dp)) {
-            Box(
-                Modifier.align(Alignment.TopCenter)
-                    .padding(top = 18.dp)
-                    .size(8.dp)
-                    .clip(CircleShape)
-                    .background(if (isAiringToday) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = .5f))
-            )
-            Box(
-                Modifier.align(Alignment.TopCenter)
-                    .padding(top = 26.dp)
-                    .width(1.dp)
-                    .height(100.dp)
-                    .background(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = .16f))
-            )
-        }
+        TimelineRail(isAired = isAired)
 
         Surface(
-            modifier = Modifier.weight(1f),
-            shape = RoundedCornerShape(20.dp),
-            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = .38f),
+            modifier = Modifier
+                .weight(1f)
+                .heightIn(min = 108.dp),
+            shape = RoundedCornerShape(18.dp),
+            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = .36f),
             tonalElevation = 1.dp
         ) {
             Row(
-                Modifier.fillMaxWidth().padding(9.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(9.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 if (entry.imageUrl != null) {
                     AsyncImage(
                         model = entry.imageUrl,
                         contentDescription = entry.title,
-                        modifier = Modifier.size(width = 58.dp, height = 78.dp).clip(RoundedCornerShape(13.dp))
+                        modifier = Modifier
+                            .size(width = 64.dp, height = 86.dp)
+                            .clip(RoundedCornerShape(12.dp))
                     )
                 } else {
                     PosterPlaceholder(entry.title)
@@ -281,60 +320,162 @@ private fun ScheduleTimelineItem(entry: AniListScheduleEntry, isFavorite: Boolea
 
                 Spacer(Modifier.width(10.dp))
 
-                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    Row(verticalAlignment = Alignment.Top) {
                         Text(
                             entry.title,
+                            modifier = Modifier.weight(1f),
                             fontSize = 14.sp,
                             fontWeight = FontWeight.Bold,
                             maxLines = 2,
-                            modifier = Modifier.weight(1f)
+                            overflow = TextOverflow.Ellipsis
                         )
                         if (isFavorite) {
                             Icon(
                                 Icons.Outlined.Favorite,
-                                "Favorite",
+                                contentDescription = "Favorite",
                                 tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(15.dp)
+                                modifier = Modifier
+                                    .padding(start = 5.dp)
+                                    .size(15.dp)
                             )
                         }
-                    }
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(
-                            "Ep ${entry.episode}",
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = MaterialTheme.colorScheme.primary
+                        Icon(
+                            Icons.Outlined.MoreVert,
+                            contentDescription = "Episode options",
+                            modifier = Modifier
+                                .padding(start = 2.dp)
+                                .size(18.dp)
                         )
-                        Spacer(Modifier.width(7.dp))
-                        Surface(
-                            shape = RoundedCornerShape(50),
-                            color = MaterialTheme.colorScheme.primary.copy(alpha = .11f)
-                        ) {
-                            Text(
-                                countdown,
-                                modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp),
-                                fontSize = 9.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.primary
-                            )
+                    }
+
+                    Text(
+                        "Episode ${entry.episode}",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+
+                    Text(
+                        metadataText(entry),
+                        fontSize = 10.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+
+                    if (entry.genres.isNotEmpty()) {
+                        Text(
+                            entry.genres.take(3).joinToString(" · "),
+                            fontSize = 9.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        StatusBadge(isAired = isAired)
+                        if (!isAired) {
+                            CountdownBadge(countdown)
                         }
                     }
-                    Text(
-                        if (isAiringToday) "Airing today · $time" else formatDateTime(entry.airingAt),
-                        fontSize = 9.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 1
-                    )
                 }
             }
         }
     }
 }
 
+@Composable
+private fun TimelineRail(isAired: Boolean) {
+    Box(
+        modifier = Modifier
+            .width(20.dp)
+            .height(108.dp)
+    ) {
+        Box(
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .padding(top = 20.dp)
+                .width(1.dp)
+                .height(88.dp)
+                .background(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = .18f))
+        )
+        Box(
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .padding(top = 16.dp)
+                .size(9.dp)
+                .clip(CircleShape)
+                .background(
+                    if (isAired) {
+                        MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = .48f)
+                    } else {
+                        MaterialTheme.colorScheme.primary
+                    }
+                )
+        )
+    }
+}
+
+@Composable
+private fun StatusBadge(isAired: Boolean) {
+    Surface(
+        shape = RoundedCornerShape(50),
+        color = if (isAired) {
+            MaterialTheme.colorScheme.surfaceVariant.copy(alpha = .7f)
+        } else {
+            MaterialTheme.colorScheme.primary.copy(alpha = .13f)
+        }
+    ) {
+        Text(
+            if (isAired) "Aired" else "Airing Soon",
+            modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp),
+            fontSize = 8.sp,
+            fontWeight = FontWeight.Bold,
+            color = if (isAired) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.primary
+        )
+    }
+}
+
+@Composable
+private fun CountdownBadge(text: String) {
+    Surface(
+        shape = RoundedCornerShape(50),
+        color = MaterialTheme.colorScheme.primary.copy(alpha = .10f)
+    ) {
+        Text(
+            "$text left",
+            modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp),
+            fontSize = 8.sp,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.primary
+        )
+    }
+}
+
+private fun metadataText(entry: AniListScheduleEntry): String {
+    val format = entry.format
+        ?.replace('_', ' ')
+        ?.lowercase(Locale.ENGLISH)
+        ?.replaceFirstChar { it.uppercase() }
+        ?: "TV"
+    val score = entry.score?.let { "★ ${"%.1f".format(Locale.ENGLISH, it / 10.0)}" }
+    val duration = entry.durationMinutes?.let { "${it}m" }
+    return listOf(format, score, duration)
+        .filterNotNull()
+        .joinToString(" · ")
+}
+
 private fun countdownText(now: Instant, airing: Instant): String {
     val seconds = Duration.between(now, airing).seconds
-    if (seconds <= 0L) return "NOW"
+    if (seconds <= 0L) return "Now"
     val days = seconds / 86_400L
     val hours = (seconds % 86_400L) / 3_600L
     val minutes = (seconds % 3_600L) / 60L
@@ -349,8 +490,9 @@ private fun countdownText(now: Instant, airing: Instant): String {
 @Composable
 private fun PosterPlaceholder(title: String) {
     Box(
-        Modifier.size(width = 58.dp, height = 78.dp)
-            .clip(RoundedCornerShape(13.dp))
+        modifier = Modifier
+            .size(width = 64.dp, height = 86.dp)
+            .clip(RoundedCornerShape(12.dp))
             .background(
                 Brush.verticalGradient(
                     listOf(
@@ -373,29 +515,26 @@ private fun PosterPlaceholder(title: String) {
 @Composable
 private fun EmptyScheduleState() {
     Column(
-        Modifier.fillMaxWidth().padding(vertical = 50.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 50.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Icon(
             Icons.Outlined.CalendarMonth,
-            null,
+            contentDescription = null,
             tint = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.size(34.dp)
         )
         Spacer(Modifier.height(8.dp))
-        Text("Belum ada jadwal anime", fontWeight = FontWeight.SemiBold)
+        Text("No anime scheduled", fontWeight = FontWeight.SemiBold)
         Text(
-            "AniList tidak mengembalikan episode untuk hari ini.",
+            "AniList did not return any episodes for this day.",
             fontSize = 12.sp,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
     }
 }
 
-private fun formatDate(date: LocalDate): String =
-    date.format(DateTimeFormatter.ofPattern("dd MMM", Locale.ENGLISH))
-
-private fun formatDateTime(epochSeconds: Long): String =
-    Instant.ofEpochSecond(epochSeconds)
-        .atZone(ZoneId.systemDefault())
-        .format(DateTimeFormatter.ofPattern("dd MMM · HH:mm", Locale.ENGLISH))
+private fun formatLongDate(date: LocalDate): String =
+    date.format(DateTimeFormatter.ofPattern("MMM d, yyyy", Locale.ENGLISH))
