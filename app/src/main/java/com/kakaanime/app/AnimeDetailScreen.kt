@@ -166,15 +166,9 @@ private fun EpisodeListCard(
         shape = RoundedCornerShape(18.dp),
         color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = if (watched) .30f else .48f)
     ) {
-        Row(
-            Modifier.padding(10.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
+        Row(Modifier.padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
             Box(
-                Modifier
-                    .width(92.dp)
-                    .height(62.dp)
-                    .clip(RoundedCornerShape(12.dp)),
+                Modifier.width(104.dp).height(68.dp).clip(RoundedCornerShape(12.dp)),
                 contentAlignment = Alignment.Center
             ) {
                 AsyncImage(
@@ -184,50 +178,26 @@ private fun EpisodeListCard(
                     contentScale = ContentScale.Crop
                 )
                 Box(
-                    Modifier.fillMaxSize().background(MaterialTheme.colorScheme.scrim.copy(alpha = if (watched) .18f else .48f))
-                )
-                if (watched) {
-                    Surface(
-                        shape = RoundedCornerShape(999.dp),
-                        color = MaterialTheme.colorScheme.surface.copy(alpha = .82f)
-                    ) {
-                        Icon(
-                            Icons.Filled.PlayArrow,
-                            contentDescription = "Sudah ditonton",
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.padding(6.dp).size(18.dp)
-                        )
-                    }
-                } else {
-                    Icon(
-                        Icons.Outlined.Lock,
-                        contentDescription = "Belum ditonton",
-                        tint = MaterialTheme.colorScheme.onSurface,
-                        modifier = Modifier.size(24.dp)
+                    Modifier.fillMaxSize().background(
+                        MaterialTheme.colorScheme.scrim.copy(alpha = if (watched) .18f else .52f)
                     )
-                }
+                )
                 Surface(
-                    Modifier.align(Alignment.BottomEnd).padding(5.dp),
-                    shape = RoundedCornerShape(6.dp),
-                    color = MaterialTheme.colorScheme.scrim.copy(alpha = .78f)
+                    shape = RoundedCornerShape(999.dp),
+                    color = MaterialTheme.colorScheme.scrim.copy(alpha = .72f)
                 ) {
-                    Text(
-                        "EP ${episode.number}",
-                        Modifier.padding(horizontal = 5.dp, vertical = 2.dp),
-                        fontSize = 9.sp,
-                        color = MaterialTheme.colorScheme.onSurface,
-                        fontWeight = FontWeight.Bold
+                    Icon(
+                        if (watched) Icons.Filled.PlayArrow else Icons.Outlined.Lock,
+                        contentDescription = if (watched) "Sudah ditonton" else "Episode terkunci",
+                        tint = MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier.padding(6.dp).size(20.dp)
                     )
                 }
             }
             Spacer(Modifier.width(12.dp))
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
                 Text("Episode ${episode.number}", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Text(
-                    episode.title ?: "Episode ${episode.number}",
-                    fontWeight = FontWeight.SemiBold,
-                    maxLines = 1
-                )
+                Text(episode.title ?: "Episode ${episode.number}", fontWeight = FontWeight.SemiBold, maxLines = 2)
                 Text(
                     formatReleaseDate(episode.releasedAt),
                     fontSize = 11.sp,
@@ -236,17 +206,8 @@ private fun EpisodeListCard(
                 )
             }
             if (episode.isNew) {
-                Surface(
-                    shape = RoundedCornerShape(999.dp),
-                    color = MaterialTheme.colorScheme.primary.copy(alpha = .14f)
-                ) {
-                    Text(
-                        "NEW",
-                        Modifier.padding(horizontal = 7.dp, vertical = 4.dp),
-                        fontSize = 9.sp,
-                        color = MaterialTheme.colorScheme.primary,
-                        fontWeight = FontWeight.Bold
-                    )
+                Surface(shape = RoundedCornerShape(999.dp), color = MaterialTheme.colorScheme.primary.copy(alpha = .14f)) {
+                    Text("NEW", Modifier.padding(horizontal = 7.dp, vertical = 4.dp), fontSize = 9.sp, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
                 }
             }
         }
