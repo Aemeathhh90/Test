@@ -53,7 +53,7 @@ fun ProfileScreen(themeState: KakaThemeState, monetizationState: MonetizationSta
     if (showAnimeWatched) { AnimeWatchedScreen(prefs, localAnime, { showAnimeWatched = false }) { showAnimeWatched = false }; return }
     if (showEpisodeWatched) { EpisodeWatchedScreen(prefs, localAnime, { showEpisodeWatched = false }) { _, _ -> showEpisodeWatched = false }; return }
     if (showEdit) { EditProfileScreen(prefs, onBack = { name = prefs.loadProfileName(); bio = prefs.loadProfileBio(); avatar = prefs.loadProfileAvatarIndex(); profilePhotoUri = prefs.loadProfilePhotoUri(); bannerUri = prefs.loadProfileBannerUri(); premiumBannerUri = prefs.loadPremiumBannerUri(); animatedProfileUri = prefs.loadAnimatedProfileUri(); showEdit = false }, isPremium = monetizationState.isPremium, onPremiumClick = onPremiumClick); return }
-    if (showSettings) { SettingsScreen(monetizationState = monetizationState) { showSettings = false }; return }
+    if (showSettings) { SettingsScreen(monetizationState = monetizationState, onBack = { showSettings = false }, onPremiumClick = onPremiumClick); return }
 
     val initials = name.trim().take(2).ifBlank { "KA" }.uppercase()
     val avatarColor = listOf(Color(0xFFFF4D67), Color(0xFF9C6BFF), Color(0xFF20C8E8), Color(0xFF35C98A))[avatar.coerceIn(0, 3)]
