@@ -40,14 +40,19 @@ class SamehadakuProvider : AnimeProvider {
         val normalized = query.trim()
         if (normalized.isBlank()) return emptyList()
 
-        // CloudStream reference: app.get("$mainUrl/?s=$query").document
-        // then map the site's anime cards into search responses.
-        val document = requestDocument("$mainUrl/?s=${encode(normalized)}")
-        if (document != null) {
-            val results = document
-                .select("div.animepost, article.animpost")
-                .mapNotNull { it.toProviderAnimeSearch() }
-                .distinctBy { it.id }
+        // Samehadaku's current theme can expose search cards with different
+        // wrappers (.bs/.bsx instead of the older .animepost/.animpost).
+        // Try the WordPress search route first, then the common pretty-search
+        // route, while keeping the HTML parser provider-native.
+        val searchUrls = listOf(
+            "$mainUrl/?s=${encode(normalized)}",
+            "$mainUrl/search/${normalized.slugify()}/",
+            "$mainUrl/search/?q=${encode(normalized)}"
+        ).distinct()
+
+        for (url in searchUrls) {
+            val document = requestDocument(url) ?: continue
+            val results = document.extractSearchResults()
             if (results.isNotEmpty()) return results
         }
 
@@ -152,19 +157,52 @@ class SamehadakuProvider : AnimeProvider {
         }.getOrNull()
     }
 
+    private fun Document.extractSearchResults(): List<ProviderAnime> {
+        val cards = select(
+            "div.animepost, article.animpost, div.bs, div.bsx, div.listupd .bs, " +
+                "div.listupd .bsx, article.bs, article.bsx"
+        )
+        val cardResults = cards
+            .mapNotNull { it.toProviderAnimeSearch() }
+            .filter { it.title.isNotBlank() }
+            .distinctBy { it.id }
+        if (cardResults.isNotEmpty()) return cardResults
+
+        // Last HTML fallback: current/variant themes may not wrap cards with a
+        // stable class, but anime detail links still retain the /anime/ route.
+        return select("a[href*='/anime/']")
+            .mapNotNull { anchor ->
+                val href = anchor.absUrl("href").ifBlank { anchor.attr("href") }
+                if (href.isBlank()) return@mapNotNull null
+                val title = anchor.selectFirst(".tt, .title, h2, h3, h4")?.text()?.trim()
+                    ?: anchor.attr("title").trim().ifBlank { anchor.text().trim() }
+                if (title.isBlank()) return@mapNotNull null
+                ProviderAnime(
+                    id = "$id:${href.removeSuffix("/")}",
+                    title = title,
+                    providerId = id,
+                    posterUrl = anchor.selectFirst("img")?.let {
+                        it.absUrl("src").ifBlank { it.absUrl("data-src") }
+                    }?.ifBlank { null }
+                )
+            }
+            .distinctBy { it.id }
+    }
+
     private fun Element.toProviderAnimeSearch(): ProviderAnime? {
-        val link = selectFirst("div.title a, div.tt a, a") ?: return null
-        val title = selectFirst("div.title h2, div.tt h4")?.text()?.trim()
+        val link = selectFirst("div.title a, div.tt a, a[href*='/anime/'], a") ?: return null
+        val title = selectFirst("div.title h2, div.tt h4, .tt, .title, h2, h3, h4")?.text()?.trim()
             ?: link.attr("title").trim().ifBlank { link.text().trim() }
         if (title.isBlank()) return null
         val href = link.absUrl("href").ifBlank { link.attr("href") }
-        if (href.isBlank()) return null
+        if (href.isBlank() || !href.contains("/anime/", true)) return null
         return ProviderAnime(
             id = "$id:${href.removeSuffix("/")}",
             title = title,
             providerId = id,
-            posterUrl = selectFirst("div.content-thumb img, div.limit img, img")?.absUrl("src")?.ifBlank { null }
-                ?: selectFirst("img")?.absUrl("data-src")?.ifBlank { null }
+            posterUrl = selectFirst("div.content-thumb img, div.limit img, img")?.let {
+                it.absUrl("src").ifBlank { it.absUrl("data-src") }
+            }?.ifBlank { null }
         )
     }
 
