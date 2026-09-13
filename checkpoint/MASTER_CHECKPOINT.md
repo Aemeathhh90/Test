@@ -19,7 +19,7 @@
 | Provider | Status | Keterangan |
 |---|---|---|
 | 🟢 Otakudesu | **E2E PASS** | First frame terbukti di Media3 |
-| 🟡 Samehadaku | **Sedang dites** | Target One Piece Episode 7; discovery HTML-first |
+| 🟡 Samehadaku | **Sedang dites** | Target One Piece Episode 7; discovery HTML-first; UNKNOWN stream fix applied, E2E pending |
 | 🔴 27 provider lainnya | Belum tervalidasi | Belum boleh dihitung green |
 
 **P0:** 🔴 Belum selesai
@@ -60,6 +60,8 @@ onRenderedFirstFrame()
 - Provider failover tidak boleh membuat aplikasi crash.
 - Data provider dinormalisasi ke model internal AniLab.
 - CloudStream hanya referensi arsitektur; AniLab tetap native.
+- UNKNOWN tidak boleh dipromosikan menjadi media type hanya berdasarkan HTTP 206.
+- Browser fallback dapat menerima URL hasil extractor/player, bukan hanya URL halaman awal.
 
 ---
 
@@ -85,11 +87,18 @@ Samehadaku HTML source
  → SamehadakuEpisodeExtractor
  → Host Extractor Registry
  → Stream Resolver / Validator
+ → Browser fallback over extracted player URLs when needed
  → Media3
  → onRenderedFirstFrame()
 ```
 
-Bitrise `provider_e2e` menjalankan:
+Latest UNKNOWN-stream fix:
+- `StreamValidator`: UNKNOWN + HTTP 206 is no longer accepted as valid; supported formats are probed before classification.
+- `StreamResolver`: browser fallback now tries extracted URLs plus original input URLs.
+- Checkpoint: `checkpoint/builds/BUILD_060_UNKNOWN_STREAM_FIX.md`
+- E2E validation is still pending.
+
+Bitrise `provider_e2e` / GitHub Actions provider workflow targets:
 `SamehadakuProviderE2ETest#onePieceEpisodeSevenRendersFirstFrame`
 
 Status tetap 🟡 sampai first-frame PASS terbukti.
@@ -132,6 +141,31 @@ Setiap error penting dicatat dengan:
 
 Tujuannya agar error menjadi pengetahuan proyek, bukan sekadar tambalan.
 
+### Aturan kerja audit / reference / fix — LOCKED
+
+```text
+AUDIT
+ ↓
+Tentukan root cause
+ ↓
+Cari referensi? YA / TIDAK
+ ↓
+Jika YA → CloudStream / GitHub / docs resmi
+ ↓
+Cek kecocokan dengan arsitektur AniLab
+ ↓
+FIX jika root cause sudah cukup kuat
+ ↓
+E2E / VALIDASI
+ ↓
+Jika gagal → audit ulang dan tentukan apakah referensi tambahan diperlukan
+```
+
+- Cari referensi jika masalah menyangkut extractor/provider, Media3/player, WebView, parsing/stream resolution, atau ada kemungkinan solusi mapan sudah tersedia.
+- Tidak perlu mencari referensi tambahan jika root cause sudah jelas dan fix sederhana/terverifikasi.
+- Referensi adalah pola/validasi teknis; jangan copy-paste dependency CloudStream ke AniLab.
+- Jangan menambal berdasarkan tebakan ketika root cause belum cukup kuat.
+
 ---
 
 ## 📂 Struktur Checkpoint — LOCKED
@@ -141,19 +175,11 @@ checkpoint/
 ├── MASTER_CHECKPOINT.md
 ├── PROVIDER_MAPPING.md
 ├── providers/
-│   ├── OTAKUDESU_CHECKPOINT.md
-│   ├── SAMEHADAKU_CHECKPOINT.md
-│   └── <provider>_CHECKPOINT.md
 ├── extractors/
-│   └── EXTRACTOR_CHECKPOINT.md
 ├── backend/
-│   └── BACKEND_CHECKPOINT.md
 ├── player/
-│   └── PLAYER_CHECKPOINT.md
 ├── ui/
-│   └── UI_CHECKPOINT.md
 └── builds/
-    └── BUILD_<number>.md
 ```
 
 Aturan: checkpoint historis tidak di-overwrite. Perubahan penting ditambahkan sebagai checkpoint/addendum baru.
@@ -168,9 +194,9 @@ Fondasi tersedia; detail backend perlu diaudit terhadap source terbaru sebelum p
 
 ## 🔴 Berikutnya
 
-1. Rerun Samehadaku E2E setelah fix recursion.
-2. Jika FAIL, ikuti klasifikasi + protokol error sebelum perubahan.
-3. Jika BLOCKED, audit dan cari pendekatan alternatif.
+1. Rerun Samehadaku E2E setelah UNKNOWN stream fix.
+2. Jika FAIL, baca error/log baru sebelum perubahan berikutnya.
+3. Jika masalah baru membutuhkan pengetahuan eksternal, lakukan reference check lagi.
 4. Sahkan Samehadaku hanya dengan `onRenderedFirstFrame()`.
 5. Audit backend dari `main`.
 6. Lanjut provider berikutnya setelah path stabil.
