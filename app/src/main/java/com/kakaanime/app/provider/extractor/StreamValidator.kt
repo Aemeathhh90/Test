@@ -14,7 +14,7 @@ import java.util.concurrent.TimeUnit
  *
  * Extension-less/signed URLs are classified from the actual HTTP response
  * before Media3 sees them. UNKNOWN is never considered valid by itself:
- * a partial-content response must still prove that it is a supported format.
+ * a partial-content response must still prove a supported media format.
  */
 class StreamValidator {
     private val client = OkHttpClient.Builder()
@@ -45,7 +45,7 @@ class StreamValidator {
                 val finalUrl = response.request.url.toString()
                 val contentType = response.header("Content-Type").orEmpty().lowercase()
                 val probeBytes = response.peekBody(65_536).bytes()
-                val probeText = probeBytes.toString(StandardCharsets.UTF_8)
+                val probeText = String(probeBytes, StandardCharsets.UTF_8)
 
                 val detectedType = stream.type.takeIf { it != StreamType.UNKNOWN }
                     ?: detectType(finalUrl, contentType, probeText, probeBytes)
@@ -95,7 +95,7 @@ class StreamValidator {
 
     private fun hasMp4Signature(bytes: ByteArray): Boolean =
         bytes.size >= 8 &&
-            bytes.copyOfRange(4, 8).toString(StandardCharsets.US_ASCII) == "ftyp"
+            String(bytes, 4, 4, StandardCharsets.US_ASCII) == "ftyp"
 
     private companion object {
         const val UA = "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 Chrome/124.0.0.0 Mobile Safari/537.36"
