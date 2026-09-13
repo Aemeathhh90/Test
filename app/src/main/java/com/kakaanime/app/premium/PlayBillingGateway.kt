@@ -6,7 +6,7 @@ import com.android.billingclient.api.BillingClient
 import com.android.billingclient.api.BillingClientStateListener
 import com.android.billingclient.api.BillingFlowParams
 import com.android.billingclient.api.BillingResult
-import com.android.billingclient.api.ProductDetails
+import com.android.billingclient.api.PendingPurchasesParams
 import com.android.billingclient.api.Purchase
 import com.android.billingclient.api.QueryProductDetailsParams
 import com.android.billingclient.api.QueryPurchasesParams
@@ -34,7 +34,8 @@ class PlayBillingGateway(
         .setListener { billingResult, purchases ->
             handlePurchases(billingResult, purchases.orEmpty())
         }
-        .enablePendingPurchases()
+        .enablePendingPurchases(PendingPurchasesParams.newBuilder().enableOneTimeProducts().build())
+        .enableAutoServiceReconnection()
         .build()
 
     fun connectAndLoad() {
@@ -115,9 +116,7 @@ class PlayBillingGateway(
         }
     }
 
-    fun refresh() {
-        connectAndLoad()
-    }
+    fun refresh() = connectAndLoad()
 
     fun destroy() {
         billingClient.endConnection()
