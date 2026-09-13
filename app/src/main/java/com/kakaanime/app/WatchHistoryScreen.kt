@@ -30,7 +30,7 @@ import com.kakaanime.app.data.KakaAnimePreferences
 import com.kakaanime.app.data.WatchHistoryEntry
 
 private enum class Layout { GRID, LIST }
-private enum class AnimeFilter { ALL, IN_PROGRESS, COMPLETED, DROPPED }
+private enum class AnimeFilter { ALL, IN_PROGRESS, COMPLETED }
 private enum class EpisodeFilter { ALL, TODAY, WEEK, MONTH }
 
 @Composable
@@ -39,7 +39,7 @@ fun AnimeWatchedScreen(p: KakaAnimePreferences, animeList: List<Anime>, onBack: 
     val legacy = p.loadWatchedEpisodes(); val history = p.loadWatchHistory(); val records = history.groupBy { it.title }.values.mapNotNull { e -> e.maxByOrNull { it.watchedAt }?.let { h -> animeList.firstOrNull { it.title.equals(h.title, true) }?.let { a -> a to h } } }.ifEmpty { legacy.mapNotNull { (t, e) -> animeList.firstOrNull { it.title.equals(t, true) }?.let { it to WatchHistoryEntry(t, e, null, null, 0, 0) } } }
     val shown = records.filter { (a, h) -> (filter == AnimeFilter.ALL || animeStatus(a, h.episode) == filter) && (query.isBlank() || a.title.contains(query, true) || a.genre.contains(query, true)) }.let { if (sort == "Last Watched") it.sortedByDescending { x -> x.second.watchedAt } else it.sortedBy { x -> x.first.title.lowercase() } }
     LaunchedEffect(records.map { it.first.title }) { posters = AniListPosterService().getPosterUrls(records.map { it.first.title }) }
-    WatchShell("Anime Watched", onBack, query, { query = it }, layout, { layout = it }, sort, sortOpen, { sortOpen = true }, { sortOpen = false }, { sort = it; sortOpen = false }, listOf("Last Watched", "Title"), shown.size, filters = { listOf(AnimeFilter.ALL to "All", AnimeFilter.IN_PROGRESS to "In Progress", AnimeFilter.COMPLETED to "Completed", AnimeFilter.DROPPED to "Dropped").forEach { (v, l) -> FilterChip(selected = filter == v, onClick = { filter = v }, label = { Text(l, fontSize = 11.sp) }) } }, content = { if (layout == Layout.GRID) LazyVerticalGrid(GridCells.Fixed(4), Modifier.fillMaxSize(), contentPadding = PaddingValues(12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) { items(shown, key = { it.first.title }) { (a, h) -> AnimeGrid(a, h, posters[a.title]) { onAnimeClick(a) } } } else LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) { items(shown, key = { it.first.title }) { (a, h) -> AnimeList(a, h, posters[a.title]) { onAnimeClick(a) } } } })
+    WatchShell("Anime Watched", onBack, query, { query = it }, layout, { layout = it }, sort, sortOpen, { sortOpen = true }, { sortOpen = false }, { sort = it; sortOpen = false }, listOf("Last Watched", "Title"), shown.size, filters = { listOf(AnimeFilter.ALL to "All", AnimeFilter.IN_PROGRESS to "In Progress", AnimeFilter.COMPLETED to "Completed").forEach { (v, l) -> FilterChip(selected = filter == v, onClick = { filter = v }, label = { Text(l, fontSize = 11.sp) }) } }, content = { if (layout == Layout.GRID) LazyVerticalGrid(GridCells.Fixed(4), Modifier.fillMaxSize(), contentPadding = PaddingValues(12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) { items(shown, key = { it.first.title }) { (a, h) -> AnimeGrid(a, h, posters[a.title]) { onAnimeClick(a) } } } else LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) { items(shown, key = { it.first.title }) { (a, h) -> AnimeList(a, h, posters[a.title]) { onAnimeClick(a) } } } })
 }
 
 @Composable
