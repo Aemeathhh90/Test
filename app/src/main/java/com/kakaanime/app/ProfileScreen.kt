@@ -21,11 +21,12 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.DarkMode
 import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.Info
+import androidx.compose.material.icons.outlined.Notifications
 import androidx.compose.material.icons.outlined.Palette
 import androidx.compose.material.icons.outlined.Person
+import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.Star
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.MaterialTheme
@@ -61,6 +62,8 @@ fun ProfileScreen(
     var editingProfile by remember { mutableStateOf(false) }
     var showAbout by remember { mutableStateOf(false) }
     var showAppearance by remember { mutableStateOf(false) }
+    var showSettings by remember { mutableStateOf(false) }
+    var showNotifications by remember { mutableStateOf(false) }
     var profileName by remember { mutableStateOf(preferences.loadProfileName()) }
     var profileBio by remember { mutableStateOf(preferences.loadProfileBio()) }
     var avatarIndex by remember { mutableStateOf(preferences.loadProfileAvatarIndex()) }
@@ -179,8 +182,11 @@ fun ProfileScreen(
 
         item {
             AccountSection {
+                AccountRow(Icons.Outlined.Settings, "Settings", "App preferences and data") { showSettings = true }
                 AccountRow(Icons.Outlined.Person, "Profile", "View and edit your profile") { editingProfile = true }
                 AccountRow(Icons.Outlined.Palette, "Appearance", "Theme and accent color") { showAppearance = true }
+                AccountRow(Icons.Outlined.Star, "Premium", "Manage premium and diamonds") { onPremiumClick() }
+                AccountRow(Icons.Outlined.Notifications, "Notifications", "Episode updates and system notifications") { showNotifications = true }
                 AccountRow(Icons.Outlined.Info, "About KakaAnime", "Version, credits, and more") { showAbout = true }
             }
         }
@@ -221,6 +227,24 @@ fun ProfileScreen(
                 }
             },
             confirmButton = { TextButton(onClick = { showAppearance = false }) { Text("Selesai") } }
+        )
+    }
+
+    if (showSettings) {
+        AlertDialog(
+            onDismissRequest = { showSettings = false },
+            title = { Text("Settings") },
+            text = { Text("Pengaturan aplikasi dan data akan ditempatkan di sini. Struktur menu sudah dikunci agar mudah dikembangkan tanpa mengubah layout Account Dashboard.") },
+            confirmButton = { TextButton(onClick = { showSettings = false }) { Text("Tutup") } }
+        )
+    }
+
+    if (showNotifications) {
+        AlertDialog(
+            onDismissRequest = { showNotifications = false },
+            title = { Text("Notifications") },
+            text = { Text("Notifikasi episode baru dan notifikasi sistem akan ditempatkan di sini. Integrasi notifikasi aktual tetap masuk tahap berikutnya.") },
+            confirmButton = { TextButton(onClick = { showNotifications = false }) { Text("Tutup") } }
         )
     }
 
