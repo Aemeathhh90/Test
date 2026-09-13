@@ -10,13 +10,7 @@ import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -38,7 +32,8 @@ import com.kakaanime.app.ui.theme.rememberKakaThemeState
 
 data class Anime(val title:String,val latestEpisode:Int,val genre:String,val description:String,val studio:String,val season:String,val year:String,val type:String,val status:String,val rating:String,val introStart:Long=0L,val introEnd:Long=0L,val outroStart:Long=0L,val outroEnd:Long=0L)
 val localAnime=listOf(Anime("One Piece",1140,"Action, Adventure, Fantasy","Monkey D. Luffy dan kru Topi Jerami melanjutkan perjalanan mereka menuju One Piece.","Toei Animation","Ongoing","1999","TV","Ongoing","9.0",90L,180L,1380L,1440L),Anime("Solo Leveling",25,"Action, Fantasy","Sung Jin-woo berkembang dari hunter terlemah menjadi hunter yang sangat kuat.","A-1 Pictures","Season 2","2025","TV","Finished","8.8",75L,165L,1380L,1440L))
-private enum class AnimeScreen{HOME,DETAIL,PLAYER,PREMIUM}; private enum class BottomTab{HOME,CALENDAR,HISTORY,FAVORITE,PROFILE}
+private enum class AnimeScreen{HOME,DETAIL,PLAYER,PREMIUM}
+enum class BottomTab{HOME,CALENDAR,HISTORY,FAVORITE,PROFILE}
 class MainActivity:ComponentActivity(){override fun onCreate(savedInstanceState:Bundle?){super.onCreate(savedInstanceState);setContent{KakaAnimeApp()}}}
 @Composable fun KakaAnimeApp(){
  val themeState=rememberKakaThemeState(); val context=LocalContext.current; val preferences=remember(context){KakaAnimePreferences(context)}; val rewardedAds=remember(context){AdMobRewardedAdGateway(context)}
@@ -57,6 +52,6 @@ class MainActivity:ComponentActivity(){override fun onCreate(savedInstanceState:
   AnimeScreen.HOME->Box(Modifier.fillMaxSize()){AnimatedContent(targetState=selectedTab,transitionSpec={fadeIn() togetherWith fadeOut()},label="tab_transition",modifier=Modifier.fillMaxSize().padding(bottom=84.dp)){tab->when(tab){BottomTab.HOME->ReDantotsuHomeScreen(localAnime){selectedAnime=it};BottomTab.CALENDAR->CalendarScreen(localAnime,{selectedAnime=it},favoriteTitles);BottomTab.HISTORY->LibraryScreen("History",localAnime.filter{it.title in watchedEpisodes.keys},{selectedAnime=it},"Belum ada riwayat tontonan");BottomTab.FAVORITE->FavoriteScreen(localAnime.filter{it.title in favoriteTitles},watchedEpisodes){selectedAnime=it};BottomTab.PROFILE->ProfileScreen(themeState,monetizationState){showPremium=true}}};KakaBottomNavigation(selectedTab){selectedTab=it}}
   AnimeScreen.DETAIL->AnimeDetailScreen(selectedAnime!!,selectedAnime!!.title in favoriteTitles,watchedEpisodes[selectedAnime!!.title],providerEpisodes,episodeListLoading,{selectedAnime=null;selectedEpisode=null},{favoriteTitles=if(selectedAnime!!.title in favoriteTitles)favoriteTitles-selectedAnime!!.title else favoriteTitles+selectedAnime!!.title;preferences.saveFavoriteTitles(favoriteTitles)},{openEpisode(selectedAnime!!,it)})
   AnimeScreen.PLAYER->{val anime=selectedAnime!!;val episode=selectedEpisode!!;if(streamLoading)Box(Modifier.fillMaxSize(),contentAlignment=Alignment.Center){Column(horizontalAlignment=Alignment.CenterHorizontally){CircularProgressIndicator();Spacer(Modifier.height(12.dp));Text("Mencari stream Episode $episode...",color=MaterialTheme.colorScheme.onBackground)}}else if(resolvedStreamUrl!=null)VideoPlayerScreen(videoUrl=resolvedStreamUrl!!,title=anime.title,episodeNumber=episode,description=anime.description,introStart=anime.introStart,introEnd=anime.introEnd,outroStart=anime.outroStart,outroEnd=anime.outroEnd,isPremium=monetizationState.isPremium,modifier=Modifier.fillMaxSize(),onPreviousEpisode={if(episode>1){recordWatched(anime,episode-1);selectedEpisode=episode-1}},onNextEpisode={if(episode<anime.latestEpisode){recordWatched(anime,episode+1);selectedEpisode=episode+1}}) else Box(Modifier.fillMaxSize().padding(24.dp),contentAlignment=Alignment.Center){Column(horizontalAlignment=Alignment.CenterHorizontally){Text("Stream tidak ditemukan",fontSize=20.sp,fontWeight=FontWeight.Bold);Spacer(Modifier.height(8.dp));Text("Provider belum menemukan sumber untuk ${anime.title} Episode $episode.",color=MaterialTheme.colorScheme.onSurfaceVariant);Spacer(Modifier.height(16.dp));Button(onClick={selectedEpisode=episode}){Text("Coba lagi")}}}}
-  AnimeScreen.PREMIUM->PremiumScreen(onBack={showPremium=false})
+  AnimeScreen.PREMIUM->PremiumScreen(state=monetizationState,onBack={showPremium=false},onSubscribe={monetizationState=monetizationState.copy(isPremium=true);preferences.savePremium(true)})
  }}}
 }
