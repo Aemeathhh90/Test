@@ -21,6 +21,7 @@ data class ProviderEpisode(
     val number: Int,
     val providerId: String = "",
     val title: String? = null,
+    val thumbnailUrl: String? = null,
     val isNew: Boolean = false,
     val releasedAt: Long? = null
 )
