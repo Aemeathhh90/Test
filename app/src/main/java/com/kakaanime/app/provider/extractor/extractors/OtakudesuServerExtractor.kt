@@ -143,13 +143,15 @@ class OtakudesuServerExtractor : StreamExtractor {
         return urls.toList()
     }
 
-    private fun parseMirrorEntry(value: String): PlaybackCandidate? {
+    private fun parseMirrorEntry(value: String): MirrorEntry? {
         val payload = value.removePrefix("[").removeSuffix("]")
         val parts = payload.split(",")
         if (parts.size < 3) return null
         fun field(index: Int) = parts[index].substringAfter(":").replace("\"", "").trim()
-        val id = field(0); val mirror = field(1); val quality = field(2)
-        return if (id.isNotBlank() && mirror.isNotBlank()) PlaybackCandidate("$id|$mirror", quality).copy(url = "$id|$mirror") else null
+        val id = field(0)
+        val mirror = field(1)
+        val quality = field(2)
+        return if (id.isNotBlank() && mirror.isNotBlank()) MirrorEntry(id, mirror, quality) else null
     }
 
     private suspend fun postAjax(endpoint: String, fields: Map<String, String>): String? = withContext(Dispatchers.IO) {
@@ -184,5 +186,6 @@ class OtakudesuServerExtractor : StreamExtractor {
     private fun mediaHeaders(referer: String) = mapOf("User-Agent" to UA, "Referer" to referer)
 
     private data class PlaybackCandidate(val url: String, val quality: String?)
+    private data class MirrorEntry(val id: String, val i: String, val q: String)
     private companion object { const val UA = "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 Chrome/124.0.0.0 Mobile Safari/537.36" }
 }
