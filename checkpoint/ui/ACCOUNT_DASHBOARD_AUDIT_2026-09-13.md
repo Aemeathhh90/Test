@@ -8,36 +8,26 @@
 
 Primary layout reference: screenshot supplied by Shin. Visual language/interaction should remain KakaAnime-specific with ReDantotsu-inspired UX.
 
-## Current vs target
+## Current progress
 
-### 🟢 Already present
-- Account header + subtitle.
-- Profile identity card with username/bio/status.
-- Edit Profile entry.
-- Premium CTA/status banner.
-- Appearance entry.
-- Profile entry.
-- Premium entry.
-- Notifications entry.
-- Settings entry.
-- About KakaAnime entry.
-- Existing profile persistence for name, bio, avatar preset, theme and accent.
+### 🟢 Completed in this batch
+- Account header now includes a compact Settings shortcut.
+- Dashboard now has the large Banner Atas structural area above the profile identity card.
+- Dashboard statistics now use the target hierarchy: Anime Watched / Episode Watched / Favorites.
+- Diamonds remain in the profile/monetization row instead of competing with the three primary statistics.
+- Watch history persistence is now used for Episode Watched counting, with fallback to the legacy last-watched map for anime count compatibility.
+- Episode opening records a watch-history entry so the Episode Watched statistic has a real persisted source.
+- Account menu remains locked to: Settings → Profile → Appearance → Premium → Notifications → About KakaAnime.
 
-### 🟡 Needs correction / refinement
-1. **Top Account banner** is missing from current dashboard. Target has a large profile/banner header above the profile card.
-2. **Settings shortcut in header** is missing. Target reference has a compact settings icon in the Account header.
-3. **Profile avatar** currently renders initials + color only. Target architecture now requires static custom image for Free and animated image for Premium.
-4. **Premium banner** currently has no custom media. Requirement is custom Premium banner media for Premium users while preserving Upgrade to Premium / Premium Aktif state text.
-5. **Top banner customization** is not implemented. Premium users need custom Banner Atas.
-6. **Statistics** currently has Anime, Favorite, Diamonds only. Target requires Anime Watched + Episode Watched + Favorites, with Diamonds retained as a separate account value or compact stat if layout permits.
-7. **Episode Watched** cannot currently be calculated accurately because watched persistence stores `title -> last watched episode`, not a set/history of watched episode records.
-8. **Account menu order** has been corrected to Settings → Profile → Appearance → Premium → Notifications → About KakaAnime.
-9. **Settings/Notifications** are currently placeholder dialogs; they are not final screens.
-10. **Appearance** is currently a compact dialog. Target architecture calls for a dedicated Appearance experience that can grow without overcrowding Account Dashboard.
-11. **About KakaAnime** is currently a lightweight dialog and needs a final dedicated UI later.
-12. **Edit Profile** still contains the obsolete `Premium Banner` informational block saying it cannot be changed. This conflicts with the new Premium customization requirement and must be replaced during implementation.
-13. **Edit Profile** currently offers only preset avatar colors; custom photo picker and Premium animated profile are not implemented.
-14. **Edit Profile** currently uses generated gradient preview rather than actual selectable Banner Atas media.
+### 🟡 Still needs correction / refinement
+1. Banner Atas is currently a structural visual placeholder; Premium custom upload/media is not implemented yet.
+2. Profile avatar still renders initials + preset color. Free static photo picker and Premium animated profile are not implemented yet.
+3. Premium banner still has no selectable custom media. Its Upgrade to Premium / Premium Aktif function remains fixed.
+4. Episode Watched history currently records an episode when the app opens it; a later playback-completion threshold can refine the definition of “watched” if desired.
+5. Settings/Notifications are placeholder dialogs; they are not final screens.
+6. Appearance is still a compact dialog and needs a dedicated expandable experience later.
+7. About KakaAnime is still a lightweight dialog and needs a final dedicated UI later.
+8. Edit Profile still needs the obsolete Premium Banner block removed/reworked and the real media-picker architecture implemented.
 
 ## Target Account Dashboard structure
 
@@ -48,17 +38,25 @@ Primary layout reference: screenshot supplied by Shin. Visual language/interacti
 5. Stats: Anime Watched / Episode Watched / Favorites; Diamonds shown without breaking hierarchy.
 6. Menu: Settings / Profile / Appearance / Premium / Notifications / About KakaAnime.
 
-## Implementation order
+## Implementation order — LOCKED
 
-1. Finish Account Dashboard visual structure and stats layout.
-2. Fix watched data model for accurate Episode Watched.
-3. Finish Edit Profile static avatar + Banner Atas + Banner Premium + Premium gating.
-4. Then implement Settings.
-5. Then Appearance.
-6. Then Notifications.
-7. Then About KakaAnime.
-8. Final Account audit and build/runtime verification later.
+1. Account Dashboard visual structure + statistics foundation — 🟢 batch progress, final visual polish pending.
+2. Watched data model/history — 🟢 persistence foundation exists; completion semantics can be refined during verification.
+3. Edit Profile static avatar + Banner Atas + Banner Premium + Premium gating — 🟡 next major batch.
+4. Settings — 🔴 not started as final screen.
+5. Appearance — 🟡 basic persistence exists; dedicated final UI not started.
+6. Notifications — 🔴 not started as final screen.
+7. About KakaAnime — 🟡 basic dialog exists; final UI not started.
+8. Final Account audit + Android build/runtime verification — 🔴 pending.
+
+## Technical notes
+
+- `KakaAnimePreferences` persists `WatchHistoryEntry` records separately from the legacy `title -> last watched episode` map.
+- `WatchHistoryEntry` contains title, episode, optional episode title, watched timestamp, and duration.
+- The current Dashboard uses `watchHistory.size` for Episode Watched and unique watched titles for Anime Watched.
+- Do not fake Episode Watched from the latest episode number or number of available provider episodes.
+- The current `MainActivity` records watch history when an episode is opened; this keeps the lock/history contract aligned with the existing diamond consumption flow.
 
 ## Audit conclusion
 
-Current Account is **not yet 🟢 final**. It has the basic shell, but several reference-critical pieces are missing or outdated. Do not mark Account Dashboard complete until the 🟡 items above are resolved.
+Account Dashboard is **🟡 in progress**, not final. The structure and statistics foundation are now in place, but custom media, Edit Profile, and final Account sub-screens remain. Continue with **Edit Profile + media customization** only after this checkpoint, while preserving rollback traceability on `main`.
