@@ -41,6 +41,42 @@ class KakaAnimePreferences(context: Context) {
         prefs.edit().putBoolean(KEY_PREMIUM, value).apply()
     }
 
+    fun loadProfileName(): String = prefs.getString(KEY_PROFILE_NAME, "KakaAnime User") ?: "KakaAnime User"
+
+    fun saveProfileName(value: String) {
+        prefs.edit().putString(KEY_PROFILE_NAME, value.trim().ifBlank { "KakaAnime User" }).apply()
+    }
+
+    fun loadProfileBio(): String = prefs.getString(KEY_PROFILE_BIO, "Anime selalu bersama kamu.") ?: "Anime selalu bersama kamu."
+
+    fun saveProfileBio(value: String) {
+        prefs.edit().putString(KEY_PROFILE_BIO, value.trim()).apply()
+    }
+
+    fun loadProfileAvatarIndex(): Int = prefs.getInt(KEY_PROFILE_AVATAR, 0).coerceIn(0, 3)
+
+    fun saveProfileAvatarIndex(value: Int) {
+        prefs.edit().putInt(KEY_PROFILE_AVATAR, value.coerceIn(0, 3)).apply()
+    }
+
+    fun loadProfileBannerIndex(): Int = prefs.getInt(KEY_PROFILE_BANNER, 0).coerceIn(0, 3)
+
+    fun saveProfileBannerIndex(value: Int) {
+        prefs.edit().putInt(KEY_PROFILE_BANNER, value.coerceIn(0, 3)).apply()
+    }
+
+    fun loadDarkMode(): Boolean = prefs.getBoolean(KEY_DARK_MODE, true)
+
+    fun saveDarkMode(value: Boolean) {
+        prefs.edit().putBoolean(KEY_DARK_MODE, value).apply()
+    }
+
+    fun loadAccentName(): String = prefs.getString(KEY_ACCENT, "Blue") ?: "Blue"
+
+    fun saveAccentName(value: String) {
+        prefs.edit().putString(KEY_ACCENT, value).apply()
+    }
+
     private fun loadStringSet(key: String): Set<String> {
         val raw = prefs.getString(key, null) ?: return emptySet()
         return runCatching {
@@ -61,5 +97,11 @@ class KakaAnimePreferences(context: Context) {
         private const val KEY_WATCHED_EPISODES = "watched_episodes"
         private const val KEY_DIAMONDS = "diamonds"
         private const val KEY_PREMIUM = "premium"
+        private const val KEY_PROFILE_NAME = "profile_name"
+        private const val KEY_PROFILE_BIO = "profile_bio"
+        private const val KEY_PROFILE_AVATAR = "profile_avatar"
+        private const val KEY_PROFILE_BANNER = "profile_banner"
+        private const val KEY_DARK_MODE = "dark_mode"
+        private const val KEY_ACCENT = "accent"
     }
 }
