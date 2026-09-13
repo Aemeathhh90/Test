@@ -19,10 +19,15 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import coil.compose.AsyncImage
 import com.kakaanime.app.provider.ProviderEpisode
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 @Composable
 fun AnimeDetailScreen(
@@ -45,7 +50,9 @@ fun AnimeDetailScreen(
                 "Terbaru" -> ep.isNew
                 else -> true
             }
-            val matchesQuery = episodeQuery.isBlank() || ep.number.toString().contains(episodeQuery) || ep.title.orEmpty().contains(episodeQuery, ignoreCase = true)
+            val matchesQuery = episodeQuery.isBlank() ||
+                ep.number.toString().contains(episodeQuery) ||
+                ep.title.orEmpty().contains(episodeQuery, ignoreCase = true)
             matchesFilter && matchesQuery
         }
     }
@@ -62,7 +69,11 @@ fun AnimeDetailScreen(
                 IconButton(onClick = onBack) { Icon(Icons.Outlined.ArrowBack, "Kembali") }
                 Text("Detail Anime", Modifier.weight(1f), fontWeight = FontWeight.Bold, fontSize = 18.sp)
                 IconButton(onClick = onToggleFavorite) {
-                    Icon(if (isFavorite) Icons.Outlined.Favorite else Icons.Outlined.FavoriteBorder, "Favorite", tint = if (isFavorite) MaterialTheme.colorScheme.primary else LocalContentColor.current)
+                    Icon(
+                        if (isFavorite) Icons.Outlined.Favorite else Icons.Outlined.FavoriteBorder,
+                        "Favorite",
+                        tint = if (isFavorite) MaterialTheme.colorScheme.primary else LocalContentColor.current
+                    )
                 }
             }
         }
@@ -99,7 +110,13 @@ fun AnimeDetailScreen(
             }
         }
         item {
-            Text("Episode", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, modifier = Modifier.padding(start = 18.dp, end = 18.dp, top = 22.dp, bottom = 10.dp))
+            Row(
+                Modifier.fillMaxWidth().padding(start = 18.dp, end = 18.dp, top = 22.dp, bottom = 10.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("Episode", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+                Text("${episodes.size} Episode", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
         }
         item {
             Row(Modifier.fillMaxWidth().padding(horizontal = 18.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -116,7 +133,7 @@ fun AnimeDetailScreen(
                 singleLine = true,
                 shape = RoundedCornerShape(16.dp),
                 leadingIcon = { Icon(Icons.Outlined.Search, null) },
-                placeholder = { Text("Cari episode...") }
+                placeholder = { Text("Cari nomor episode...") }
             )
         }
         if (loading) {
@@ -128,34 +145,117 @@ fun AnimeDetailScreen(
         } else {
             items(filteredEpisodes, key = { it.number }) { ep ->
                 val watched = ep.number in watchedEpisodes
-                Surface(
-                    Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 4.dp).clickable { onEpisodeClick(ep.number) },
-                    shape = RoundedCornerShape(16.dp),
-                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = if (watched) .30f else .48f)
-                ) {
-                    Row(Modifier.padding(horizontal = 14.dp, vertical = 13.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Surface(shape = RoundedCornerShape(11.dp), color = MaterialTheme.colorScheme.background.copy(alpha = .6f)) {
-                            Box(Modifier.size(42.dp), contentAlignment = Alignment.Center) {
-                                if (!watched) Icon(Icons.Outlined.Lock, "Belum ditonton", tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(18.dp))
-                                else Text("✓", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
-                            }
-                        }
-                        Spacer(Modifier.width(12.dp))
-                        Column(Modifier.weight(1f)) {
-                            Text("Episode ${ep.number}", fontWeight = FontWeight.SemiBold)
-                            Text(ep.title ?: "Episode ${ep.number}", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
-                        }
-                        if (ep.isNew) {
-                            Surface(shape = RoundedCornerShape(999.dp), color = MaterialTheme.colorScheme.primary.copy(alpha = .14f)) {
-                                Text("NEW", Modifier.padding(horizontal = 8.dp, vertical = 4.dp), fontSize = 9.sp, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
-                            }
-                        }
+                EpisodeListCard(
+                    episode = ep,
+                    watched = watched,
+                    onClick = { onEpisodeClick(ep.number) }
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun EpisodeListCard(
+    episode: ProviderEpisode,
+    watched: Boolean,
+    onClick: () -> Unit
+) {
+    Surface(
+        Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 4.dp).clickable(onClick = onClick),
+        shape = RoundedCornerShape(18.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = if (watched) .30f else .48f)
+    ) {
+        Row(
+            Modifier.padding(10.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(
+                Modifier
+                    .width(92.dp)
+                    .height(62.dp)
+                    .clip(RoundedCornerShape(12.dp)),
+                contentAlignment = Alignment.Center
+            ) {
+                AsyncImage(
+                    model = episode.thumbnailUrl,
+                    contentDescription = episode.title ?: "Episode ${episode.number}",
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Crop
+                )
+                Box(
+                    Modifier.fillMaxSize().background(MaterialTheme.colorScheme.scrim.copy(alpha = if (watched) .18f else .48f))
+                )
+                if (watched) {
+                    Surface(
+                        shape = RoundedCornerShape(999.dp),
+                        color = MaterialTheme.colorScheme.surface.copy(alpha = .82f)
+                    ) {
+                        Icon(
+                            Icons.Filled.PlayArrow,
+                            contentDescription = "Sudah ditonton",
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.padding(6.dp).size(18.dp)
+                        )
                     }
+                } else {
+                    Icon(
+                        Icons.Outlined.Lock,
+                        contentDescription = "Belum ditonton",
+                        tint = MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
+                Surface(
+                    Modifier.align(Alignment.BottomEnd).padding(5.dp),
+                    shape = RoundedCornerShape(6.dp),
+                    color = MaterialTheme.colorScheme.scrim.copy(alpha = .78f)
+                ) {
+                    Text(
+                        "EP ${episode.number}",
+                        Modifier.padding(horizontal = 5.dp, vertical = 2.dp),
+                        fontSize = 9.sp,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+            Spacer(Modifier.width(12.dp))
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                Text("Episode ${episode.number}", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(
+                    episode.title ?: "Episode ${episode.number}",
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1
+                )
+                Text(
+                    formatReleaseDate(episode.releasedAt),
+                    fontSize = 11.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1
+                )
+            }
+            if (episode.isNew) {
+                Surface(
+                    shape = RoundedCornerShape(999.dp),
+                    color = MaterialTheme.colorScheme.primary.copy(alpha = .14f)
+                ) {
+                    Text(
+                        "NEW",
+                        Modifier.padding(horizontal = 7.dp, vertical = 4.dp),
+                        fontSize = 9.sp,
+                        color = MaterialTheme.colorScheme.primary,
+                        fontWeight = FontWeight.Bold
+                    )
                 }
             }
         }
     }
 }
+
+private fun formatReleaseDate(timestamp: Long?): String = timestamp?.let {
+    runCatching { SimpleDateFormat("dd MMM yyyy", Locale.getDefault()).format(Date(it)) }.getOrDefault("Tanggal tidak tersedia")
+} ?: "Tanggal tidak tersedia"
 
 @Composable
 private fun DetailStateCard(title: String, message: String) {
