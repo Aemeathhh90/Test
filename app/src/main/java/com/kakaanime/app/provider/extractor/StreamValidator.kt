@@ -9,11 +9,11 @@ import okhttp3.Request
 import java.util.concurrent.TimeUnit
 
 /**
- * Lightweight playback preflight inspired by MaxStream/OCE.
+ * Lightweight playback preflight.
  *
- * We do not assume that an extracted URL is playable merely because it looks
- * like media. A small request verifies that the candidate is reachable and,
- * for manifests, that it actually contains the expected playlist structure.
+ * Extension-less/signed URLs are classified from the actual HTTP response
+ * before Media3 sees them. This prevents Media3 from falling back to
+ * progressive extractors for HLS/DASH manifests without recognizable suffixes.
  */
 class StreamValidator {
     private val client = OkHttpClient.Builder()
@@ -29,9 +29,11 @@ class StreamValidator {
             val request = Request.Builder()
                 .url(stream.url)
                 .header("User-Agent", UA)
+                .header("Accept", "application/vnd.apple.mpegurl, application/dash+xml, video/*, */*")
                 .apply {
                     stream.headers.forEach { (key, value) -> header(key, value) }
-                    if (stream.type == StreamType.MP4 || stream.type == StreamType.UNKNOWN) {
+                    // UNKNOWN must receive the complete manifest for reliable sniffing.
+                    if (stream.type == StreamType.MP4) {
                         header("Range", "bytes=0-4095")
                     }
                 }
@@ -44,8 +46,8 @@ class StreamValidator {
                 val contentType = response.header("Content-Type").orEmpty().lowercase()
                 val body = when (stream.type) {
                     StreamType.HLS, StreamType.DASH, StreamType.UNKNOWN ->
-                        response.body?.string().orEmpty().take(32_768)
-                    else -> ""
+                        response.body?.string().orEmpty().take(65_536)
+                    StreamType.MP4 -> ""
                 }
 
                 val detectedType = stream.type.takeIf { it != StreamType.UNKNOWN }
@@ -57,17 +59,13 @@ class StreamValidator {
                     StreamType.DASH -> body.contains("<MPD", ignoreCase = true) ||
                         contentType.contains("dash") || contentType.contains("mpd")
                     StreamType.MP4 -> contentType.contains("video") ||
-                        contentType.contains("octet-stream") ||
-                        response.code == 206
+                        contentType.contains("octet-stream") || response.code == 206
                     StreamType.UNKNOWN -> response.code == 206
                 }
 
                 if (!valid) return@runCatching null
 
-                stream.copy(
-                    url = finalUrl,
-                    type = detectedType
-                )
+                stream.copy(url = finalUrl, type = detectedType)
             }
         }.getOrNull()
     }
