@@ -42,7 +42,7 @@ class OtakudesuProvider : AnimeProvider {
         val web = webSource.getAnime(slug)
         if (web != null) {
             val episodes = webSource.getEpisodes(web)
-            if (episodes.isNotEmpty()) return episodes.map { episode -> ProviderEpisode(id = "$id:${episode.url}", animeId = "$id:$slug", number = episode.number, providerId = id, title = episode.title) }
+            if (episodes.isNotEmpty()) return episodes.map { episode -> ProviderEpisode(id = "$id:${episode.url}", animeId = "$id:$slug", number = episode.number, providerId = id, title = episode.title, thumbnailUrl = episode.thumbnailUrl) }
         }
         val primary = requestJson("$baseUrl/anime/${encodePath(slug)}")?.optJSONObject("data")?.optJSONArray("episodeList")?.toProviderEpisodeList(slug).orEmpty()
         if (primary.isNotEmpty()) return primary
@@ -75,61 +75,18 @@ class OtakudesuProvider : AnimeProvider {
     private suspend fun requestJson(url: String): JSONObject? = withContext(Dispatchers.IO) {
         runCatching {
             val request = Request.Builder().url(url).header("User-Agent", "KakaAnime/0.1").header("Accept", "application/json").build()
-            client.newCall(request).execute().use { response ->
-                if (!response.isSuccessful) return@runCatching null
-                val body = response.body?.string().orEmpty()
-                if (body.isBlank()) null else JSONObject(body)
-            }
+            client.newCall(request).execute().use { response -> if (!response.isSuccessful) null else response.body?.string()?.takeIf { it.isNotBlank() }?.let(::JSONObject) }
         }.getOrNull()
     }
 
-    private fun JSONArray.toProviderAnimeList(): List<ProviderAnime> = buildList {
-        for (i in 0 until length()) {
-            val item = optJSONObject(i) ?: continue; val slug = normalizeAnimeSlug(item.optString("slug")); if (slug.isBlank()) continue
-            add(ProviderAnime(id = "$id:$slug", title = item.optString("title").ifBlank { "Unknown Anime" }, providerId = id, posterUrl = item.optString("thumbnail").ifBlank { null }, status = item.optString("status").ifBlank { "UNKNOWN" }, rating = item.optString("score").toDoubleOrNull()))
-        }
-    }
-
-    private fun JSONArray.toLegacyProviderAnimeList(): List<ProviderAnime> = buildList {
-        for (i in 0 until length()) {
-            val item = optJSONObject(i) ?: continue; val slug = normalizeAnimeSlug(item.optString("endpoint")); if (slug.isBlank()) continue
-            add(ProviderAnime(id = "$id:$slug", title = item.optString("title").ifBlank { "Unknown Anime" }, providerId = id, posterUrl = item.optString("thumb").ifBlank { null }, status = item.optString("status").ifBlank { "UNKNOWN" }, rating = item.optString("rating").toDoubleOrNull()))
-        }
-    }
-
+    private fun JSONArray.toProviderAnimeList(): List<ProviderAnime> = buildList { for (i in 0 until length()) { val item = optJSONObject(i) ?: continue; val slug = normalizeAnimeSlug(item.optString("slug")); if (slug.isBlank()) continue; add(ProviderAnime(id = "$id:$slug", title = item.optString("title").ifBlank { "Unknown Anime" }, providerId = id, posterUrl = item.optString("thumbnail").ifBlank { null }, status = item.optString("status").ifBlank { "UNKNOWN" }, rating = item.optString("score").toDoubleOrNull())) } }
+    private fun JSONArray.toLegacyProviderAnimeList(): List<ProviderAnime> = buildList { for (i in 0 until length()) { val item = optJSONObject(i) ?: continue; val slug = normalizeAnimeSlug(item.optString("endpoint")); if (slug.isBlank()) continue; add(ProviderAnime(id = "$id:$slug", title = item.optString("title").ifBlank { "Unknown Anime" }, providerId = id, posterUrl = item.optString("thumb").ifBlank { null }, status = item.optString("status").ifBlank { "UNKNOWN" }, rating = item.optString("rating").toDoubleOrNull())) } }
     private fun JSONObject.toProviderAnime(slug: String): ProviderAnime = ProviderAnime(id = "$id:$slug", title = optString("title").ifBlank { "Unknown Anime" }, providerId = id, posterUrl = optString("thumbnail").ifBlank { null }, description = optJSONArray("synopsis")?.toStringList()?.joinToString("\n") ?: optString("synopsis"), status = optJSONObject("metadata")?.optString("status").ifNullOrBlank("UNKNOWN"))
-
-    private fun JSONObject.toLegacyProviderAnime(slug: String): ProviderAnime {
-        val detail = optJSONObject("anime_detail") ?: this
-        return ProviderAnime(id = "$id:$slug", title = detail.optString("title").ifBlank { "Unknown Anime" }, providerId = id, posterUrl = detail.optString("thumb").ifBlank { null }, description = detail.optString("synopsis"), status = detail.optString("status").ifBlank { "UNKNOWN" })
-    }
-
-    private fun JSONArray.toProviderEpisodeList(slug: String): List<ProviderEpisode> = buildList {
-        for (i in 0 until length()) {
-            val item = optJSONObject(i) ?: continue; val endpoint = item.optString("slug").trim('/'); val number = item.optString("episode").toIntOrNull() ?: extractEpisodeNumber(item.optString("title"), endpoint) ?: continue
-            val thumbnail = item.optString("thumbnail").ifBlank { item.optString("thumb").ifBlank { item.optString("image").ifBlank { null } } }
-            add(ProviderEpisode(id = "$id:${endpoint.ifBlank { "$slug-episode-$number-sub-indo" }}", animeId = "$id:$slug", number = number, providerId = id, title = item.optString("title").ifBlank { "Episode $number" }, thumbnailUrl = thumbnail))
-        }
-    }.sortedBy { it.number }
-
-    private fun JSONArray.toLegacyProviderEpisodeList(slug: String): List<ProviderEpisode> = buildList {
-        for (i in 0 until length()) {
-            val item = optJSONObject(i) ?: continue; val endpoint = item.optString("endpoint").trim('/'); val number = extractEpisodeNumber(item.optString("title"), endpoint) ?: continue
-            val thumbnail = item.optString("thumbnail").ifBlank { item.optString("thumb").ifBlank { item.optString("image").ifBlank { null } } }
-            add(ProviderEpisode(id = "$id:$endpoint", animeId = "$id:$slug", number = number, providerId = id, title = item.optString("title").ifBlank { "Episode $number" }, thumbnailUrl = thumbnail))
-        }
-    }.sortedBy { it.number }
-
-    private fun JSONObject.streamCandidates(): List<String> = buildList {
-        val streams = optJSONArray("streams") ?: JSONArray()
-        for (i in 0 until streams.length()) { val item = streams.optJSONObject(i) ?: continue; item.optString("embedUrl").trim().takeIf { it.isNotBlank() }?.let(::add) }
-        optString("defaultStreamUrl").trim().takeIf { it.isNotBlank() }?.let(::add)
-    }.distinct()
-
-    private fun normalizeAnimeSlug(value: String): String {
-        val raw = value.removePrefix("$id:").trim().trim('/'); val slug = raw.substringAfterLast("/anime/", raw).substringBefore("?").trim('/')
-        return when (slug.lowercase()) { "1piece-sub-indo", "onepiece-sub-indo" -> "one-piece-sub-indo"; else -> slug }
-    }
+    private fun JSONObject.toLegacyProviderAnime(slug: String): ProviderAnime { val detail = optJSONObject("anime_detail") ?: this; return ProviderAnime(id = "$id:$slug", title = detail.optString("title").ifBlank { "Unknown Anime" }, providerId = id, posterUrl = detail.optString("thumb").ifBlank { null }, description = detail.optString("synopsis"), status = detail.optString("status").ifBlank { "UNKNOWN" }) }
+    private fun JSONArray.toProviderEpisodeList(slug: String): List<ProviderEpisode> = buildList { for (i in 0 until length()) { val item = optJSONObject(i) ?: continue; val endpoint = item.optString("slug").trim('/'); val number = item.optString("episode").toIntOrNull() ?: extractEpisodeNumber(item.optString("title"), endpoint) ?: continue; val thumbnail = item.optString("thumbnail").ifBlank { item.optString("thumb").ifBlank { item.optString("image").ifBlank { null } } }; add(ProviderEpisode(id = "$id:${endpoint.ifBlank { "$slug-episode-$number-sub-indo" }}", animeId = "$id:$slug", number = number, providerId = id, title = item.optString("title").ifBlank { "Episode $number" }, thumbnailUrl = thumbnail)) } }.sortedBy { it.number }
+    private fun JSONArray.toLegacyProviderEpisodeList(slug: String): List<ProviderEpisode> = buildList { for (i in 0 until length()) { val item = optJSONObject(i) ?: continue; val endpoint = item.optString("endpoint").trim('/'); val number = extractEpisodeNumber(item.optString("title"), endpoint) ?: continue; val thumbnail = item.optString("thumbnail").ifBlank { item.optString("thumb").ifBlank { item.optString("image").ifBlank { null } } }; add(ProviderEpisode(id = "$id:$endpoint", animeId = "$id:$slug", number = number, providerId = id, title = item.optString("title").ifBlank { "Episode $number" }, thumbnailUrl = thumbnail)) } }.sortedBy { it.number }
+    private fun JSONObject.streamCandidates(): List<String> = buildList { val streams = optJSONArray("streams") ?: JSONArray(); for (i in 0 until streams.length()) { val item = streams.optJSONObject(i) ?: continue; item.optString("embedUrl").trim().takeIf { it.isNotBlank() }?.let(::add) }; optString("defaultStreamUrl").trim().takeIf { it.isNotBlank() }?.let(::add) }.distinct()
+    private fun normalizeAnimeSlug(value: String): String { val raw = value.removePrefix("$id:").trim().trim('/'); val slug = raw.substringAfterLast("/anime/", raw).substringBefore("?").trim('/'); return when (slug.lowercase()) { "1piece-sub-indo", "onepiece-sub-indo" -> "one-piece-sub-indo"; else -> slug } }
     private fun normalizeEpisodeSlug(value: String): String = value.removePrefix("$id:").substringAfter("/episode/", value.removePrefix("$id:")).substringBefore("?").trim('/')
     private fun extractEpisodeNumber(title: String, slug: String): Int? = Regex("(?:episode|eps|ep)[^0-9]*(\\d+)", RegexOption.IGNORE_CASE).find("$title $slug")?.groupValues?.getOrNull(1)?.toIntOrNull()
     private fun JSONArray?.toStringList(): List<String> { if (this == null) return emptyList(); return buildList { for (i in 0 until length()) optString(i).trim().takeIf { it.isNotBlank() }?.let(::add) } }
