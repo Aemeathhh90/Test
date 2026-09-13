@@ -78,6 +78,7 @@ fun LibraryTabsScreen(animeList: List<Anime>, onAnimeClick: (Anime) -> Unit) {
 
 @Composable private fun HistoryLibraryContent(history: List<com.kakaanime.app.data.WatchHistoryEntry>, animeList: List<Anime>, onAnimeClick: (Anime) -> Unit, onChanged: () -> Unit) {
     var clearConfirm by remember { mutableStateOf(false) }
+    val context = androidx.compose.ui.platform.LocalContext.current
     val continueItems = history.distinctBy { it.title }.take(3)
     Column(Modifier.fillMaxSize()) {
         if (history.isNotEmpty()) Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -98,7 +99,7 @@ fun LibraryTabsScreen(animeList: List<Anime>, onAnimeClick: (Anime) -> Unit) {
             }
         }
     }
-    if (clearConfirm) AlertDialog(onDismissRequest = { clearConfirm = false }, title = { Text("Hapus semua history?") }, text = { Text("Semua riwayat tontonan akan dihapus.") }, confirmButton = { Button(onClick = { KakaAnimePreferences(androidx.compose.ui.platform.LocalContext.current).clearWatchHistory(); clearConfirm = false; onChanged() }) { Text("Hapus") } }, dismissButton = { OutlinedButton(onClick = { clearConfirm = false }) { Text("Batal") } })
+    if (clearConfirm) AlertDialog(onDismissRequest = { clearConfirm = false }, title = { Text("Hapus semua history?") }, text = { Text("Semua riwayat tontonan akan dihapus.") }, confirmButton = { Button(onClick = { context.let { KakaAnimePreferences(it).clearWatchHistory() }; clearConfirm = false; onChanged() }) { Text("Hapus") } }, dismissButton = { OutlinedButton(onClick = { clearConfirm = false }) { Text("Batal") } })
 }
 
 @Composable private fun HistoryRow(entry: com.kakaanime.app.data.WatchHistoryEntry, anime: Anime, onAnimeClick: (Anime) -> Unit, onChanged: () -> Unit) {
