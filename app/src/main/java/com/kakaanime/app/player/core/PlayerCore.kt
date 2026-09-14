@@ -7,7 +7,10 @@ import androidx.media3.common.PlaybackParameters
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.DefaultMediaSourceFactory
+import androidx.media3.datasource.DefaultHttpDataSource
 import com.kakaanime.app.provider.NormalizedStream
+import com.kakaanime.app.provider.StreamMetadataCache
 import com.kakaanime.app.provider.StreamType
 
 class PlayerCore(
@@ -43,7 +46,9 @@ class PlayerCore(
     }
 
     fun setVideo(url: String) {
-        setVideo(NormalizedStream(providerId = "", url = url))
+        val stream = StreamMetadataCache.find(url)
+            ?: NormalizedStream(providerId = "", url = url)
+        setVideo(stream)
     }
 
     fun setVideo(stream: NormalizedStream) {
@@ -54,10 +59,19 @@ class PlayerCore(
         val mediaItem = MediaItem.Builder()
             .setUri(stream.url)
             .apply { mimeTypeFor(stream.type)?.let(::setMimeType) }
-            .apply { if (stream.headers.isNotEmpty()) setHttpRequestHeaders(stream.headers) }
             .build()
 
-        player.setMediaItem(mediaItem)
+        val dataSourceFactory = DefaultHttpDataSource.Factory()
+            .setAllowCrossProtocolRedirects(true)
+            .apply {
+                if (stream.headers.isNotEmpty()) {
+                    setDefaultRequestProperties(stream.headers)
+                }
+            }
+        val mediaSourceFactory = DefaultMediaSourceFactory(dataSourceFactory)
+        val mediaSource = mediaSourceFactory.createMediaSource(mediaItem)
+
+        player.setMediaSource(mediaSource)
         player.prepare()
     }
 
