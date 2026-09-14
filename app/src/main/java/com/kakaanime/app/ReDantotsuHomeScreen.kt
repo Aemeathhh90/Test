@@ -26,8 +26,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.kakaanime.app.data.AniListMetadataService
+import com.kakaanime.app.data.AnimeStateIdentity
 import com.kakaanime.app.data.KakaAnimePreferences
-import com.kakaanime.app.data.WatchHistoryEntry
+import com.kakaanime.app.data.SeasonAwareWatchHistoryEntry
 import com.kakaanime.app.network.AnimeRepository
 
 @Composable
@@ -42,7 +43,7 @@ fun ReDantotsuHomeScreen(
     val preferences = remember(context) { KakaAnimePreferences(context) }
     val metadataService = remember { AniListMetadataService() }
     var backendAnime by remember(animeList) { mutableStateOf(animeList) }
-    var watchHistory by remember(preferences) { mutableStateOf(preferences.loadWatchHistory()) }
+    var watchHistory by remember(preferences) { mutableStateOf(preferences.loadWatchHistorySeasonAware()) }
     var posterUrls by remember { mutableStateOf<Map<String, String>>(emptyMap()) }
     var searchQuery by remember { mutableStateOf("") }
     var selectedFilter by remember { mutableStateOf("All") }
@@ -57,15 +58,21 @@ fun ReDantotsuHomeScreen(
             }
         }
     }
-    LaunchedEffect(refreshKey) { watchHistory = preferences.loadWatchHistory() }
+    LaunchedEffect(refreshKey) { watchHistory = preferences.loadWatchHistorySeasonAware() }
 
     val profileBackground = posterUrls[backendAnime.firstOrNull()?.title]
     val continueWatching = watchHistory
-        .groupBy { it.title }
+        .groupBy { it.animeGroupId to it.seasonNumber }
         .values
         .mapNotNull { it.maxByOrNull { history -> history.watchedAt } }
         .mapNotNull { history ->
-            backendAnime.firstOrNull { it.title.equals(history.title, true) }?.let { anime -> anime to history }
+            backendAnime.firstOrNull { anime ->
+                val groupId = anime.animeGroupId.ifBlank { anime.title }
+                val identity = AnimeStateIdentity(groupId, anime.seasonNumber, anime.seasonTitle)
+                identity.animeGroupId == history.animeGroupId &&
+                    identity.seasonNumber == history.seasonNumber &&
+                    (identity.seasonTitle?.trim()?.equals(history.seasonTitle?.trim(), true) ?: history.seasonTitle.isNullOrBlank())
+            }?.let { anime -> anime to history.toWatchHistoryEntry() }
         }
 
     val normalizedQuery = searchQuery.trim()
@@ -116,6 +123,16 @@ fun ReDantotsuHomeScreen(
         }
     }
 }
+
+private fun SeasonAwareWatchHistoryEntry.toWatchHistoryEntry(): com.kakaanime.app.data.WatchHistoryEntry =
+    com.kakaanime.app.data.WatchHistoryEntry(
+        title = title.orEmpty(),
+        episode = episode,
+        episodeTitle = episodeTitle,
+        episodeThumbnailUrl = episodeThumbnailUrl,
+        watchedAt = watchedAt,
+        durationMs = durationMs,
+    )
 
 @Composable
 private fun HomeTopBar(searchQuery: String, onSearchChange: (String) -> Unit, onFilterClick: () -> Unit) {
@@ -170,9 +187,9 @@ private fun HomeProfileHeader(backgroundUrl: String?) {
 
 @Composable private fun HomeShortcut(icon: String, title: String, subtitle: String, modifier: Modifier = Modifier) { Surface(modifier, RoundedCornerShape(18.dp), color = MaterialTheme.colorScheme.surface.copy(alpha = .72f)) { Row(Modifier.padding(horizontal = 10.dp, vertical = 11.dp), verticalAlignment = Alignment.CenterVertically) { Text(icon, fontSize = 18.sp); Spacer(Modifier.width(7.dp)); Column(Modifier.weight(1f)) { Text(title, fontSize = 12.sp, fontWeight = FontWeight.Bold, maxLines = 1); Text(subtitle, fontSize = 9.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1) } } } }
 
-@Composable private fun HomeEpisodeSection(title: String, entries: List<Pair<Anime, WatchHistoryEntry>>, onClick: (Anime, Int) -> Unit) { Column { Row(verticalAlignment = Alignment.CenterVertically) { Text(title, fontSize = 19.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f)); Text("Lihat semua", fontSize = 12.sp, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.SemiBold) }; Spacer(Modifier.height(10.dp)); LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp), contentPadding = PaddingValues(end = 8.dp)) { items(entries, key = { "${it.first.title}-${it.second.episode}" }) { (anime, history) -> HomeEpisodeCard(anime, history, onClick) } } } }
+@Composable private fun HomeEpisodeSection(title: String, entries: List<Pair<Anime, com.kakaanime.app.data.WatchHistoryEntry>>, onClick: (Anime, Int) -> Unit) { Column { Row(verticalAlignment = Alignment.CenterVertically) { Text(title, fontSize = 19.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f)); Text("Lihat semua", fontSize = 12.sp, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.SemiBold) }; Spacer(Modifier.height(10.dp)); LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp), contentPadding = PaddingValues(end = 8.dp)) { items(entries, key = { "${it.first.title}-${it.second.episode}" }) { (anime, history) -> HomeEpisodeCard(anime, history, onClick) } } } }
 
-@Composable private fun HomeEpisodeCard(anime: Anime, history: WatchHistoryEntry, onClick: (Anime, Int) -> Unit) { Column(Modifier.width(136.dp).clickable { onClick(anime, history.episode) }) { Box(Modifier.fillMaxWidth().height(184.dp).clip(RoundedCornerShape(16.dp)).background(MaterialTheme.colorScheme.surfaceVariant)) { history.episodeThumbnailUrl?.let { thumbnail -> AsyncImage(thumbnail, "${anime.title} Episode ${history.episode}", Modifier.fillMaxSize(), contentScale = ContentScale.Crop) }; Surface(Modifier.align(Alignment.TopStart).padding(8.dp), RoundedCornerShape(8.dp), color = MaterialTheme.colorScheme.scrim.copy(alpha = .72f)) { Text("EP ${history.episode}", Modifier.padding(horizontal = 7.dp, vertical = 4.dp), fontSize = 8.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onPrimary) }; Box(Modifier.align(Alignment.BottomCenter).fillMaxWidth().height(3.dp).background(MaterialTheme.colorScheme.primary)) }; Spacer(Modifier.height(7.dp)); Text(anime.title, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, maxLines = 1); Text(history.episodeTitle ?: "Episode ${history.episode}", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1) } }
+@Composable private fun HomeEpisodeCard(anime: Anime, history: com.kakaanime.app.data.WatchHistoryEntry, onClick: (Anime, Int) -> Unit) { Column(Modifier.width(136.dp).clickable { onClick(anime, history.episode) }) { Box(Modifier.fillMaxWidth().height(184.dp).clip(RoundedCornerShape(16.dp)).background(MaterialTheme.colorScheme.surfaceVariant)) { history.episodeThumbnailUrl?.let { thumbnail -> AsyncImage(thumbnail, "${anime.title} Episode ${history.episode}", Modifier.fillMaxSize(), contentScale = ContentScale.Crop) }; Surface(Modifier.align(Alignment.TopStart).padding(8.dp), RoundedCornerShape(8.dp), color = MaterialTheme.colorScheme.scrim.copy(alpha = .72f)) { Text("EP ${history.episode}", Modifier.padding(horizontal = 7.dp, vertical = 4.dp), fontSize = 8.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onPrimary) }; Box(Modifier.align(Alignment.BottomCenter).fillMaxWidth().height(3.dp).background(MaterialTheme.colorScheme.primary)) }; Spacer(Modifier.height(7.dp)); Text(anime.title, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, maxLines = 1); Text(history.episodeTitle ?: "Episode ${history.episode}", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1) } }
 
 @Composable private fun HomeAnimeSection(title: String, animeList: List<Anime>, posterUrls: Map<String, String>, onClick: (Anime) -> Unit, badge: String? = null) { if (animeList.isEmpty()) return; Column { Row(verticalAlignment = Alignment.CenterVertically) { Text(title, fontSize = 19.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f)); Text("Lihat semua", fontSize = 12.sp, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.SemiBold) }; Spacer(Modifier.height(10.dp)); LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp), contentPadding = PaddingValues(end = 8.dp)) { items(animeList, key = { it.title }) { anime -> ReferencePosterCard(anime, posterUrls[anime.title], onClick, badge) } } } }
 
