@@ -11,7 +11,7 @@ jobs:
   build:
     runs-on: ubuntu-latest
     permissions:
-      contents: read
+      contents: write
 
     steps:
       - name: Checkout
@@ -23,6 +23,33 @@ jobs:
           distribution: temurin
           java-version: '17'
           cache: gradle
+
+      - name: Patch player navigation
+        if: github.event.head_commit.message != 'fix: disable nonexistent player episode navigation'
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('app/src/main/java/com/kakaanime/app/player/VideoPlayerScreen.kt')
+          s = p.read_text()
+          old = '''val episodeNumbers = episodes.map { it.number }.filter { it > 0 }.distinct().sorted()\n    val previousEpisode = episodeNumbers.lastOrNull { it < episodeNumber } ?: (episodeNumber - 1).coerceAtLeast(1)\n    val nextEpisode = episodeNumbers.firstOrNull { it > episodeNumber } ?: (episodeNumber + 1)\n    val maxEpisode = episodeNumbers.maxOrNull() ?: episodeNumber'''
+          new = '''val episodeNumbers = episodes.map { it.number }.filter { it > 0 }.distinct().sorted()\n    val previousProviderEpisode = episodeNumbers.lastOrNull { it < episodeNumber }\n    val nextProviderEpisode = episodeNumbers.firstOrNull { it > episodeNumber }\n    val previousEpisode = previousProviderEpisode\n    val nextEpisode = nextProviderEpisode\n    val maxEpisode = episodeNumbers.maxOrNull() ?: episodeNumber'''
+          if old not in s:
+              raise SystemExit('navigation declaration block not found; aborting')
+          s = s.replace(old, new, 1)
+          s = s.replace('previousEpisode = previousEpisode.toString()', 'previousEpisode = previousEpisode?.toString()')
+          s = s.replace('nextEpisode = nextEpisode.toString()', 'nextEpisode = nextEpisode?.toString()')
+          p.write_text(s)
+          PY
+
+      - name: Commit player navigation fix
+        if: github.event.head_commit.message != 'fix: disable nonexistent player episode navigation'
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add app/src/main/java/com/kakaanime/app/player/VideoPlayerScreen.kt
+          git diff --cached --quiet && exit 0
+          git commit -m 'fix: disable nonexistent player episode navigation'
+          git push origin HEAD:main
 
       - name: Make Gradle executable
         run: chmod +x ./gradlew
