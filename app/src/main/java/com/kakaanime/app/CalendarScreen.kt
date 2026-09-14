@@ -81,29 +81,65 @@ fun CalendarScreen(
             item { EmptyScheduleState() }
         } else {
             items(entries, key = { "${it.id}-${it.episode}-${it.airingAt}" }) { entry ->
-                val matchedAnime = animeList.firstOrNull { it.title.equals(entry.title, ignoreCase = true) }
-                val calendarAnime = matchedAnime ?: entry.toAnime()
+                val calendarAnime = animeList
+                    .filter { it.matchesCalendarEntry(entry) }
+                    .sortedWith(compareBy<Anime> { seasonNumberFromTitle(entry.title) != null && it.seasonNumber != seasonNumberFromTitle(entry.title) })
+                    .firstOrNull()
+                    ?: entry.toAnime()
                 ScheduleTimelineItem(entry, true, calendarAnime.title in favoriteTitles) { onAnimeClick(calendarAnime) }
             }
         }
     }
 }
 
+private fun Anime.matchesCalendarEntry(entry: AniListScheduleEntry): Boolean {
+    val entryTitle = normalizeCalendarTitle(entry.title)
+    val ownTitles = sequenceOf(title, *searchAliases.toTypedArray())
+        .map(::normalizeCalendarTitle)
+        .filter { it.isNotBlank() }
+        .toSet()
+    if (entryTitle in ownTitles) return true
+
+    val entryGroupTitle = normalizeCalendarTitle(stripSeasonMarker(entry.title))
+    val ownGroupTitle = normalizeCalendarTitle(stripSeasonMarker(title))
+    val aliasGroupTitles = searchAliases.asSequence().map { normalizeCalendarTitle(stripSeasonMarker(it)) }.toSet()
+    return entryGroupTitle.isNotBlank() && (entryGroupTitle == ownGroupTitle || entryGroupTitle in aliasGroupTitles)
+}
+
 private fun AniListScheduleEntry.toAnime(): Anime {
-    val title = title.trim()
+    val scheduleTitle = title.trim()
+    val seasonNumber = seasonNumberFromTitle(scheduleTitle)
+    val groupTitle = stripSeasonMarker(scheduleTitle).trim().ifBlank { scheduleTitle }
     return Anime(
-        title = title,
+        title = scheduleTitle,
         latestEpisode = episode.coerceAtLeast(1),
         genre = genres.joinToString(", ").ifBlank { "Unknown" },
         description = "Anime dari jadwal AniList. Detail dan daftar episode akan dimuat dari provider KakaAnime.",
         studio = "Unknown",
-        season = "Ongoing",
+        season = if (seasonNumber != null) "Season $seasonNumber" else "Ongoing",
         year = "—",
         type = format?.replace('_', ' ')?.lowercase(Locale.ENGLISH)?.replaceFirstChar { it.uppercase() } ?: "TV",
         status = "Ongoing",
-        rating = score?.let { "%.1f".format(Locale.ENGLISH, it / 10.0) } ?: "—"
+        rating = score?.let { "%.1f".format(Locale.ENGLISH, it / 10.0) } ?: "—",
+        animeGroupId = groupTitle,
+        seasonNumber = seasonNumber,
+        seasonTitle = seasonNumber?.let { "Season $it" },
+        searchAliases = listOf(scheduleTitle, groupTitle),
     )
 }
+
+private fun normalizeCalendarTitle(value: String): String =
+    value.trim().lowercase(Locale.ENGLISH).replace(Regex("\\s+"), " ")
+
+private fun stripSeasonMarker(value: String): String =
+    value.trim()
+        .replace(Regex("(?i)\\bseason\\s+\\d+\\b"), " ")
+        .replace(Regex("(?i)\\bs\\d+\\b"), " ")
+        .replace(Regex("\\s+"), " ")
+        .trim()
+
+private fun seasonNumberFromTitle(value: String): Int? =
+    Regex("(?i)\\b(?:season\\s*|s)\\s*(\\d+)\\b").find(value)?.groupValues?.getOrNull(1)?.toIntOrNull()
 
 @Composable private fun CalendarHeader() {
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
