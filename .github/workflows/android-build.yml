@@ -3,7 +3,7 @@ name: Android Build
 on:
   push:
     branches:
-      - codespace-didactic-computing-machine-g49vrx9jjjp4hww9v
+      - codespace-didactic-computing-machine-g49rxv9jjjp4hww9v
       - main
   workflow_dispatch:
 
@@ -30,9 +30,19 @@ jobs:
       - name: Assemble release APK
         run: ./gradlew :app:assembleRelease --stacktrace
 
+      - name: Assemble debug APK
+        run: ./gradlew :app:assembleDebug --stacktrace
+
       - name: Upload release APK
         uses: actions/upload-artifact@v4
         with:
           name: release-apk
           path: app/build/outputs/apk/release/*.apk
+          if-no-files-found: error
+
+      - name: Upload installable debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: debug-apk
+          path: app/build/outputs/apk/debug/*.apk
           if-no-files-found: error
