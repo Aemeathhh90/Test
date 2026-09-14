@@ -5,28 +5,30 @@ class SmartProviderRouter(
     private val failureThreshold: Int = 2,
     private val cooldownMs: Long = 30_000L
 ) {
+    private enum class Operation { SEARCH, ANIME, EPISODES, STREAMS }
+
     private data class HealthState(
         var failures: Int = 0,
         var unavailableUntil: Long = 0L
     )
 
-    private val health = mutableMapOf<String, HealthState>()
+    private val health = mutableMapOf<Pair<String, Operation>, HealthState>()
 
     suspend fun search(
         query: String
     ): List<ProviderAnime> {
         if (query.isBlank()) return emptyList()
 
-        return eligibleProviders()
+        return eligibleProviders(Operation.SEARCH)
             .flatMap { provider ->
                 runCatching { provider.search(query.trim()) }
-                    .onSuccess { markSuccess(provider.id) }
-                    .onFailure { markFailure(provider.id) }
+                    .onSuccess { markSuccess(provider.id, Operation.SEARCH) }
+                    .onFailure { markFailure(provider.id, Operation.SEARCH) }
                     .getOrDefault(emptyList())
                     .map { it.copy(providerId = provider.id) }
             }
             .distinctBy { anime ->
-                buildKey(anime.title, anime.year)
+                buildKey(anime.title, anime.year, anime.seasonNumber, anime.seasonTitle, anime.animeGroupId)
             }
     }
 
@@ -35,7 +37,7 @@ class SmartProviderRouter(
     ): ProviderAnime? {
         if (animeId.isBlank()) return null
 
-        return forEachProvider { provider ->
+        return forEachProvider(Operation.ANIME) { provider ->
             provider.getAnime(animeId)?.copy(providerId = provider.id)
         }
     }
@@ -45,7 +47,7 @@ class SmartProviderRouter(
     ): List<ProviderEpisode> {
         if (animeId.isBlank()) return emptyList()
 
-        return forEachProvider { provider ->
+        return forEachProvider(Operation.EPISODES) { provider ->
             val episodes = provider.getEpisodes(animeId)
             if (episodes.isEmpty()) null
             else episodes
@@ -60,13 +62,13 @@ class SmartProviderRouter(
     ): List<ProviderStream> {
         if (animeId.isBlank() || episodeNumber < 1) return emptyList()
 
-        return eligibleProviders()
+        return eligibleProviders(Operation.STREAMS)
             .flatMap { provider ->
                 runCatching {
                     provider.getStreams(animeId, episodeNumber)
                 }
-                    .onSuccess { markSuccess(provider.id) }
-                    .onFailure { markFailure(provider.id) }
+                    .onSuccess { markSuccess(provider.id, Operation.STREAMS) }
+                    .onFailure { markFailure(provider.id, Operation.STREAMS) }
                     .getOrDefault(emptyList())
                     .map { it.copy(providerId = provider.id) }
             }
@@ -82,38 +84,40 @@ class SmartProviderRouter(
     }
 
     private suspend fun <T> forEachProvider(
+        operation: Operation,
         action: suspend (AnimeProvider) -> T?
     ): T? {
-        for (provider in eligibleProviders()) {
+        for (provider in eligibleProviders(operation)) {
             val result = runCatching { action(provider) }
-                .onSuccess { if (it != null) markSuccess(provider.id) }
-                .onFailure { markFailure(provider.id) }
+                .onSuccess { if (it != null) markSuccess(provider.id, operation) }
+                .onFailure { markFailure(provider.id, operation) }
                 .getOrNull()
             if (result != null) return result
         }
         return null
     }
 
-    private fun eligibleProviders(): List<AnimeProvider> =
-        registry.all().filter { isEligible(it.id) }
+    private fun eligibleProviders(operation: Operation): List<AnimeProvider> =
+        registry.all().filter { isEligible(it.id, operation) }
 
-    private fun isEligible(providerId: String): Boolean {
-        val state = health[providerId] ?: return true
+    private fun isEligible(providerId: String, operation: Operation): Boolean {
+        val key = providerId to operation
+        val state = health[key] ?: return true
         val now = System.currentTimeMillis()
         if (state.unavailableUntil <= now) {
-            state.unavailableUntil = 0L
-            state.failures = 0
+            health.remove(key)
             return true
         }
         return false
     }
 
-    private fun markSuccess(providerId: String) {
-        health.remove(providerId)
+    private fun markSuccess(providerId: String, operation: Operation) {
+        health.remove(providerId to operation)
     }
 
-    private fun markFailure(providerId: String) {
-        val state = health.getOrPut(providerId) { HealthState() }
+    private fun markFailure(providerId: String, operation: Operation) {
+        val key = providerId to operation
+        val state = health.getOrPut(key) { HealthState() }
         state.failures++
         if (state.failures >= failureThreshold) {
             state.unavailableUntil = System.currentTimeMillis() + cooldownMs
@@ -123,8 +127,23 @@ class SmartProviderRouter(
     private fun providerPriority(providerId: String): Int =
         registry.get(providerId)?.priority ?: Int.MAX_VALUE
 
-    private fun buildKey(title: String, year: Int?): String =
-        title.trim().lowercase().replace(Regex("\\s+"), " ") + "|" + (year ?: 0)
+    private fun buildKey(
+        title: String,
+        year: Int?,
+        seasonNumber: Int?,
+        seasonTitle: String?,
+        animeGroupId: String,
+    ): String = buildString {
+        append(animeGroupId.trim().lowercase().ifBlank { title.trim().lowercase() })
+        append("|")
+        append(title.trim().lowercase().replace(Regex("\\s+"), " "))
+        append("|")
+        append(year ?: 0)
+        append("|")
+        append(seasonNumber ?: "na")
+        append("|")
+        append(seasonTitle?.trim()?.lowercase()?.replace(Regex("\\s+"), " ").orEmpty())
+    }
 
     private fun qualityScore(quality: String?): Int {
         val value = quality?.lowercase() ?: return 0
