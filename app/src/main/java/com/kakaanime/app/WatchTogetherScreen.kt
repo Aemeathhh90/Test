@@ -49,13 +49,6 @@ private data class WatchRoomUi(
     val genres: List<String>,
 )
 
-/**
- * Watch Together room lobby UI foundation.
- *
- * Room creation/join state is still local-only presentation behavior.
- * The room screen is now reachable from the lobby, but real membership,
- * invites, playback sync and server-side room state require the future Social backend.
- */
 @Composable
 fun WatchTogetherScreen(onBack: () -> Unit) {
     var selectedTab by remember { mutableStateOf(0) }
@@ -72,241 +65,116 @@ fun WatchTogetherScreen(onBack: () -> Unit) {
             WatchRoomUi("KA-012", "Solo Leveling E12", "Solo Leveling", 12, "Kael", 3, 8, listOf("Action", "Fantasy")),
             WatchRoomUi("KA-020", "Frieren E20", "Frieren", 20, "Mizu", 4, 6, listOf("Fantasy", "Drama")),
         )
-
-    selectedRoom?.let { room ->
-        WatchRoomScreen(
-            roomTitle = room.title,
-            animeTitle = room.animeTitle,
-            episodeNumber = room.episode,
-            roomCode = room.id,
-            onBack = { selectedRoom = null },
-            onLeaveRoom = { selectedRoom = null },
-        )
-        return
     }
 
-    Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
-        LazyColumn(
-            modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(start = 18.dp, top = 12.dp, end = 18.dp, bottom = 40.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp),
-        ) {
-            item {
-                Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    TextButton(onClick = onBack) { Text("‹  Kembali") }
-                    Spacer(Modifier.weight(1f))
-                    Surface(shape = CircleShape, color = MaterialTheme.colorScheme.surfaceVariant) {
-                        Text("?", modifier = Modifier.padding(horizontal = 11.dp, vertical = 7.dp), fontWeight = FontWeight.Bold)
+    if (selectedRoom != null) {
+        val room = selectedRoom!!
+        WatchRoomScreen(room.title, room.animeTitle, room.episode, room.id, { selectedRoom = null }, { selectedRoom = null })
+    } else {
+        Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+            LazyColumn(
+                Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(start = 18.dp, top = 12.dp, end = 18.dp, bottom = 40.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp),
+            ) {
+                item {
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                        TextButton(onClick = onBack) { Text("‹  Kembali") }
+                        Spacer(Modifier.weight(1f))
+                        Surface(CircleShape, color = MaterialTheme.colorScheme.surfaceVariant) { Text("?", Modifier.padding(horizontal = 11.dp, vertical = 7.dp), fontWeight = FontWeight.Bold) }
                     }
                 }
-            }
-
-            item {
-                Column {
-                    Text("Watch Together", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
-                    Spacer(Modifier.height(4.dp))
-                    Text(
-                        "Buat room, ajak teman, lalu nonton anime bersama.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
+                item {
+                    Column {
+                        Text("Watch Together", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+                        Text("Buat room, ajak teman, lalu nonton anime bersama.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
                 }
-            }
-
-            item {
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(24.dp),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
-                ) {
-                    Column(Modifier.padding(18.dp)) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Surface(
-                                modifier = Modifier.size(46.dp),
-                                shape = CircleShape,
-                                color = MaterialTheme.colorScheme.primary,
-                            ) {
-                                Box(contentAlignment = Alignment.Center) {
-                                    Text("▶", color = MaterialTheme.colorScheme.onPrimary, fontWeight = FontWeight.Bold)
-                                }
+                item {
+                    Card(Modifier.fillMaxWidth(), RoundedCornerShape(24.dp), colors = CardDefaults.cardColors(MaterialTheme.colorScheme.primaryContainer)) {
+                        Column(Modifier.padding(18.dp)) {
+                            Text("Nonton bareng, satu room", fontWeight = FontWeight.Bold)
+                            Text("Temukan room atau mulai sesi baru.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onPrimaryContainer)
+                            Spacer(Modifier.height(14.dp))
+                            Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+                                Button({ showCreateDialog = true }, Modifier.weight(1f)) { Text("Create Room") }
+                                OutlinedButton({ showJoinDialog = true }, Modifier.weight(1f)) { Text("Join Room") }
                             }
-                            Column(Modifier.padding(start = 12.dp).weight(1f)) {
-                                Text("Nonton bareng, satu room", fontWeight = FontWeight.Bold)
-                                Text(
-                                    "Temukan room atau mulai sesi baru.",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onPrimaryContainer,
-                                )
-                            }
-                        }
-                        Spacer(Modifier.height(14.dp))
-                        Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
-                            Button(onClick = { showCreateDialog = true }, modifier = Modifier.weight(1f)) { Text("Create Room") }
-                            OutlinedButton(onClick = { showJoinDialog = true }, modifier = Modifier.weight(1f)) { Text("Join Room") }
                         }
                     }
                 }
-            }
-
-            item {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    FilterChip(selected = selectedTab == 0, onClick = { selectedTab = 0 }, label = { Text("Active Rooms") })
-                    FilterChip(selected = selectedTab == 1, onClick = { selectedTab = 1 }, label = { Text("My Rooms") })
+                item {
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        FilterChip(selectedTab == 0, { selectedTab = 0 }, label = { Text("Active Rooms") })
+                        FilterChip(selectedTab == 1, { selectedTab = 1 }, label = { Text("My Rooms") })
+                    }
                 }
-            }
-
-            if (selectedTab == 0) {
-                item { RoomSectionHeader("Active Rooms", "${activeRooms.size} room tersedia") }
-                items(activeRooms, key = { it.id }) { room ->
-                    WatchRoomCard(room, onJoin = { selectedRoom = room })
+                if (selectedTab == 0) {
+                    item { Text("Active Rooms · ${activeRooms.size} room tersedia", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold) }
+                    items(activeRooms, key = { it.id }) { room -> WatchRoomCard(room) { selectedRoom = room } }
+                } else if (createdRooms.isEmpty()) {
+                    item { EmptyRoomState { showCreateDialog = true } }
+                } else {
+                    item { Text("My Rooms", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold) }
+                    items(createdRooms, key = { it.id }) { room -> WatchRoomCard(room) { selectedRoom = room } }
                 }
-            } else if (createdRooms.isEmpty()) {
-                item { WatchTogetherEmptyState("Belum ada room buatanmu.", "Buat room untuk mulai menonton bersama.", onCreate = { showCreateDialog = true }) }
-            } else {
-                item { RoomSectionHeader("My Rooms", "Room yang kamu buat di sesi ini") }
-                items(createdRooms, key = { it.id }) { room -> WatchRoomCard(room, onJoin = { selectedRoom = room }) }
-            }
-
-            item {
-                Surface(
-                    modifier = Modifier.fillMaxWidth(),
-                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f),
-                    shape = RoundedCornerShape(16.dp),
-                ) {
-                    Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Text("i", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
-                        Text(
-                            "Room online dan sinkronisasi playback akan aktif setelah Social backend terhubung.",
-                            modifier = Modifier.padding(start = 10.dp),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
+                item {
+                    Surface(Modifier.fillMaxWidth(), RoundedCornerShape(16.dp), color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = .55f)) {
+                        Text("Room online dan sinkronisasi playback akan aktif setelah Social backend terhubung.", Modifier.padding(14.dp), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
             }
         }
-    }
 
-    if (showCreateDialog) {
-        AlertDialog(
-            onDismissRequest = { showCreateDialog = false },
-            title = { Text("Create Room") },
-            text = {
-                Column {
-                    Text("UI foundation • sesi lokal", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
-                    Spacer(Modifier.height(10.dp))
-                    OutlinedTextField(
-                        value = roomTitle,
-                        onValueChange = { roomTitle = it },
-                        singleLine = true,
-                        label = { Text("Nama room") },
-                        placeholder = { Text("Contoh: One Piece malam ini") },
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                }
-            },
-            confirmButton = {
-                TextButton(
-                    enabled = roomTitle.trim().length >= 3,
-                    onClick = {
-                        val normalized = roomTitle.trim()
-                        val newRoom = WatchRoomUi(
-                            id = "MY-${System.currentTimeMillis().toString().takeLast(4)}",
-                            title = normalized,
-                            animeTitle = "One Piece",
-                            episode = 1,
-                            host = "Shin",
-                            members = 1,
-                            capacity = 10,
-                            genres = emptyList(),
-                        )
-                        createdRooms = listOf(newRoom) + createdRooms
+        if (showCreateDialog) {
+            AlertDialog(
+                onDismissRequest = { showCreateDialog = false },
+                title = { Text("Create Room") },
+                text = { OutlinedTextField(roomTitle, { roomTitle = it }, singleLine = true, label = { Text("Nama room") }, modifier = Modifier.fillMaxWidth()) },
+                confirmButton = {
+                    TextButton(enabled = roomTitle.trim().length >= 3, onClick = {
+                        val room = WatchRoomUi("MY-${System.currentTimeMillis().toString().takeLast(4)}", roomTitle.trim(), "One Piece", 1, "Shin", 1, 10, emptyList())
+                        createdRooms = listOf(room) + createdRooms
                         roomTitle = ""
                         showCreateDialog = false
                         selectedTab = 1
-                        selectedRoom = newRoom
-                    },
-                ) { Text("Buat Room") }
-            },
-            dismissButton = { TextButton(onClick = { showCreateDialog = false }) { Text("Batal") } },
-        )
-    }
-
-    if (showJoinDialog) {
-        AlertDialog(
-            onDismissRequest = { showJoinDialog = false },
-            title = { Text("Join Room") },
-            text = {
-                Column {
-                    Text("Masukkan kode room dari teman.", style = MaterialTheme.typography.bodyMedium)
-                    Spacer(Modifier.height(10.dp))
-                    OutlinedTextField(
-                        value = joinCode,
-                        onValueChange = { joinCode = it.uppercase(Locale.ROOT).take(12) },
-                        singleLine = true,
-                        label = { Text("Kode room") },
-                        placeholder = { Text("Contoh: KA-1150") },
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                }
-            },
-            confirmButton = {
-                TextButton(
-                    enabled = joinCode.trim().length >= 4,
-                    onClick = {
-                        val normalized = joinCode.trim()
-                        val room = activeRooms.firstOrNull { it.id.equals(normalized, ignoreCase = true) }
+                        selectedRoom = room
+                    }) { Text("Buat Room") }
+                },
+                dismissButton = { TextButton({ showCreateDialog = false }) { Text("Batal") } },
+            )
+        }
+        if (showJoinDialog) {
+            AlertDialog(
+                onDismissRequest = { showJoinDialog = false },
+                title = { Text("Join Room") },
+                text = { OutlinedTextField(joinCode, { joinCode = it.uppercase(Locale.ROOT).take(12) }, singleLine = true, label = { Text("Kode room") }, modifier = Modifier.fillMaxWidth()) },
+                confirmButton = {
+                    TextButton(enabled = joinCode.trim().length >= 4, onClick = {
+                        val room = activeRooms.firstOrNull { it.id.equals(joinCode.trim(), true) }
                         showJoinDialog = false
                         joinCode = ""
                         if (room != null) selectedRoom = room
-                    },
-                ) { Text("Gabung") }
-            },
-            dismissButton = { TextButton(onClick = { showJoinDialog = false }) { Text("Batal") } },
-        )
-    }
-}
-
-@Composable
-private fun RoomSectionHeader(title: String, subtitle: String) {
-    Column {
-        Text(title, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-        Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }) { Text("Gabung") }
+                },
+                dismissButton = { TextButton({ showJoinDialog = false }) { Text("Batal") } },
+            )
+        }
     }
 }
 
 @Composable
 private fun WatchRoomCard(room: WatchRoomUi, onJoin: () -> Unit) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-    ) {
+    Card(Modifier.fillMaxWidth(), RoundedCornerShape(20.dp), colors = CardDefaults.cardColors(MaterialTheme.colorScheme.surfaceVariant)) {
         Column(Modifier.padding(16.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Surface(
-                    modifier = Modifier.size(42.dp),
-                    shape = RoundedCornerShape(13.dp),
-                    color = MaterialTheme.colorScheme.primaryContainer,
-                ) {
-                    Box(contentAlignment = Alignment.Center) { Text("▶", color = MaterialTheme.colorScheme.onPrimaryContainer, fontWeight = FontWeight.Bold) }
-                }
-                Column(Modifier.padding(start = 12.dp).weight(1f)) {
-                    Text(room.title, fontWeight = FontWeight.Bold)
-                    Text("Episode ${room.episode} • Host ${room.host}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
-                Surface(shape = CircleShape, color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)) {
-                    Text("LIVE", modifier = Modifier.padding(horizontal = 9.dp, vertical = 5.dp), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
-                }
-            }
-            Spacer(Modifier.height(12.dp))
-            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f))
+            Text(room.title, fontWeight = FontWeight.Bold)
+            Text("Episode ${room.episode} • Host ${room.host}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Spacer(Modifier.height(10.dp))
+            HorizontalDivider()
             Spacer(Modifier.height(10.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("👥 ${room.members}/${room.capacity}", style = MaterialTheme.typography.labelMedium)
+                Text("${room.members}/${room.capacity} peserta", style = MaterialTheme.typography.labelMedium)
                 Spacer(Modifier.weight(1f))
-                if (room.genres.isNotEmpty()) Text(room.genres.take(2).joinToString(" • "), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Spacer(Modifier.size(10.dp))
                 Button(onClick = onJoin) { Text("Join") }
             }
         }
@@ -314,17 +182,13 @@ private fun WatchRoomCard(room: WatchRoomUi, onJoin: () -> Unit) {
 }
 
 @Composable
-private fun WatchTogetherEmptyState(title: String, subtitle: String, onCreate: () -> Unit) {
-    Surface(modifier = Modifier.fillMaxWidth(), color = MaterialTheme.colorScheme.surfaceVariant, shape = RoundedCornerShape(20.dp)) {
+private fun EmptyRoomState(onCreate: () -> Unit) {
+    Surface(Modifier.fillMaxWidth(), RoundedCornerShape(20.dp), color = MaterialTheme.colorScheme.surfaceVariant) {
         Column(Modifier.padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-            Surface(modifier = Modifier.size(52.dp), shape = CircleShape, color = MaterialTheme.colorScheme.primaryContainer) {
-                Box(contentAlignment = Alignment.Center) { Text("▶", color = MaterialTheme.colorScheme.onPrimaryContainer, fontWeight = FontWeight.Bold) }
-            }
-            Spacer(Modifier.height(10.dp))
-            Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-            Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text("Belum ada room buatanmu.", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+            Text("Buat room untuk mulai menonton bersama.", color = MaterialTheme.colorScheme.onSurfaceVariant)
             Spacer(Modifier.height(12.dp))
-            OutlinedButton(onClick = onCreate) { Text("Create Room") }
+            OutlinedButton(onCreate) { Text("Create Room") }
         }
     }
 }
