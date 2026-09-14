@@ -235,7 +235,7 @@ private fun HistoryLibraryContent(
                     val anime = animeFor(entry)
                     if (anime != null) HistoryRow(entry, anime, onAnimeClick, onChanged)
                 }
-                item { SectionTitle("Recently Watched", "Riwayat tontonan terbaru", topPadding = 8.dp) }
+                item { SectionTitle("Recently Watched", "Riwayat tontonan terbaru", topPadding = 8) }
                 items(history, key = { "history-${it.identity.episodeKey(it.episode)}-${it.watchedAt}" }) { entry ->
                     val anime = animeFor(entry)
                     if (anime != null) HistoryRow(entry, anime, onAnimeClick, onChanged)
