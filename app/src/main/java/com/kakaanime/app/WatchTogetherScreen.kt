@@ -1,6 +1,5 @@
 package com.kakaanime.app
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -35,7 +34,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import java.util.Locale
@@ -43,6 +41,7 @@ import java.util.Locale
 private data class WatchRoomUi(
     val id: String,
     val title: String,
+    val animeTitle: String,
     val episode: Int,
     val host: String,
     val members: Int,
@@ -53,9 +52,9 @@ private data class WatchRoomUi(
 /**
  * Watch Together room lobby UI foundation.
  *
- * Current room creation/join state is local-only presentation behavior.
- * Real-time rooms, membership, invites and synchronized playback require the
- * future Social backend and are intentionally not represented as complete.
+ * Room creation/join state is still local-only presentation behavior.
+ * The room screen is now reachable from the lobby, but real membership,
+ * invites, playback sync and server-side room state require the future Social backend.
  */
 @Composable
 fun WatchTogetherScreen(onBack: () -> Unit) {
@@ -65,13 +64,25 @@ fun WatchTogetherScreen(onBack: () -> Unit) {
     var joinCode by remember { mutableStateOf("") }
     var roomTitle by remember { mutableStateOf("") }
     var createdRooms by remember { mutableStateOf<List<WatchRoomUi>>(emptyList()) }
+    var selectedRoom by remember { mutableStateOf<WatchRoomUi?>(null) }
 
     val activeRooms = remember {
         listOf(
-            WatchRoomUi("KA-1150", "One Piece E1150", 1150, "Shin", 5, 10, listOf("Action", "Adventure")),
-            WatchRoomUi("KA-012", "Solo Leveling E12", 12, "Kael", 3, 8, listOf("Action", "Fantasy")),
-            WatchRoomUi("KA-020", "Frieren E20", 20, "Mizu", 4, 6, listOf("Fantasy", "Drama")),
+            WatchRoomUi("KA-1150", "One Piece E1150", "One Piece", 1150, "Shin", 5, 10, listOf("Action", "Adventure")),
+            WatchRoomUi("KA-012", "Solo Leveling E12", "Solo Leveling", 12, "Kael", 3, 8, listOf("Action", "Fantasy")),
+            WatchRoomUi("KA-020", "Frieren E20", "Frieren", 20, "Mizu", 4, 6, listOf("Fantasy", "Drama")),
         )
+
+    selectedRoom?.let { room ->
+        WatchRoomScreen(
+            roomTitle = room.title,
+            animeTitle = room.animeTitle,
+            episodeNumber = room.episode,
+            roomCode = room.id,
+            onBack = { selectedRoom = null },
+            onLeaveRoom = { selectedRoom = null },
+        )
+        return
     }
 
     Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
@@ -130,12 +141,8 @@ fun WatchTogetherScreen(onBack: () -> Unit) {
                         }
                         Spacer(Modifier.height(14.dp))
                         Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
-                            Button(onClick = { showCreateDialog = true }, modifier = Modifier.weight(1f)) {
-                                Text("Create Room")
-                            }
-                            OutlinedButton(onClick = { showJoinDialog = true }, modifier = Modifier.weight(1f)) {
-                                Text("Join Room")
-                            }
+                            Button(onClick = { showCreateDialog = true }, modifier = Modifier.weight(1f)) { Text("Create Room") }
+                            OutlinedButton(onClick = { showJoinDialog = true }, modifier = Modifier.weight(1f)) { Text("Join Room") }
                         }
                     }
                 }
@@ -149,17 +156,15 @@ fun WatchTogetherScreen(onBack: () -> Unit) {
             }
 
             if (selectedTab == 0) {
-                item {
-                    RoomSectionHeader("Active Rooms", "${activeRooms.size} room tersedia")
-                }
+                item { RoomSectionHeader("Active Rooms", "${activeRooms.size} room tersedia") }
                 items(activeRooms, key = { it.id }) { room ->
-                    WatchRoomCard(room, onJoin = { showJoinDialog = true })
+                    WatchRoomCard(room, onJoin = { selectedRoom = room })
                 }
             } else if (createdRooms.isEmpty()) {
                 item { WatchTogetherEmptyState("Belum ada room buatanmu.", "Buat room untuk mulai menonton bersama.", onCreate = { showCreateDialog = true }) }
             } else {
                 item { RoomSectionHeader("My Rooms", "Room yang kamu buat di sesi ini") }
-                items(createdRooms, key = { it.id }) { room -> WatchRoomCard(room, onJoin = { }) }
+                items(createdRooms, key = { it.id }) { room -> WatchRoomCard(room, onJoin = { selectedRoom = room }) }
             }
 
             item {
@@ -205,20 +210,21 @@ fun WatchTogetherScreen(onBack: () -> Unit) {
                     enabled = roomTitle.trim().length >= 3,
                     onClick = {
                         val normalized = roomTitle.trim()
-                        createdRooms = listOf(
-                            WatchRoomUi(
-                                id = "MY-${System.currentTimeMillis().toString().takeLast(4)}",
-                                title = normalized,
-                                episode = 1,
-                                host = "Shin",
-                                members = 1,
-                                capacity = 10,
-                                genres = emptyList(),
-                            ),
-                        ) + createdRooms
+                        val newRoom = WatchRoomUi(
+                            id = "MY-${System.currentTimeMillis().toString().takeLast(4)}",
+                            title = normalized,
+                            animeTitle = "One Piece",
+                            episode = 1,
+                            host = "Shin",
+                            members = 1,
+                            capacity = 10,
+                            genres = emptyList(),
+                        )
+                        createdRooms = listOf(newRoom) + createdRooms
                         roomTitle = ""
                         showCreateDialog = false
                         selectedTab = 1
+                        selectedRoom = newRoom
                     },
                 ) { Text("Buat Room") }
             },
@@ -248,8 +254,11 @@ fun WatchTogetherScreen(onBack: () -> Unit) {
                 TextButton(
                     enabled = joinCode.trim().length >= 4,
                     onClick = {
+                        val normalized = joinCode.trim()
+                        val room = activeRooms.firstOrNull { it.id.equals(normalized, ignoreCase = true) }
                         showJoinDialog = false
                         joinCode = ""
+                        if (room != null) selectedRoom = room
                     },
                 ) { Text("Gabung") }
             },
@@ -280,9 +289,7 @@ private fun WatchRoomCard(room: WatchRoomUi, onJoin: () -> Unit) {
                     shape = RoundedCornerShape(13.dp),
                     color = MaterialTheme.colorScheme.primaryContainer,
                 ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Text("▶", color = MaterialTheme.colorScheme.onPrimaryContainer, fontWeight = FontWeight.Bold)
-                    }
+                    Box(contentAlignment = Alignment.Center) { Text("▶", color = MaterialTheme.colorScheme.onPrimaryContainer, fontWeight = FontWeight.Bold) }
                 }
                 Column(Modifier.padding(start = 12.dp).weight(1f)) {
                     Text(room.title, fontWeight = FontWeight.Bold)
@@ -298,9 +305,7 @@ private fun WatchRoomCard(room: WatchRoomUi, onJoin: () -> Unit) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("👥 ${room.members}/${room.capacity}", style = MaterialTheme.typography.labelMedium)
                 Spacer(Modifier.weight(1f))
-                if (room.genres.isNotEmpty()) {
-                    Text(room.genres.take(2).joinToString(" • "), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
+                if (room.genres.isNotEmpty()) Text(room.genres.take(2).joinToString(" • "), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Spacer(Modifier.size(10.dp))
                 Button(onClick = onJoin) { Text("Join") }
             }
@@ -310,11 +315,7 @@ private fun WatchRoomCard(room: WatchRoomUi, onJoin: () -> Unit) {
 
 @Composable
 private fun WatchTogetherEmptyState(title: String, subtitle: String, onCreate: () -> Unit) {
-    Surface(
-        modifier = Modifier.fillMaxWidth(),
-        color = MaterialTheme.colorScheme.surfaceVariant,
-        shape = RoundedCornerShape(20.dp),
-    ) {
+    Surface(modifier = Modifier.fillMaxWidth(), color = MaterialTheme.colorScheme.surfaceVariant, shape = RoundedCornerShape(20.dp)) {
         Column(Modifier.padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
             Surface(modifier = Modifier.size(52.dp), shape = CircleShape, color = MaterialTheme.colorScheme.primaryContainer) {
                 Box(contentAlignment = Alignment.Center) { Text("▶", color = MaterialTheme.colorScheme.onPrimaryContainer, fontWeight = FontWeight.Bold) }
