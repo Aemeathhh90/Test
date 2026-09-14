@@ -8,9 +8,11 @@ object ProviderPlaybackResolver {
         title: String,
         episodeNumber: Int,
         premium: Boolean,
-        preferredQuality: StreamQuality? = null
+        preferredQuality: StreamQuality? = null,
+        seasonNumber: Int? = null,
+        seasonTitle: String? = null,
     ): NormalizedStream? {
-        val candidates = engine.search(title)
+        val candidates = findCandidates(title, seasonNumber, seasonTitle)
         if (candidates.isEmpty()) return null
 
         val ordered = candidates
@@ -31,8 +33,12 @@ object ProviderPlaybackResolver {
         return null
     }
 
-    suspend fun episodes(title: String): List<ProviderEpisode> {
-        val candidates = engine.search(title)
+    suspend fun episodes(
+        title: String,
+        seasonNumber: Int? = null,
+        seasonTitle: String? = null,
+    ): List<ProviderEpisode> {
+        val candidates = findCandidates(title, seasonNumber, seasonTitle)
         if (candidates.isEmpty()) return emptyList()
 
         val ordered = candidates
@@ -45,6 +51,38 @@ object ProviderPlaybackResolver {
                 .distinctBy { it.number }
                 .sortedByDescending { it.number }
             if (episodes.isNotEmpty()) return episodes
+        }
+
+        return emptyList()
+    }
+
+    private suspend fun findCandidates(
+        title: String,
+        seasonNumber: Int?,
+        seasonTitle: String?,
+    ): List<ProviderAnime> {
+        val normalizedTitle = title.trim()
+        if (normalizedTitle.isBlank()) return emptyList()
+
+        val queries = buildList {
+            if (seasonNumber != null) {
+                add("$normalizedTitle Season $seasonNumber")
+                add("$normalizedTitle S$seasonNumber")
+            }
+            seasonTitle?.trim()?.takeIf { it.isNotBlank() }?.let { add("$normalizedTitle $it") }
+            add(normalizedTitle)
+        }.distinct()
+
+        for (query in queries) {
+            val results = runCatching { engine.search(query) }.getOrDefault(emptyList())
+            if (results.isEmpty()) continue
+            if (seasonNumber == null) return results
+
+            val matching = results.filter { candidate ->
+                val identity = SeasonIdentityParser.parse(candidate.title, candidate.id)
+                identity.seasonNumber == seasonNumber || candidate.seasonNumber == seasonNumber
+            }
+            if (matching.isNotEmpty()) return matching
         }
 
         return emptyList()
