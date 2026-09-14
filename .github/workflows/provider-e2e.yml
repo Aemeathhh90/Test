@@ -5,7 +5,7 @@ on:
 
 jobs:
   samehadaku-e2e:
-    runs-on: warp-ubuntu-latest-x64-16x;nested-virtualization.enabled=true
+    runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
       contents: read
