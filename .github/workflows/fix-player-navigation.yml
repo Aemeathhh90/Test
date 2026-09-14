@@ -1,10 +1,13 @@
 name: Fix Player Navigation
 
 on:
+  push:
+    branches: [main]
   workflow_dispatch:
 
 jobs:
   fix:
+    if: github.event.head_commit.message != 'fix: disable nonexistent player episode navigation'
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -28,9 +31,9 @@ jobs:
           s = s.replace('nextEpisode = nextEpisode.toString()', 'nextEpisode = nextEpisode?.toString()')
           p.write_text(s)
           PY
-      - name: Verify no fallback navigation remains
+      - name: Verify
         run: |
-          grep -nE 'previousEpisode = previousEpisode\.toString|nextEpisode = nextEpisode\.toString' app/src/main/java/com/kakaanime/app/player/VideoPlayerScreen.kt && exit 1 || true
+          ! grep -nE 'previousEpisode = previousEpisode\.toString|nextEpisode = nextEpisode\.toString' app/src/main/java/com/kakaanime/app/player/VideoPlayerScreen.kt
           grep -nE 'previousProviderEpisode|nextProviderEpisode' app/src/main/java/com/kakaanime/app/player/VideoPlayerScreen.kt
       - name: Commit fix
         run: |
