@@ -50,11 +50,21 @@ class SeasonAwareStateRepository(private val preferences: KakaAnimePreferences) 
         )
     }
 
-    fun deleteHistory(identity: AnimeStateIdentity, episode: Int) {
+    /**
+     * Delete from both canonical season-aware history and the legacy title-based
+     * history. This prevents a deleted legacy item from reappearing through the
+     * Library migration fallback.
+     */
+    fun deleteHistory(identity: AnimeStateIdentity, episode: Int, legacyTitle: String? = null) {
         preferences.deleteWatchHistoryEntry(identity, episode)
+        legacyTitle?.trim()?.takeIf { it.isNotBlank() }?.let {
+            preferences.deleteWatchHistoryEntry(it, episode)
+        }
     }
 
+    /** Clear both stores because Library currently reads both during migration. */
     fun clearHistory() {
         preferences.clearWatchHistorySeasonAware()
+        preferences.clearWatchHistory()
     }
 }
