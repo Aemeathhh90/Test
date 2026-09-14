@@ -9,10 +9,9 @@ permissions:
 
 jobs:
   patch:
-    if: startsWith(github.event.head_commit.message, 'chore: temporary stream callback patcher')
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v4
 
       - name: Patch callback ownership
         run: |
@@ -23,7 +22,7 @@ jobs:
           old = '''    val playerController = rememberPlayerController(context)\n    val playerState = rememberPlayerState(playerController)\n    val player = playerController.player\n\n    DisposableEffect(player, videoUrl, episodeNumber) {\n        val listener = object : Player.Listener {\n            override fun onRenderedFirstFrame() { onRenderedFirstFrame() }\n        }'''
           new = '''    val playerController = rememberPlayerController(context)\n    val playerState = rememberPlayerState(playerController)\n    val player = playerController.player\n    val currentOnRenderedFirstFrame by rememberUpdatedState(onRenderedFirstFrame)\n\n    DisposableEffect(player, videoUrl, episodeNumber) {\n        val listener = object : Player.Listener {\n            override fun onRenderedFirstFrame() { currentOnRenderedFirstFrame() }\n        }'''
           if old not in text:
-              raise SystemExit('Expected VideoPlayerScreen callback block was not found')
+              raise SystemExit('Expected callback block not found')
           path.write_text(text.replace(old, new, 1))
           PY
 
@@ -32,7 +31,7 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add app/src/main/java/com/kakaanime/app/player/VideoPlayerScreen.kt
-          git commit -m "fix: keep latest first-frame callback" 
+          git commit -m "fix: keep latest first-frame callback"
           rm .github/workflows/patch-stream-callback.yml
           git add .github/workflows/patch-stream-callback.yml
           git commit -m "chore: remove temporary stream callback patcher"
