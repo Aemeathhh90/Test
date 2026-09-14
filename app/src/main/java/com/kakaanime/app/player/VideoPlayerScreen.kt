@@ -62,6 +62,8 @@ fun VideoPlayerScreen(
     isPremium: Boolean = false,
     episodes: List<ProviderEpisode> = emptyList(),
     watchedEpisodes: Set<Int> = emptySet(),
+    seasonNumber: Int? = null,
+    seasonTitle: String? = null,
     unlockRemainingSeconds: Int? = null,
     onCancelUnlock: () -> Unit = {},
     modifier: Modifier = Modifier,
@@ -119,7 +121,7 @@ fun VideoPlayerScreen(
             .apply()
     }
 
-    LaunchedEffect(qualityRequest, title, episodeNumber, isPremium, videoUrl) {
+    LaunchedEffect(qualityRequest, title, episodeNumber, seasonNumber, seasonTitle, isPremium, videoUrl) {
         val requested = qualityRequest ?: return@LaunchedEffect
         qualityLoading = true
         val target = when (requested) {
@@ -132,7 +134,14 @@ fun VideoPlayerScreen(
         if (target != null && (requested != "1080p" || isPremium)) {
             val position = player.currentPosition.coerceAtLeast(0L)
             val resolved = runCatching {
-                ProviderPlaybackResolver.resolve(title = title, episodeNumber = episodeNumber, premium = isPremium, preferredQuality = target)
+                ProviderPlaybackResolver.resolve(
+                    title = title,
+                    episodeNumber = episodeNumber,
+                    premium = isPremium,
+                    preferredQuality = target,
+                    seasonNumber = seasonNumber,
+                    seasonTitle = seasonTitle,
+                )
             }.getOrNull()
             if (resolved != null && resolved.url.isNotBlank() && resolved.url != player.currentMediaItem?.localConfiguration?.uri?.toString()) {
                 playerController.setVideo(resolved.url)
