@@ -49,7 +49,6 @@ data class Anime(
     val introEnd: Long = 0L,
     val outroStart: Long = 0L,
     val outroEnd: Long = 0L,
-    // Season-aware catalog identity. Defaults preserve existing call sites until the catalog bridge lands.
     val animeGroupId: String = title,
     val seasonNumber: Int? = null,
     val seasonTitle: String? = null,
@@ -85,6 +84,7 @@ fun KakaAnimeApp() {
     val rewardedAds = remember(context) { AdMobRewardedAdGateway(context) }
 
     var selectedAnime by remember { mutableStateOf<Anime?>(null) }
+    var catalogAnime by remember { mutableStateOf(localAnime) }
     var selectedEpisode by remember { mutableStateOf<Int?>(null) }
     var selectedTab by remember { mutableStateOf(BottomTab.HOME) }
     var showPremium by remember { mutableStateOf(false) }
@@ -126,6 +126,17 @@ fun KakaAnimeApp() {
     DisposableEffect(playBillingGateway) {
         playBillingGateway?.connectAndLoad()
         onDispose { playBillingGateway?.destroy() }
+    }
+
+    fun seasonsFor(anime: Anime): List<Anime> {
+        val groupId = anime.animeGroupId.ifBlank { anime.title }
+        val matches = catalogAnime.filter { candidate ->
+            candidate.animeGroupId.ifBlank { candidate.title } == groupId
+        }
+        val source = if (matches.isEmpty()) listOf(anime) else matches + anime
+        return source
+            .distinctBy { it.seasonNumber ?: it.seasonTitle?.trim()?.lowercase() ?: it.title.trim().lowercase() }
+            .sortedWith(compareBy(nullsLast<Int>()) { it.seasonNumber })
     }
 
     fun recordWatched(anime: Anime, episode: Int) {
@@ -216,7 +227,7 @@ fun KakaAnimeApp() {
         }
     }
 
-    LaunchedEffect(selectedAnime?.title, selectedEpisode, monetizationState.isPremium, streamRetry) {
+    LaunchedEffect(selectedAnime?.title, selectedAnime?.seasonNumber, selectedAnime?.seasonTitle, selectedEpisode, monetizationState.isPremium, streamRetry) {
         val anime = selectedAnime
         val episode = selectedEpisode
         if (anime == null || episode == null) {
@@ -228,15 +239,23 @@ fun KakaAnimeApp() {
         resolvedStreamUrl = null
         streamLoading = true
         streamFirstFrameRendered = false
-        resolvedStreamUrl = runCatching { ProviderPlaybackResolver.resolve(anime.title, episode, monetizationState.isPremium)?.url }.getOrNull()
+        resolvedStreamUrl = runCatching {
+            ProviderPlaybackResolver.resolve(
+                anime.title,
+                episode,
+                monetizationState.isPremium,
+                seasonNumber = anime.seasonNumber,
+                seasonTitle = anime.seasonTitle,
+            )?.url
+        }.getOrNull()
         streamLoading = false
         if (resolvedStreamUrl != null) {
             kotlinx.coroutines.delay(15000L)
-            if (streamFirstFrameRendered && selectedAnime?.title == anime.title && selectedEpisode == episode) recordWatched(anime, episode)
+            if (streamFirstFrameRendered && selectedAnime?.title == anime.title && selectedAnime?.seasonNumber == anime.seasonNumber && selectedEpisode == episode) recordWatched(anime, episode)
         }
     }
 
-    LaunchedEffect(selectedAnime?.title) {
+    LaunchedEffect(selectedAnime?.title, selectedAnime?.seasonNumber, selectedAnime?.seasonTitle) {
         val anime = selectedAnime
         if (anime == null) {
             providerEpisodes = emptyList()
@@ -244,12 +263,16 @@ fun KakaAnimeApp() {
             return@LaunchedEffect
         }
         episodeListLoading = true
-        providerEpisodes = runCatching { ProviderPlaybackResolver.episodes(anime.title) }.getOrDefault(emptyList())
+        providerEpisodes = runCatching {
+            ProviderPlaybackResolver.episodes(anime.title, seasonNumber = anime.seasonNumber, seasonTitle = anime.seasonTitle)
+        }.getOrDefault(emptyList())
         episodeListLoading = false
         while (true) {
             kotlinx.coroutines.delay(10 * 60 * 1000L)
-            if (selectedAnime?.title != anime.title) return@LaunchedEffect
-            val refreshed = runCatching { ProviderPlaybackResolver.episodes(anime.title) }.getOrDefault(emptyList())
+            if (selectedAnime?.title != anime.title || selectedAnime?.seasonNumber != anime.seasonNumber || selectedAnime?.seasonTitle != anime.seasonTitle) return@LaunchedEffect
+            val refreshed = runCatching {
+                ProviderPlaybackResolver.episodes(anime.title, seasonNumber = anime.seasonNumber, seasonTitle = anime.seasonTitle)
+            }.getOrDefault(emptyList())
             if (refreshed.isNotEmpty()) providerEpisodes = refreshed
         }
     }
@@ -277,10 +300,10 @@ fun KakaAnimeApp() {
                         modifier = Modifier.fillMaxSize().padding(bottom = 84.dp),
                     ) { tab ->
                         when (tab) {
-                            BottomTab.HOME -> ReDantotsuHomeScreen(localAnime, { selectedAnime = it }, { anime, episode -> openEpisode(anime, episode) }, homeRefreshKey)
-                            BottomTab.CALENDAR -> CalendarScreen(localAnime, { selectedAnime = it }, favoriteTitles)
+                            BottomTab.HOME -> ReDantotsuHomeScreen(localAnime, { selectedAnime = it }, { anime, episode -> openEpisode(anime, episode) }, homeRefreshKey) { loaded -> catalogAnime = loaded }
+                            BottomTab.CALENDAR -> CalendarScreen(catalogAnime, { selectedAnime = it }, favoriteTitles)
                             BottomTab.SOCIAL -> SocialScreen(onOpenWatchTogether = { showWatchTogether = true })
-                            BottomTab.LIBRARY -> LibraryTabsScreen(localAnime, { selectedAnime = it })
+                            BottomTab.LIBRARY -> LibraryTabsScreen(catalogAnime, { selectedAnime = it })
                             BottomTab.PROFILE -> ProfileScreen(themeState, monetizationState, { showPremium = true }) { selectedTab = BottomTab.LIBRARY }
                         }
                     }
@@ -302,6 +325,11 @@ fun KakaAnimeApp() {
                         preferences.saveFavoriteTitles(favoriteTitles)
                     },
                     { openEpisode(selectedAnime!!, it) },
+                    seasonOptions = seasonsFor(selectedAnime!!),
+                    onSeasonSelected = {
+                        selectedAnime = it
+                        selectedEpisode = null
+                    },
                 )
 
                 AnimeScreen.PLAYER -> {
