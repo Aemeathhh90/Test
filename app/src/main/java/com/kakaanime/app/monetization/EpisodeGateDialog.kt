@@ -15,7 +15,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.Timer
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
@@ -47,6 +46,8 @@ fun EpisodeGateDialog(
     state: MonetizationState,
     onDismiss: () -> Unit,
     onWatchAdAndUnlock: () -> Unit,
+    // Kept temporarily for source compatibility with MainActivity while the
+    // old countdown state is removed at the navigation layer.
     onWaitForUnlock: () -> Unit,
     onStartPremium: () -> Unit,
 ) {
@@ -71,7 +72,7 @@ fun EpisodeGateDialog(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Text("KakaAnime", fontSize = 24.sp, fontWeight = FontWeight.Bold)
+                    Text("KakaAnime", fontSize = 22.sp, fontWeight = FontWeight.Bold)
                     IconButton(onClick = onDismiss) {
                         Icon(Icons.Default.Close, contentDescription = "Tutup")
                     }
@@ -80,15 +81,15 @@ fun EpisodeGateDialog(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clip(RoundedCornerShape(18.dp))
+                        .clip(RoundedCornerShape(16.dp))
                         .background(MaterialTheme.colorScheme.surfaceVariant)
-                        .padding(10.dp),
+                        .padding(9.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Box(
                         modifier = Modifier
-                            .size(96.dp, 62.dp)
-                            .clip(RoundedCornerShape(12.dp)),
+                            .size(88.dp, 58.dp)
+                            .clip(RoundedCornerShape(11.dp)),
                         contentAlignment = Alignment.Center,
                     ) {
                         AsyncImage(
@@ -104,35 +105,36 @@ fun EpisodeGateDialog(
                         )
                         Icon(Icons.Default.Lock, contentDescription = null, tint = MaterialTheme.colorScheme.onSurface)
                     }
-                    Spacer(Modifier.size(12.dp))
+                    Spacer(Modifier.size(10.dp))
                     Column(Modifier.weight(1f)) {
                         Text("Episode $episodeNumber", fontWeight = FontWeight.SemiBold)
                         if (!episodeTitle.isNullOrBlank()) {
                             Text(episodeTitle, fontWeight = FontWeight.Bold, maxLines = 2)
                         }
                         if (dateText != null) {
-                            Text(dateText, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 13.sp)
+                            Text(dateText, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
                         }
                     }
                 }
 
-                Spacer(Modifier.height(20.dp))
+                Spacer(Modifier.height(14.dp))
                 Icon(
                     Icons.Default.Lock,
                     contentDescription = null,
                     tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(44.dp),
+                    modifier = Modifier.size(36.dp),
                 )
-                Spacer(Modifier.height(8.dp))
-                Text("Episode Terkunci", fontSize = 22.sp, fontWeight = FontWeight.Bold)
                 Spacer(Modifier.height(6.dp))
+                Text("Episode Terkunci", fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                Spacer(Modifier.height(5.dp))
                 Text(
-                    "Pilih cara membuka episode. Countdown akan dilanjutkan di Player, jadi kamu tidak perlu menunggu di dialog ini.",
+                    "Buka episode dengan menonton iklan untuk mendapatkan diamond, atau gunakan Premium untuk menonton tanpa batasan Free.",
                     textAlign = TextAlign.Center,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontSize = 13.sp,
                 )
 
-                Spacer(Modifier.height(16.dp))
+                Spacer(Modifier.height(12.dp))
                 Button(
                     onClick = onWatchAdAndUnlock,
                     modifier = Modifier.fillMaxWidth(),
@@ -142,29 +144,20 @@ fun EpisodeGateDialog(
                     Text("Tonton Iklan & Buka")
                 }
 
-                OutlinedButton(
-                    onClick = onWaitForUnlock,
-                    modifier = Modifier.fillMaxWidth(),
-                ) {
-                    Icon(Icons.Default.Timer, contentDescription = null)
-                    Spacer(Modifier.size(8.dp))
-                    Text("Tunggu 90 Detik")
-                }
-
                 OutlinedButton(onClick = onStartPremium, modifier = Modifier.fillMaxWidth()) {
                     Text("Premium • Tanpa Menunggu")
                 }
 
-                Spacer(Modifier.height(4.dp))
+                Spacer(Modifier.height(2.dp))
                 Text(
-                    "Reward iklan atau countdown memberi 2 diamond. 1 diamond langsung digunakan untuk episode ini.",
+                    "Iklan memberi ${DiamondRules.DIAMONDS_PER_REWARDED_AD} diamond. 1 diamond digunakan untuk membuka episode ini.",
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    fontSize = 12.sp,
+                    fontSize = 11.sp,
                     textAlign = TextAlign.Center,
                 )
                 if (state.diamonds > 0) {
-                    Spacer(Modifier.height(4.dp))
-                    Text("Diamond tersedia: ${state.diamonds}", fontSize = 13.sp)
+                    Spacer(Modifier.height(3.dp))
+                    Text("Diamond tersedia: ${state.diamonds}", fontSize = 12.sp)
                 }
             }
         },
