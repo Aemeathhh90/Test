@@ -19,7 +19,9 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.kakaanime.app.data.AnimeStateIdentity
 import com.kakaanime.app.data.KakaAnimePreferences
+import com.kakaanime.app.data.SeasonAwareStateRepository
 import com.kakaanime.app.monetization.AdMobRewardedAdGateway
 import com.kakaanime.app.monetization.DiamondRules
 import com.kakaanime.app.monetization.EpisodeGateDialog
@@ -75,6 +77,7 @@ fun KakaAnimeApp() {
     val context = LocalContext.current
     val activity = context as? Activity
     val preferences = remember(context) { KakaAnimePreferences(context) }
+    val stateRepository = remember(preferences) { SeasonAwareStateRepository(preferences) }
     val themeState = remember(preferences) {
         KakaThemeState(
             accent = runCatching { KakaAccent.valueOf(preferences.loadAccentName()) }.getOrDefault(KakaAccent.Blue),
@@ -97,12 +100,18 @@ fun KakaAnimeApp() {
     var homeRefreshKey by remember { mutableIntStateOf(0) }
     var streamFirstFrameRendered by remember { mutableStateOf(false) }
 
-    var favoriteTitles by remember(preferences) { mutableStateOf(preferences.loadFavoriteTitles()) }
-    var watchedEpisodes by remember(preferences) { mutableStateOf(preferences.loadWatchedEpisodes()) }
+    fun stateIdentity(anime: Anime): AnimeStateIdentity = stateRepository.identity(
+        animeGroupId = anime.animeGroupId.ifBlank { anime.title },
+        seasonNumber = anime.seasonNumber,
+        seasonTitle = anime.seasonTitle,
+    )
+
+    var favoriteGroupIds by remember(preferences) { mutableStateOf(preferences.loadFavoriteGroupIds()) }
+    var watchedEpisodes by remember(preferences) { mutableStateOf(preferences.loadWatchedEpisodesSeasonAware()) }
     var watchedEpisodeNumbers by remember(preferences) {
-        mutableStateOf(preferences.loadWatchHistory().groupBy { it.title }.mapValues { (_, entries) -> entries.map { it.episode }.toSet() })
+        mutableStateOf(preferences.loadWatchHistorySeasonAware().groupBy { it.identity.episodeKey(it.episode).substringBefore("::episode:") }.mapValues { (_, entries) -> entries.map { it.episode }.toSet() })
     }
-    var unlockedEpisodes by remember(preferences) { mutableStateOf(preferences.loadUnlockedEpisodes()) }
+    var unlockedEpisodes by remember(preferences) { mutableStateOf(preferences.loadUnlockedEpisodesSeasonAware()) }
     var monetizationState by remember(preferences) { mutableStateOf(MonetizationState(preferences.loadDiamonds(), preferences.loadPremium())) }
     var episodeGateTarget by remember { mutableStateOf<Pair<Anime, Int>?>(null) }
     var playerUnlockTarget by remember { mutableStateOf<Pair<Anime, Int>?>(null) }
@@ -141,16 +150,23 @@ fun KakaAnimeApp() {
 
     fun recordWatched(anime: Anime, episode: Int) {
         val providerEpisode = providerEpisodes.firstOrNull { it.number == episode }
-        preferences.recordWatchedEpisode(anime.title, episode, providerEpisode?.title, providerEpisode?.thumbnailUrl)
-        watchedEpisodes = watchedEpisodes + (anime.title to episode)
-        preferences.saveWatchedEpisodes(watchedEpisodes)
-        watchedEpisodeNumbers = watchedEpisodeNumbers.toMutableMap().apply {
-            put(anime.title, (get(anime.title).orEmpty() + episode).toSet())
-        }
+        val identity = stateIdentity(anime)
+        stateRepository.recordWatched(identity, episode)
+        stateRepository.recordHistory(
+            identity = identity,
+            title = anime.title,
+            episode = episode,
+            episodeTitle = providerEpisode?.title,
+            episodeThumbnailUrl = providerEpisode?.thumbnailUrl,
+        )
+        watchedEpisodes = preferences.loadWatchedEpisodesSeasonAware()
+        watchedEpisodeNumbers = preferences.loadWatchHistorySeasonAware()
+            .groupBy { it.identity.episodeKey(it.episode).substringBefore("::episode:") }
+            .mapValues { (_, entries) -> entries.map { it.episode }.toSet() }
         homeRefreshKey++
     }
 
-    fun episodeKey(anime: Anime, episode: Int) = "${anime.title}::$episode"
+    fun episodeKey(anime: Anime, episode: Int) = stateIdentity(anime).episodeKey(episode)
 
     fun grantAndOpen(anime: Anime, episode: Int) {
         episodeGateTarget = null
@@ -165,14 +181,15 @@ fun KakaAnimeApp() {
         val afterReward = DiamondRules.consumeForEpisode(rewardedState) ?: return
         monetizationState = afterReward
         preferences.saveDiamonds(afterReward.diamonds)
-        val key = episodeKey(anime, episode)
-        unlockedEpisodes = unlockedEpisodes + key
-        preferences.markEpisodeUnlocked(anime.title, episode)
+        val identity = stateIdentity(anime)
+        stateRepository.markUnlocked(identity, episode)
+        unlockedEpisodes = preferences.loadUnlockedEpisodesSeasonAware()
         grantAndOpen(anime, episode)
     }
 
     fun openEpisode(anime: Anime, episode: Int) {
-        if (monetizationState.isPremium || episodeKey(anime, episode) in unlockedEpisodes) {
+        val identity = stateIdentity(anime)
+        if (monetizationState.isPremium || stateRepository.isUnlocked(identity, episode) || episodeKey(anime, episode) in unlockedEpisodes) {
             grantAndOpen(anime, episode)
             return
         }
@@ -180,9 +197,8 @@ fun KakaAnimeApp() {
         if (consumed != null) {
             monetizationState = consumed
             preferences.saveDiamonds(consumed.diamonds)
-            val key = episodeKey(anime, episode)
-            unlockedEpisodes = unlockedEpisodes + key
-            preferences.markEpisodeUnlocked(anime.title, episode)
+            stateRepository.markUnlocked(identity, episode)
+            unlockedEpisodes = preferences.loadUnlockedEpisodesSeasonAware()
             grantAndOpen(anime, episode)
             return
         }
@@ -301,7 +317,7 @@ fun KakaAnimeApp() {
                     ) { tab ->
                         when (tab) {
                             BottomTab.HOME -> ReDantotsuHomeScreen(localAnime, { selectedAnime = it }, { anime, episode -> openEpisode(anime, episode) }, homeRefreshKey) { loaded -> catalogAnime = loaded }
-                            BottomTab.CALENDAR -> CalendarScreen(catalogAnime, { selectedAnime = it }, favoriteTitles)
+                            BottomTab.CALENDAR -> CalendarScreen(catalogAnime, { selectedAnime = it }, catalogAnime.filter { stateRepository.isFavorite(it.animeGroupId.ifBlank { it.title }) }.map { it.title }.toSet())
                             BottomTab.SOCIAL -> SocialScreen(onOpenWatchTogether = { showWatchTogether = true })
                             BottomTab.LIBRARY -> LibraryTabsScreen(catalogAnime, { selectedAnime = it })
                             BottomTab.PROFILE -> ProfileScreen(themeState, monetizationState, { showPremium = true }) { selectedTab = BottomTab.LIBRARY }
@@ -312,29 +328,36 @@ fun KakaAnimeApp() {
 
                 AnimeScreen.WATCH_TOGETHER -> WatchTogetherScreen(onBack = { showWatchTogether = false })
 
-                AnimeScreen.DETAIL -> AnimeDetailScreen(
-                    selectedAnime!!,
-                    selectedAnime!!.title in favoriteTitles,
-                    watchedEpisodes[selectedAnime!!.title],
-                    watchedEpisodeNumbers[selectedAnime!!.title].orEmpty(),
-                    providerEpisodes,
-                    episodeListLoading,
-                    { selectedAnime = null; selectedEpisode = null },
-                    {
-                        favoriteTitles = if (selectedAnime!!.title in favoriteTitles) favoriteTitles - selectedAnime!!.title else favoriteTitles + selectedAnime!!.title
-                        preferences.saveFavoriteTitles(favoriteTitles)
-                    },
-                    { openEpisode(selectedAnime!!, it) },
-                    seasonOptions = seasonsFor(selectedAnime!!),
-                    onSeasonSelected = {
-                        selectedAnime = it
-                        selectedEpisode = null
-                    },
-                )
+                AnimeScreen.DETAIL -> {
+                    val anime = selectedAnime!!
+                    val identity = stateIdentity(anime)
+                    val watched = watchedEpisodes[identity.episodeKey(0).substringBefore("::episode:")]
+                    AnimeDetailScreen(
+                        anime,
+                        stateRepository.isFavorite(identity.animeGroupId),
+                        watched,
+                        watchedEpisodeNumbers[identity.episodeKey(0).substringBefore("::episode:")].orEmpty(),
+                        providerEpisodes,
+                        episodeListLoading,
+                        { selectedAnime = null; selectedEpisode = null },
+                        {
+                            val favorite = !stateRepository.isFavorite(identity.animeGroupId)
+                            stateRepository.setFavorite(identity.animeGroupId, favorite)
+                            favoriteGroupIds = preferences.loadFavoriteGroupIds()
+                        },
+                        { openEpisode(anime, it) },
+                        seasonOptions = seasonsFor(anime),
+                        onSeasonSelected = {
+                            selectedAnime = it
+                            selectedEpisode = null
+                        },
+                    )
+                }
 
                 AnimeScreen.PLAYER -> {
                     val anime = selectedAnime!!
                     val episode = selectedEpisode!!
+                    val identityKey = stateIdentity(anime).episodeKey(0).substringBefore("::episode:")
                     val previousProviderEpisode = providerEpisodes.map { it.number }.filter { it < episode }.maxOrNull()
                     val nextProviderEpisode = providerEpisodes.map { it.number }.filter { it > episode }.minOrNull()
                     val latestEpisode = providerEpisodes.maxOfOrNull { it.number } ?: anime.latestEpisode
@@ -358,7 +381,7 @@ fun KakaAnimeApp() {
                             outroEnd = anime.outroEnd,
                             isPremium = monetizationState.isPremium,
                             episodes = providerEpisodes,
-                            watchedEpisodes = watchedEpisodeNumbers[anime.title].orEmpty(),
+                            watchedEpisodes = watchedEpisodeNumbers[identityKey].orEmpty(),
                             unlockRemainingSeconds = playerUnlockTarget?.takeIf { it == (anime to episode) }?.let { playerUnlockRemaining },
                             onCancelUnlock = { cancelPlayerUnlock() },
                             modifier = Modifier.fillMaxSize(),
