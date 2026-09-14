@@ -39,7 +39,9 @@ fun AnimeDetailScreen(
     loading: Boolean,
     onBack: () -> Unit,
     onToggleFavorite: () -> Unit,
-    onEpisodeClick: (Int) -> Unit
+    onEpisodeClick: (Int) -> Unit,
+    seasonOptions: List<Anime> = emptyList(),
+    onSeasonSelected: (Anime) -> Unit = {},
 ) {
     var episodeFilter by remember { mutableStateOf("Semua") }
     var episodeQuery by remember { mutableStateOf("") }
@@ -56,6 +58,10 @@ fun AnimeDetailScreen(
             matchesFilter && matchesQuery
         }
     }
+    val hasSeasonSelector = seasonOptions.size > 1
+    val selectedSeasonIndex = seasonOptions.indexOfFirst { it === anime }.takeIf { it >= 0 }
+        ?: seasonOptions.indexOfFirst { it.title == anime.title && it.season == anime.season }.takeIf { it >= 0 }
+        ?: 0
 
     LazyColumn(
         modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background),
@@ -115,9 +121,36 @@ fun AnimeDetailScreen(
                 }
             }
         }
+        if (hasSeasonSelector) {
+            item {
+                Column(
+                    Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 18.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text("Season", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    Row(
+                        Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        seasonOptions.forEachIndexed { index, season ->
+                            FilterChip(
+                                selected = index == selectedSeasonIndex,
+                                onClick = { onSeasonSelected(season) },
+                                label = {
+                                    Text(
+                                        season.season.ifBlank { "Season ${index + 1}" },
+                                        maxLines = 1
+                                    )
+                                }
+                            )
+                        }
+                    }
+                }
+            }
+        }
         item {
             Row(
-                Modifier.fillMaxWidth().padding(start = 18.dp, end = 18.dp, top = 22.dp, bottom = 10.dp),
+                Modifier.fillMaxWidth().padding(start = 18.dp, end = 18.dp, top = if (hasSeasonSelector) 0.dp else 22.dp, bottom = 10.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text("Episode", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
