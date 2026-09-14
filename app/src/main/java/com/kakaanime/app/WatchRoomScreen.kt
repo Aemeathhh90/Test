@@ -96,21 +96,11 @@ fun WatchRoomScreen(
 
             item {
                 Column(Modifier.padding(horizontal = 18.dp)) {
-                    Text(
-                        roomTitle,
-                        style = MaterialTheme.typography.headlineSmall,
-                        fontWeight = FontWeight.Bold,
-                    )
+                    Text(roomTitle, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
                     Spacer(Modifier.height(5.dp))
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(
-                            animeTitle,
-                            fontWeight = FontWeight.SemiBold,
-                        )
-                        Text(
-                            "  •  Episode $episodeNumber",
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
+                        Text(animeTitle, fontWeight = FontWeight.SemiBold)
+                        Text("  •  Episode $episodeNumber", color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
             }
@@ -125,18 +115,9 @@ fun WatchRoomScreen(
                         .background(MaterialTheme.colorScheme.surfaceVariant),
                     contentAlignment = Alignment.Center,
                 ) {
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        modifier = Modifier.padding(20.dp),
-                    ) {
-                        Surface(
-                            modifier = Modifier.size(62.dp),
-                            shape = CircleShape,
-                            color = MaterialTheme.colorScheme.primary,
-                        ) {
-                            Box(contentAlignment = Alignment.Center) {
-                                Text(">", color = MaterialTheme.colorScheme.onPrimary, fontWeight = FontWeight.Bold)
-                            }
+                    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(20.dp)) {
+                        Surface(modifier = Modifier.size(62.dp), shape = CircleShape, color = MaterialTheme.colorScheme.primary) {
+                            Box(contentAlignment = Alignment.Center) { Text(">", color = MaterialTheme.colorScheme.onPrimary, fontWeight = FontWeight.Bold) }
                         }
                         Spacer(Modifier.height(11.dp))
                         Text("Watch Room", fontWeight = FontWeight.Bold)
@@ -155,9 +136,9 @@ fun WatchRoomScreen(
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 18.dp),
                     horizontalArrangement = Arrangement.spacedBy(10.dp),
                 ) {
-                    RoomInfoChip("LIVE", "Room")
-                    RoomInfoChip("${members.size}/10", "Peserta")
-                    RoomInfoChip(roomCode, "Kode")
+                    RoomInfoChip("LIVE", "Room", Modifier.weight(1f))
+                    RoomInfoChip("${members.size}/10", "Peserta", Modifier.weight(1f))
+                    RoomInfoChip(roomCode, "Kode", Modifier.weight(1f))
                 }
             }
 
@@ -167,16 +148,9 @@ fun WatchRoomScreen(
                     shape = RoundedCornerShape(20.dp),
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
                 ) {
-                    Row(
-                        modifier = Modifier.padding(15.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
+                    Row(modifier = Modifier.padding(15.dp), verticalAlignment = Alignment.CenterVertically) {
                         Column(Modifier.weight(1f)) {
-                            Text(
-                                "Room Code",
-                                style = MaterialTheme.typography.labelMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
+                            Text("Room Code", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             Spacer(Modifier.height(2.dp))
                             Text(roomCode, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
                         }
@@ -192,11 +166,7 @@ fun WatchRoomScreen(
                 ) {
                     Column(Modifier.weight(1f)) {
                         Text("Participants", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-                        Text(
-                            "Orang yang ada di room ini",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
+                        Text("Orang yang ada di room ini", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                     Text("${members.size}/10", color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
@@ -208,36 +178,18 @@ fun WatchRoomScreen(
                     color = MaterialTheme.colorScheme.surfaceVariant,
                     shape = RoundedCornerShape(18.dp),
                 ) {
-                    Row(
-                        modifier = Modifier.padding(12.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Surface(
-                            modifier = Modifier.size(42.dp),
-                            shape = CircleShape,
-                            color = MaterialTheme.colorScheme.primaryContainer,
-                        ) {
+                    Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Surface(modifier = Modifier.size(42.dp), shape = CircleShape, color = MaterialTheme.colorScheme.primaryContainer) {
                             Box(contentAlignment = Alignment.Center) {
-                                Text(
-                                    member.name.take(1),
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.onPrimaryContainer,
-                                )
+                                Text(member.name.take(1), fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onPrimaryContainer)
                             }
                         }
                         Column(Modifier.padding(start = 12.dp).weight(1f)) {
                             Text(member.name, fontWeight = FontWeight.SemiBold)
-                            Text(
-                                member.status,
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
+                            Text(member.status, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                         if (member.isHost) {
-                            Surface(
-                                shape = RoundedCornerShape(10.dp),
-                                color = MaterialTheme.colorScheme.primaryContainer,
-                            ) {
+                            Surface(shape = RoundedCornerShape(10.dp), color = MaterialTheme.colorScheme.primaryContainer) {
                                 Text(
                                     "HOST",
                                     modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp),
@@ -266,9 +218,7 @@ fun WatchRoomScreen(
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                         Spacer(Modifier.height(12.dp))
-                        Button(onClick = { }, enabled = false, modifier = Modifier.fillMaxWidth()) {
-                            Text("Start Together")
-                        }
+                        Button(onClick = { }, enabled = false, modifier = Modifier.fillMaxWidth()) { Text("Start Together") }
                     }
                 }
             }
@@ -277,12 +227,8 @@ fun WatchRoomScreen(
 }
 
 @Composable
-private fun RoomInfoChip(value: String, label: String) {
-    Surface(
-        modifier = Modifier.weight(1f),
-        shape = RoundedCornerShape(16.dp),
-        color = MaterialTheme.colorScheme.surfaceVariant,
-    ) {
+private fun RoomInfoChip(value: String, label: String, modifier: Modifier = Modifier) {
+    Surface(modifier = modifier, shape = RoundedCornerShape(16.dp), color = MaterialTheme.colorScheme.surfaceVariant) {
         Column(Modifier.padding(horizontal = 10.dp, vertical = 9.dp)) {
             Text(value, fontWeight = FontWeight.Bold, maxLines = 1)
             Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
