@@ -24,60 +24,107 @@ class StreamResolver(
             .filter(String::isNotBlank)
             .distinct()
 
-        if (inputUrls.isEmpty()) return@supervisorScope emptyList()
+        println("STREAM_CCTV_INPUT count=${inputUrls.size} referer=${referer?.take(180)}")
+        inputUrls.forEachIndexed { index, url ->
+            val candidates = registry.find(url)
+            println(
+                "STREAM_CCTV_ROUTE[$index] url=${url.take(240)} " +
+                    "extractors=${candidates.joinToString(",") { it.id }}"
+            )
+        }
+
+        if (inputUrls.isEmpty()) {
+            println("STREAM_CCTV_STOP reason=empty_input")
+            return@supervisorScope emptyList()
+        }
 
         val extracted = inputUrls.flatMap { url ->
             val candidates = registry.find(url)
             candidates.map { extractor ->
                 async {
-                    runCatching {
+                    val result = runCatching {
                         extractor.extract(url, referer)
+                    }.onFailure {
+                        println(
+                            "STREAM_CCTV_EXTRACTOR_ERROR id=${extractor.id} " +
+                                "url=${url.take(180)} " +
+                                "error=${it::class.java.simpleName}:${it.message}"
+                        )
                     }.getOrDefault(emptyList())
+                    println(
+                        "STREAM_CCTV_EXTRACTOR id=${extractor.id} " +
+                            "input=${url.take(180)} outputs=${result.size} " +
+                            "types=${result.joinToString(",") { it.type.name }}"
+                    )
+                    result
                 }
             }.awaitAll().flatten()
         }
             .filter { it.url.startsWith("http", ignoreCase = true) }
             .distinctBy { it.url }
 
+        println("STREAM_CCTV_EXTRACTED count=${extracted.size}")
+        extracted.forEachIndexed { index, stream ->
+            println(
+                "STREAM_CCTV_CANDIDATE[$index] type=${stream.type} " +
+                    "url=${stream.url.take(240)} headers=${stream.headers.keys}"
+            )
+        }
+
         if (extracted.isEmpty()) {
-            // Some providers expose a direct signed media URL that has no
-            // extractor mapping and no obvious file extension. Validate the
-            // actual HTTP response before falling back to browser extraction.
+            println("STREAM_CCTV_STAGE direct_validation input_count=${inputUrls.size}")
             val direct = validateDirectUrls(inputUrls)
+            println("STREAM_CCTV_DIRECT_RESULT count=${direct.size}")
             if (direct.isNotEmpty()) return@supervisorScope direct
-            return@supervisorScope resolveWithBrowser(inputUrls, referer)
+            println("STREAM_CCTV_STAGE browser_fallback input_count=${inputUrls.size}")
+            val browser = resolveWithBrowser(inputUrls, referer)
+            println("STREAM_CCTV_BROWSER_RESULT count=${browser.size}")
+            return@supervisorScope browser
         }
 
         val validated = extracted.map { stream ->
-            async { validator.validate(stream) }
+            async {
+                val result = validator.validate(stream)
+                println(
+                    "STREAM_CCTV_VALIDATE url=${stream.url.take(180)} " +
+                        "inputType=${stream.type} resultType=${result?.type}"
+                )
+                result
+            }
         }.awaitAll()
             .filterNotNull()
             .filter { it.type != StreamType.UNKNOWN }
             .distinctBy { it.url }
 
+        println("STREAM_CCTV_VALIDATED count=${validated.size}")
         if (validated.isNotEmpty()) return@supervisorScope validated
 
-        // OkHttp may only see an iframe/config page while the real media URL is
-        // created by JavaScript. Give direct media URLs one final HTTP preflight
-        // before WebView, but never return unvalidated extractor output to Media3.
+        println("STREAM_CCTV_STAGE final_direct_validation input_count=${inputUrls.size}")
         val direct = validateDirectUrls(inputUrls)
+        println("STREAM_CCTV_FINAL_DIRECT_RESULT count=${direct.size}")
         if (direct.isNotEmpty()) return@supervisorScope direct
 
-        val browserInputs = (extracted.map { it.url } + inputUrls)
-            .distinct()
-        resolveWithBrowser(browserInputs, referer)
+        val browserInputs = (extracted.map { it.url } + inputUrls).distinct()
+        println("STREAM_CCTV_STAGE browser_fallback input_count=${browserInputs.size}")
+        val browser = resolveWithBrowser(browserInputs, referer)
+        println("STREAM_CCTV_BROWSER_RESULT count=${browser.size}")
+        browser
     }
 
     private suspend fun validateDirectUrls(urls: List<String>): List<ProviderStream> = supervisorScope {
         urls.map { url ->
             async {
-                validator.validate(
+                val result = validator.validate(
                     ProviderStream(
                         providerId = "",
                         url = url,
                         type = StreamType.UNKNOWN
                     )
                 )
+                println(
+                    "STREAM_CCTV_DIRECT_VALIDATE url=${url.take(180)} resultType=${result?.type}"
+                )
+                result
             }
         }.awaitAll()
             .filterNotNull()
@@ -91,9 +138,19 @@ class StreamResolver(
     ): List<ProviderStream> = supervisorScope {
         urls.map { url ->
             async {
-                runCatching {
+                val result = runCatching {
                     BrowserMediaResolver().resolve(url, referer)
+                }.onFailure {
+                    println(
+                        "STREAM_CCTV_BROWSER_ERROR url=${url.take(180)} " +
+                            "error=${it::class.java.simpleName}:${it.message}"
+                    )
                 }.getOrDefault(emptyList())
+                println(
+                    "STREAM_CCTV_BROWSER url=${url.take(180)} outputs=${result.size} " +
+                        "types=${result.joinToString(",") { it.type.name }}"
+                )
+                result
             }
         }.awaitAll()
             .flatten()
