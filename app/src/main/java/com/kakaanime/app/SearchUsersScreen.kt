@@ -50,7 +50,7 @@ fun SearchUsersScreen(onBack: () -> Unit = {}, onOpenProfile: (SearchUserUi) -> 
         }
         OutlinedTextField(value = query, onValueChange = { query = it }, Modifier.fillMaxWidth().padding(horizontal = 18.dp), singleLine = true, placeholder = { Text("Username or ID") }, shape = RoundedCornerShape(18.dp))
         Spacer(Modifier.height(8.dp))
-        LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(horizontal = 18.dp, vertical = 8.dp, bottom = 36.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(start = 18.dp, end = 18.dp, top = 8.dp, bottom = 36.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             if (filtered.isEmpty()) item { Text("No users found", Modifier.padding(vertical = 24.dp).fillMaxWidth(), color = MaterialTheme.colorScheme.onSurfaceVariant) }
             items(filtered, key = { it.username }) { user ->
                 Surface(Modifier.fillMaxWidth().clickable { onOpenProfile(user) }, color = MaterialTheme.colorScheme.surfaceVariant, shape = RoundedCornerShape(18.dp)) {
