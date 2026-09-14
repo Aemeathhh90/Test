@@ -1,4 +1,4 @@
-name: Fix Player Navigation
+name: Apply grouped bug fixes
 
 on:
   push:
@@ -6,7 +6,7 @@ on:
 
 jobs:
   fix:
-    if: github.event.head_commit.message != 'fix: disable nonexistent player episode navigation'
+    if: github.event.head_commit.message == 'chore: run grouped bug fixes'
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -15,36 +15,55 @@ jobs:
         with:
           ref: main
           fetch-depth: 0
-      - name: Patch navigation
+      - name: Patch known compile blockers
         run: |
           python3 - <<'PY'
           from pathlib import Path
-          p = Path('app/src/main/java/com/kakaanime/app/player/VideoPlayerScreen.kt')
+
+          def replace(path, old, new):
+              p = Path(path)
+              s = p.read_text()
+              if old not in s:
+                  raise SystemExit(f'expected text not found: {path}: {old!r}')
+              p.write_text(s.replace(old, new, 1))
+
+          replace('app/src/main/java/com/kakaanime/app/WatchTogetherScreen.kt',
+                  '            WatchRoomUi("KA-020", "Frieren E20", "Frieren", 20, "Mizu", 4, 6, listOf("Fantasy", "Drama")),\n        )\n\n    selectedRoom?.let',
+                  '            WatchRoomUi("KA-020", "Frieren E20", "Frieren", 20, "Mizu", 4, 6, listOf("Fantasy", "Drama")),\n        )\n    }\n\n    selectedRoom?.let')
+
+          for name in ['FriendsScreen.kt', 'NotificationsScreen.kt', 'SearchUsersScreen.kt', 'OtherUserProfileScreen.kt']:
+              replace(f'app/src/main/java/com/kakaanime/app/{name}',
+                      'PaddingValues(horizontal = 18.dp, bottom = 36.dp)',
+                      'PaddingValues(start = 18.dp, end = 18.dp, bottom = 36.dp)')
+
+          replace('app/src/main/java/com/kakaanime/app/LibraryTabsScreen.kt',
+                  'topPadding = 8.dp', 'topPadding = 8')
+
+          for name in ['ReDantotsuHomeScreen.kt', 'VideoPlayerScreen.kt']:
+              p = Path(f'app/src/main/java/com/kakaanime/app/{name}') if name == 'ReDantotsuHomeScreen.kt' else Path(f'app/src/main/java/com/kakaanime/app/player/{name}')
+              s = p.read_text()
+              if 'import androidx.compose.ui.draw.clip\n' not in s:
+                  marker = 'import androidx.compose.ui.graphics.Color\n'
+                  if marker not in s:
+                      raise SystemExit(f'import marker not found: {p}')
+                  s = s.replace(marker, marker.replace('\n', '') + '\nimport androidx.compose.ui.draw.clip\n', 1)
+                  p.write_text(s)
+
+          p = Path('app/src/main/java/com/kakaanime/app/WatchRoomScreen.kt')
           s = p.read_text()
-          old = '''    val episodeNumbers = episodes.map { it.number }.filter { it > 0 }.distinct().sorted()\n    val previousEpisode = episodeNumbers.lastOrNull { it < episodeNumber } ?: (episodeNumber - 1).coerceAtLeast(1)\n    val nextEpisode = episodeNumbers.firstOrNull { it > episodeNumber } ?: (episodeNumber + 1)\n    val maxEpisode = episodeNumbers.maxOrNull() ?: episodeNumber'''
-          new = '''    val episodeNumbers = episodes.map { it.number }.filter { it > 0 }.distinct().sorted()\n    val previousEpisode = episodeNumbers.lastOrNull { it < episodeNumber }\n    val nextEpisode = episodeNumbers.firstOrNull { it > episodeNumber }\n    val maxEpisode = episodeNumbers.maxOrNull() ?: episodeNumber'''
-          if old not in s:
-              raise SystemExit('expected navigation block not found')
-          s = s.replace(old, new, 1)
-          s = s.replace('previousEpisode = previousEpisode.toString()', 'previousEpisode = previousEpisode?.toString()')
-          s = s.replace('nextEpisode = nextEpisode.toString()', 'nextEpisode = nextEpisode?.toString()')
-          old_rail = '''    previousEpisode: Int,\n    currentEpisode: Int,\n    nextEpisode: Int,'''
-          new_rail = '''    previousEpisode: Int?,\n    currentEpisode: Int,\n    nextEpisode: Int?,'''
-          if old_rail not in s:
-              raise SystemExit('expected rail signature not found')
-          s = s.replace(old_rail, new_rail, 1)
-          s = s.replace('    val previous = episodes.firstOrNull { it.number == previousEpisode }\n    val next = episodes.firstOrNull { it.number == nextEpisode }', '    val previous = previousEpisode?.let { value -> episodes.firstOrNull { it.number == value } }\n    val next = nextEpisode?.let { value -> episodes.firstOrNull { it.number == value } }', 1)
-          s = s.replace('previousEpisode, previousEpisode in watchedEpisodes, previousEpisode > 0, onPreviousEpisode', 'previousEpisode, previousEpisode?.let { it in watchedEpisodes } == true, previousEpisode != null, onPreviousEpisode', 1)
-          s = s.replace('nextEpisode, nextEpisode in watchedEpisodes, true, onNextEpisode', 'nextEpisode, nextEpisode?.let { it in watchedEpisodes } == true, nextEpisode != null, onNextEpisode', 1)
-          p.write_text(s)
+          if 'import androidx.compose.foundation.layout.weight\n' not in s:
+              marker = 'import androidx.compose.foundation.layout.width\n'
+              if marker in s:
+                  s = s.replace(marker, marker + 'import androidx.compose.foundation.layout.weight\n', 1)
+              else:
+                  marker = 'import androidx.compose.foundation.layout.Column\n'
+                  s = s.replace(marker, marker + 'import androidx.compose.foundation.layout.weight\n', 1)
+              p.write_text(s)
           PY
-          grep -nE 'previousEpisode = previousEpisode\.toString|nextEpisode = nextEpisode\.toString' app/src/main/java/com/kakaanime/app/player/VideoPlayerScreen.kt && exit 1 || true
-          grep -nE 'val previousEpisode =|val nextEpisode =|previousEpisode = previousEpisode\?\.toString|nextEpisode = nextEpisode\?\.toString|previousEpisode: Int\?|nextEpisode: Int\?' app/src/main/java/com/kakaanime/app/player/VideoPlayerScreen.kt
-      - name: Commit
+      - name: Commit grouped fixes
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add app/src/main/java/com/kakaanime/app/player/VideoPlayerScreen.kt
-          git diff --cached --quiet && exit 0
-          git commit -m 'fix: disable nonexistent player episode navigation'
+          git add app/src/main/java/com/kakaanime/app app/src/main/java/com/kakaanime/app/player .github/workflows/fix-player-navigation.yml
+          git commit -m 'fix: resolve grouped compile blockers'
           git push origin HEAD:main
