@@ -12,7 +12,11 @@ data class ProviderAnime(
     val year: Int? = null,
     val status: String = "UNKNOWN",
     val rating: Double? = null,
-    val latestEpisode: Int? = null
+    val latestEpisode: Int? = null,
+    val animeGroupId: String = id,
+    val seasonNumber: Int? = null,
+    val seasonTitle: String? = null,
+    val searchAliases: List<String> = emptyList(),
 )
 
 data class ProviderEpisode(
@@ -23,8 +27,18 @@ data class ProviderEpisode(
     val title: String? = null,
     val thumbnailUrl: String? = null,
     val isNew: Boolean = false,
-    val releasedAt: Long? = null
+    val releasedAt: Long? = null,
+    val animeGroupId: String = animeId,
+    val seasonNumber: Int? = null,
+    val seasonTitle: String? = null,
+    val availability: EpisodeAvailability = EpisodeAvailability.AVAILABLE,
 )
+
+enum class EpisodeAvailability {
+    AVAILABLE,
+    NOT_AVAILABLE,
+    NOT_RELEASED,
+}
 
 data class ProviderStream(
     val providerId: String,
