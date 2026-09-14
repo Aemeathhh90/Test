@@ -2,6 +2,7 @@ package com.kakaanime.app.player.core
 
 import android.content.Context
 import androidx.media3.common.MediaItem
+import androidx.media3.common.MimeTypes
 import androidx.media3.common.PlaybackParameters
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
@@ -29,8 +30,7 @@ class PlayerCore(
     private val listener = object : Player.Listener {
 
         override fun onPlaybackStateChanged(playbackState: Int) {
-            isReady =
-                playbackState == Player.STATE_READY
+            isReady = playbackState == Player.STATE_READY
         }
 
         override fun onIsPlayingChanged(playing: Boolean) {
@@ -52,11 +52,29 @@ class PlayerCore(
         errorMessage = null
         isReady = false
 
-        player.setMediaItem(
-            MediaItem.fromUri(url)
-        )
+        val mimeType = mimeTypeFor(url)
+        val mediaItem = MediaItem.Builder()
+            .setUri(url)
+            .apply {
+                if (mimeType != null) {
+                    setMimeType(mimeType)
+                }
+            }
+            .build()
 
+        player.setMediaItem(mediaItem)
         player.prepare()
+    }
+
+    private fun mimeTypeFor(url: String): String? {
+        val cleanUrl = url.substringBefore('?').substringBefore('#').lowercase()
+        return when {
+            cleanUrl.endsWith(".m3u8") -> MimeTypes.APPLICATION_M3U8
+            cleanUrl.endsWith(".mpd") -> MimeTypes.APPLICATION_MPD
+            cleanUrl.endsWith(".mp4") -> MimeTypes.VIDEO_MP4
+            cleanUrl.endsWith(".webm") -> MimeTypes.VIDEO_WEBM
+            else -> null
+        }
     }
 
     fun play() {
@@ -68,26 +86,18 @@ class PlayerCore(
     }
 
     fun togglePlayPause() {
-        if (player.isPlaying) {
-            pause()
-        } else {
-            play()
-        }
+        if (player.isPlaying) pause() else play()
     }
 
     fun seekBack(milliseconds: Long = 10_000L) {
-        player.seekTo(
-            (player.currentPosition - milliseconds)
-                .coerceAtLeast(0L)
-        )
+        player.seekTo((player.currentPosition - milliseconds).coerceAtLeast(0L))
     }
 
     fun seekForward(milliseconds: Long = 10_000L) {
         player.seekTo(
-            (player.currentPosition + milliseconds)
-                .coerceAtMost(
-                    player.duration.coerceAtLeast(0L)
-                )
+            (player.currentPosition + milliseconds).coerceAtMost(
+                player.duration.coerceAtLeast(0L)
+            )
         )
     }
 
@@ -96,9 +106,7 @@ class PlayerCore(
     }
 
     fun setSpeed(speed: Float) {
-        player.setPlaybackParameters(
-            PlaybackParameters(speed)
-        )
+        player.setPlaybackParameters(PlaybackParameters(speed))
     }
 
     fun release() {
