@@ -55,7 +55,7 @@ fun FriendsScreen(onBack: () -> Unit) {
             Text("Friends", Modifier.weight(1f).padding(start = 4.dp), style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
             IconButton(onClick = { showSearch = !showSearch }) { Icon(Icons.Default.Search, "Search users") }
         }
-        LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(horizontal = 18.dp, bottom = 36.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(start = 18.dp, end = 18.dp, bottom = 36.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             item {
                 Text("Manage your friends and requests.", color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Spacer(Modifier.height(8.dp))
