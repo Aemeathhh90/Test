@@ -1,0 +1,42 @@
+name: Temporary Player Navigation Patch
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Guard controller navigation by provider episodes
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('app/src/main/java/com/kakaanime/app/player/VideoPlayerScreen.kt')
+          text = path.read_text()
+          old = '''    val episodeNumbers = episodes.map { it.number }.filter { it > 0 }.distinct().sorted()\n    val previousEpisode = episodeNumbers.lastOrNull { it < episodeNumber } ?: (episodeNumber - 1).coerceAtLeast(1)\n    val nextEpisode = episodeNumbers.firstOrNull { it > episodeNumber } ?: (episodeNumber + 1)\n    val maxEpisode = episodeNumbers.maxOrNull() ?: episodeNumber'''
+          new = '''    val episodeNumbers = episodes.map { it.number }.filter { it > 0 }.distinct().sorted()\n    val previousProviderEpisode = episodeNumbers.lastOrNull { it < episodeNumber }\n    val nextProviderEpisode = episodeNumbers.firstOrNull { it > episodeNumber }\n    val previousEpisode = previousProviderEpisode ?: (episodeNumber - 1).coerceAtLeast(1)\n    val nextEpisode = nextProviderEpisode ?: (episodeNumber + 1)\n    val maxEpisode = episodeNumbers.maxOrNull() ?: episodeNumber'''
+          if old not in text:
+              raise SystemExit('Player episode navigation block not found')
+          text = text.replace(old, new, 1)
+          old2 = '''                previousEpisode = previousEpisode.toString(),\n                nextEpisode = nextEpisode.toString(),'''
+          new2 = '''                previousEpisode = previousProviderEpisode?.toString(),\n                nextEpisode = nextProviderEpisode?.toString(),'''
+          if text.count(old2) < 2:
+              raise SystemExit('Expected two controller navigation blocks not found')
+          text = text.replace(old2, new2, 2)
+          path.write_text(text)
+          PY
+      - name: Commit patch and remove temporary workflow
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app/src/main/java/com/kakaanime/app/player/VideoPlayerScreen.kt
+          git commit -m "fix: hide unavailable player navigation targets"
+          rm .github/workflows/patch-player-navigation.yml
+          git add .github/workflows/patch-player-navigation.yml
+          git commit -m "chore: remove temporary player navigation patcher"
+          git push
