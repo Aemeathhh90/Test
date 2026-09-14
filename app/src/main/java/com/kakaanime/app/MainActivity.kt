@@ -98,7 +98,8 @@ fun KakaAnimeApp() {
     var providerEpisodes by remember { mutableStateOf<List<ProviderEpisode>>(emptyList()) }
     var episodeListLoading by remember { mutableStateOf(false) }
     var homeRefreshKey by remember { mutableIntStateOf(0) }
-    var streamFirstFrameRendered by remember { mutableStateOf(false) }
+    var streamSessionId by remember { mutableLongStateOf(0L) }
+    var renderedStreamSessionId by remember { mutableLongStateOf(-1L) }
 
     fun stateIdentity(anime: Anime): AnimeStateIdentity = stateRepository.identity(
         animeGroupId = anime.animeGroupId.ifBlank { anime.title },
@@ -139,30 +140,18 @@ fun KakaAnimeApp() {
 
     fun seasonsFor(anime: Anime): List<Anime> {
         val groupId = anime.animeGroupId.ifBlank { anime.title }
-        val matches = catalogAnime.filter { candidate ->
-            candidate.animeGroupId.ifBlank { candidate.title } == groupId
-        }
+        val matches = catalogAnime.filter { candidate -> candidate.animeGroupId.ifBlank { candidate.title } == groupId }
         val source = if (matches.isEmpty()) listOf(anime) else matches + anime
-        return source
-            .distinctBy { it.seasonNumber ?: it.seasonTitle?.trim()?.lowercase() ?: it.title.trim().lowercase() }
-            .sortedWith(compareBy(nullsLast<Int>()) { it.seasonNumber })
+        return source.distinctBy { it.seasonNumber ?: it.seasonTitle?.trim()?.lowercase() ?: it.title.trim().lowercase() }.sortedWith(compareBy(nullsLast<Int>()) { it.seasonNumber })
     }
 
     fun recordWatched(anime: Anime, episode: Int) {
         val providerEpisode = providerEpisodes.firstOrNull { it.number == episode }
         val identity = stateIdentity(anime)
         stateRepository.recordWatched(identity, episode)
-        stateRepository.recordHistory(
-            identity = identity,
-            title = anime.title,
-            episode = episode,
-            episodeTitle = providerEpisode?.title,
-            episodeThumbnailUrl = providerEpisode?.thumbnailUrl,
-        )
+        stateRepository.recordHistory(identity = identity, title = anime.title, episode = episode, episodeTitle = providerEpisode?.title, episodeThumbnailUrl = providerEpisode?.thumbnailUrl)
         watchedEpisodes = preferences.loadWatchedEpisodesSeasonAware()
-        watchedEpisodeNumbers = preferences.loadWatchHistorySeasonAware()
-            .groupBy { it.identity.episodeKey(it.episode).substringBefore("::episode:") }
-            .mapValues { (_, entries) -> entries.map { it.episode }.toSet() }
+        watchedEpisodeNumbers = preferences.loadWatchHistorySeasonAware().groupBy { it.identity.episodeKey(it.episode).substringBefore("::episode:") }.mapValues { (_, entries) -> entries.map { it.episode }.toSet() }
         homeRefreshKey++
     }
 
@@ -212,13 +201,7 @@ fun KakaAnimeApp() {
         selectedAnime = target.first
         selectedEpisode = target.second
         if (requestRewardedAd) {
-            rewardedAds.show(
-                onReward = { diamonds ->
-                    if (playerUnlockTarget != target) return@show
-                    unlockFromReward(target.first, target.second, diamonds)
-                },
-                onUnavailable = {},
-            )
+            rewardedAds.show(onReward = { diamonds -> if (playerUnlockTarget == target) unlockFromReward(target.first, target.second, diamonds) }, onUnavailable = {})
         }
     }
 
@@ -229,45 +212,37 @@ fun KakaAnimeApp() {
     }
 
     LaunchedEffect(playerUnlockTarget) {
-        val target = playerUnlockTarget ?: run {
-            playerUnlockRemaining = 0
-            return@LaunchedEffect
-        }
+        val target = playerUnlockTarget ?: run { playerUnlockRemaining = 0; return@LaunchedEffect }
         playerUnlockRemaining = 90
         while (playerUnlockRemaining > 0 && playerUnlockTarget == target) {
             kotlinx.coroutines.delay(1000L)
             if (playerUnlockTarget == target) playerUnlockRemaining--
         }
-        if (playerUnlockTarget == target && playerUnlockRemaining == 0) {
-            unlockFromReward(target.first, target.second, DiamondRules.DIAMONDS_PER_REWARDED_AD)
-        }
+        if (playerUnlockTarget == target && playerUnlockRemaining == 0) unlockFromReward(target.first, target.second, DiamondRules.DIAMONDS_PER_REWARDED_AD)
     }
 
     LaunchedEffect(selectedAnime?.title, selectedAnime?.seasonNumber, selectedAnime?.seasonTitle, selectedEpisode, monetizationState.isPremium, streamRetry) {
         val anime = selectedAnime
         val episode = selectedEpisode
+        streamSessionId++
+        val sessionId = streamSessionId
+        renderedStreamSessionId = -1L
         if (anime == null || episode == null) {
             resolvedStreamUrl = null
             streamLoading = false
-            streamFirstFrameRendered = false
             return@LaunchedEffect
         }
         resolvedStreamUrl = null
         streamLoading = true
-        streamFirstFrameRendered = false
         resolvedStreamUrl = runCatching {
-            ProviderPlaybackResolver.resolve(
-                anime.title,
-                episode,
-                monetizationState.isPremium,
-                seasonNumber = anime.seasonNumber,
-                seasonTitle = anime.seasonTitle,
-            )?.url
+            ProviderPlaybackResolver.resolve(anime.title, episode, monetizationState.isPremium, seasonNumber = anime.seasonNumber, seasonTitle = anime.seasonTitle)?.url
         }.getOrNull()
         streamLoading = false
         if (resolvedStreamUrl != null) {
             kotlinx.coroutines.delay(15000L)
-            if (streamFirstFrameRendered && selectedAnime?.title == anime.title && selectedAnime?.seasonNumber == anime.seasonNumber && selectedEpisode == episode) recordWatched(anime, episode)
+            if (sessionId == streamSessionId && renderedStreamSessionId == sessionId && selectedAnime?.title == anime.title && selectedAnime?.seasonNumber == anime.seasonNumber && selectedAnime?.seasonTitle == anime.seasonTitle && selectedEpisode == episode && resolvedStreamUrl != null) {
+                recordWatched(anime, episode)
+            }
         }
     }
 
@@ -279,16 +254,12 @@ fun KakaAnimeApp() {
             return@LaunchedEffect
         }
         episodeListLoading = true
-        providerEpisodes = runCatching {
-            ProviderPlaybackResolver.episodes(anime.title, seasonNumber = anime.seasonNumber, seasonTitle = anime.seasonTitle)
-        }.getOrDefault(emptyList())
+        providerEpisodes = runCatching { ProviderPlaybackResolver.episodes(anime.title, seasonNumber = anime.seasonNumber, seasonTitle = anime.seasonTitle) }.getOrDefault(emptyList())
         episodeListLoading = false
         while (true) {
             kotlinx.coroutines.delay(10 * 60 * 1000L)
             if (selectedAnime?.title != anime.title || selectedAnime?.seasonNumber != anime.seasonNumber || selectedAnime?.seasonTitle != anime.seasonTitle) return@LaunchedEffect
-            val refreshed = runCatching {
-                ProviderPlaybackResolver.episodes(anime.title, seasonNumber = anime.seasonNumber, seasonTitle = anime.seasonTitle)
-            }.getOrDefault(emptyList())
+            val refreshed = runCatching { ProviderPlaybackResolver.episodes(anime.title, seasonNumber = anime.seasonNumber, seasonTitle = anime.seasonTitle) }.getOrDefault(emptyList())
             if (refreshed.isNotEmpty()) providerEpisodes = refreshed
         }
     }
@@ -302,19 +273,10 @@ fun KakaAnimeApp() {
     }
 
     KakaAnimeTheme(themeState = themeState) {
-        AnimatedContent(
-            targetState = screen,
-            transitionSpec = { (fadeIn() + slideInHorizontally { it / 8 }) togetherWith (fadeOut() + slideOutHorizontally { -it / 10 }) },
-            label = "screen_transition",
-        ) { target ->
+        AnimatedContent(targetState = screen, transitionSpec = { (fadeIn() + slideInHorizontally { it / 8 }) togetherWith (fadeOut() + slideOutHorizontally { -it / 10 }) }, label = "screen_transition") { target ->
             when (target) {
                 AnimeScreen.HOME -> Box(Modifier.fillMaxSize()) {
-                    AnimatedContent(
-                        targetState = selectedTab,
-                        transitionSpec = { fadeIn() togetherWith fadeOut() },
-                        label = "tab_transition",
-                        modifier = Modifier.fillMaxSize().padding(bottom = 84.dp),
-                    ) { tab ->
+                    AnimatedContent(targetState = selectedTab, transitionSpec = { fadeIn() togetherWith fadeOut() }, label = "tab_transition", modifier = Modifier.fillMaxSize().padding(bottom = 84.dp)) { tab ->
                         when (tab) {
                             BottomTab.HOME -> ReDantotsuHomeScreen(localAnime, { selectedAnime = it }, { anime, episode -> openEpisode(anime, episode) }, homeRefreshKey) { loaded -> catalogAnime = loaded }
                             BottomTab.CALENDAR -> CalendarScreen(catalogAnime, { selectedAnime = it }, catalogAnime.filter { stateRepository.isFavorite(it.animeGroupId.ifBlank { it.title }) }.map { it.title }.toSet())
@@ -325,35 +287,13 @@ fun KakaAnimeApp() {
                     }
                     KakaBottomNavigation(selectedTab) { selectedTab = it as BottomTab }
                 }
-
                 AnimeScreen.WATCH_TOGETHER -> WatchTogetherScreen(onBack = { showWatchTogether = false })
-
                 AnimeScreen.DETAIL -> {
                     val anime = selectedAnime!!
                     val identity = stateIdentity(anime)
                     val watched = watchedEpisodes[identity.episodeKey(0).substringBefore("::episode:")]
-                    AnimeDetailScreen(
-                        anime,
-                        stateRepository.isFavorite(identity.animeGroupId),
-                        watched,
-                        watchedEpisodeNumbers[identity.episodeKey(0).substringBefore("::episode:")].orEmpty(),
-                        providerEpisodes,
-                        episodeListLoading,
-                        { selectedAnime = null; selectedEpisode = null },
-                        {
-                            val favorite = !stateRepository.isFavorite(identity.animeGroupId)
-                            stateRepository.setFavorite(identity.animeGroupId, favorite)
-                            favoriteGroupIds = preferences.loadFavoriteGroupIds()
-                        },
-                        { openEpisode(anime, it) },
-                        seasonOptions = seasonsFor(anime),
-                        onSeasonSelected = {
-                            selectedAnime = it
-                            selectedEpisode = null
-                        },
-                    )
+                    AnimeDetailScreen(anime, stateRepository.isFavorite(identity.animeGroupId), watched, watchedEpisodeNumbers[identity.episodeKey(0).substringBefore("::episode:")].orEmpty(), providerEpisodes, episodeListLoading, { selectedAnime = null; selectedEpisode = null }, { val favorite = !stateRepository.isFavorite(identity.animeGroupId); stateRepository.setFavorite(identity.animeGroupId, favorite); favoriteGroupIds = preferences.loadFavoriteGroupIds() }, { openEpisode(anime, it) }, seasonOptions = seasonsFor(anime), onSeasonSelected = { selectedAnime = it; selectedEpisode = null })
                 }
-
                 AnimeScreen.PLAYER -> {
                     val anime = selectedAnime!!
                     val episode = selectedEpisode!!
@@ -362,75 +302,21 @@ fun KakaAnimeApp() {
                     val nextProviderEpisode = providerEpisodes.map { it.number }.filter { it > episode }.minOrNull()
                     val latestEpisode = providerEpisodes.maxOfOrNull { it.number } ?: anime.latestEpisode
                     if (streamLoading) {
-                        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                CircularProgressIndicator()
-                                Spacer(Modifier.height(12.dp))
-                                Text("Mencari stream Episode $episode...", color = MaterialTheme.colorScheme.onBackground)
-                            }
-                        }
+                        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Column(horizontalAlignment = Alignment.CenterHorizontally) { CircularProgressIndicator(); Spacer(Modifier.height(12.dp)); Text("Mencari stream Episode $episode...", color = MaterialTheme.colorScheme.onBackground) } }
                     } else if (resolvedStreamUrl != null) {
-                        VideoPlayerScreen(
-                            videoUrl = resolvedStreamUrl!!,
-                            title = anime.title,
-                            episodeNumber = episode,
-                            description = anime.description,
-                            introStart = anime.introStart,
-                            introEnd = anime.introEnd,
-                            outroStart = anime.outroStart,
-                            outroEnd = anime.outroEnd,
-                            isPremium = monetizationState.isPremium,
-                            episodes = providerEpisodes,
-                            watchedEpisodes = watchedEpisodeNumbers[identityKey].orEmpty(),
-                            seasonNumber = anime.seasonNumber,
-                            seasonTitle = anime.seasonTitle,
-                            unlockRemainingSeconds = playerUnlockTarget?.takeIf { it == (anime to episode) }?.let { playerUnlockRemaining },
-                            onCancelUnlock = { cancelPlayerUnlock() },
-                            modifier = Modifier.fillMaxSize(),
-                            onBack = { if (playerUnlockTarget != null) cancelPlayerUnlock() else selectedEpisode = null },
-                            onPreviousEpisode = { previousProviderEpisode?.let { openEpisode(anime, it) } },
-                            onNextEpisode = { nextProviderEpisode?.takeIf { it <= latestEpisode }?.let { openEpisode(anime, it) } },
-                            onEpisodeClick = { targetEpisode -> if (targetEpisode != episode) openEpisode(anime, targetEpisode) },
-                            onRenderedFirstFrame = { streamFirstFrameRendered = true },
-                        )
+                        VideoPlayerScreen(videoUrl = resolvedStreamUrl!!, title = anime.title, episodeNumber = episode, description = anime.description, introStart = anime.introStart, introEnd = anime.introEnd, outroStart = anime.outroStart, outroEnd = anime.outroEnd, isPremium = monetizationState.isPremium, episodes = providerEpisodes, watchedEpisodes = watchedEpisodeNumbers[identityKey].orEmpty(), seasonNumber = anime.seasonNumber, seasonTitle = anime.seasonTitle, unlockRemainingSeconds = playerUnlockTarget?.takeIf { it == (anime to episode) }?.let { playerUnlockRemaining }, onCancelUnlock = { cancelPlayerUnlock() }, modifier = Modifier.fillMaxSize(), onBack = { if (playerUnlockTarget != null) cancelPlayerUnlock() else selectedEpisode = null }, onPreviousEpisode = { previousProviderEpisode?.let { openEpisode(anime, it) } }, onNextEpisode = { nextProviderEpisode?.takeIf { it <= latestEpisode }?.let { openEpisode(anime, it) } }, onEpisodeClick = { targetEpisode -> if (targetEpisode != episode) openEpisode(anime, targetEpisode) }, onRenderedFirstFrame = { if (streamSessionId == sessionIdForFirstFrame(streamSessionId)) renderedStreamSessionId = streamSessionId })
                     } else {
-                        Box(Modifier.fillMaxSize().padding(24.dp), contentAlignment = Alignment.Center) {
-                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                Text("Stream tidak ditemukan", fontSize = 20.sp, fontWeight = FontWeight.Bold)
-                                Spacer(Modifier.height(8.dp))
-                                Text("Provider belum menemukan sumber untuk ${anime.title} Episode $episode.", color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                Spacer(Modifier.height(16.dp))
-                                Button(onClick = { streamRetry++ }) { Text("Coba lagi") }
-                            }
-                        }
+                        Box(Modifier.fillMaxSize().padding(24.dp), contentAlignment = Alignment.Center) { Column(horizontalAlignment = Alignment.CenterHorizontally) { Text("Stream tidak ditemukan", fontSize = 20.sp, fontWeight = FontWeight.Bold); Spacer(Modifier.height(8.dp)); Text("Provider belum menemukan sumber untuk ${anime.title} Episode $episode.", color = MaterialTheme.colorScheme.onSurfaceVariant); Spacer(Modifier.height(16.dp)); Button(onClick = { streamRetry++ }) { Text("Coba lagi") } } }
                     }
                 }
-
-                AnimeScreen.PREMIUM -> PremiumScreen(
-                    state = monetizationState,
-                    billingState = premiumBillingState,
-                    onBack = { showPremium = false },
-                    onSubscribe = { basePlanId ->
-                        playBillingGateway?.launchPurchase(basePlanId) ?: run { premiumBillingState = PremiumBillingState.Unavailable("Google Play tidak tersedia di perangkat ini.") }
-                    },
-                    onRetryBilling = { playBillingGateway?.refresh() },
-                )
+                AnimeScreen.PREMIUM -> PremiumScreen(state = monetizationState, billingState = premiumBillingState, onBack = { showPremium = false }, onSubscribe = { basePlanId -> playBillingGateway?.launchPurchase(basePlanId) ?: run { premiumBillingState = PremiumBillingState.Unavailable("Google Play tidak tersedia di perangkat ini.") } }, onRetryBilling = { playBillingGateway?.refresh() })
             }
         }
-
         episodeGateTarget?.let { (anime, episode) ->
             val providerEpisode = providerEpisodes.firstOrNull { it.number == episode }
-            EpisodeGateDialog(
-                episodeNumber = episode,
-                episodeTitle = providerEpisode?.title,
-                episodeThumbnailUrl = providerEpisode?.thumbnailUrl,
-                episodeReleasedAt = providerEpisode?.releasedAt,
-                state = monetizationState,
-                onDismiss = { episodeGateTarget = null },
-                onWatchAdAndUnlock = { startPlayerUnlock(anime to episode, requestRewardedAd = true) },
-                onWaitForUnlock = { startPlayerUnlock(anime to episode, requestRewardedAd = false) },
-                onStartPremium = { episodeGateTarget = null; showPremium = true },
-            )
+            EpisodeGateDialog(episodeNumber = episode, episodeTitle = providerEpisode?.title, episodeThumbnailUrl = providerEpisode?.thumbnailUrl, episodeReleasedAt = providerEpisode?.releasedAt, state = monetizationState, onDismiss = { episodeGateTarget = null }, onWatchAdAndUnlock = { startPlayerUnlock(anime to episode, requestRewardedAd = true) }, onWaitForUnlock = { startPlayerUnlock(anime to episode, requestRewardedAd = false) }, onStartPremium = { episodeGateTarget = null; showPremium = true })
         }
     }
 }
+
+private fun sessionIdForFirstFrame(current: Long): Long = current
