@@ -34,22 +34,7 @@ import com.kakaanime.app.ui.theme.KakaAccent
 import com.kakaanime.app.ui.theme.KakaAnimeTheme
 import com.kakaanime.app.ui.theme.KakaThemeState
 
-data class Anime(
-    val title: String,
-    val latestEpisode: Int,
-    val genre: String,
-    val description: String,
-    val studio: String,
-    val season: String,
-    val year: String,
-    val type: String,
-    val status: String,
-    val rating: String,
-    val introStart: Long = 0L,
-    val introEnd: Long = 0L,
-    val outroStart: Long = 0L,
-    val outroEnd: Long = 0L,
-)
+data class Anime(val title: String, val latestEpisode: Int, val genre: String, val description: String, val studio: String, val season: String, val year: String, val type: String, val status: String, val rating: String, val introStart: Long = 0L, val introEnd: Long = 0L, val outroStart: Long = 0L, val outroEnd: Long = 0L)
 
 val localAnime = listOf(
     Anime("One Piece", 1140, "Action, Adventure, Fantasy", "Monkey D. Luffy dan kru Topi Jerami melanjutkan perjalanan mereka menuju One Piece.", "Toei Animation", "Ongoing", "1999", "TV", "Ongoing", "9.0", 90L, 180L, 1380L, 1440L),
@@ -94,19 +79,11 @@ fun KakaAnimeApp() {
     var favoriteTitles by remember(preferences) { mutableStateOf(preferences.loadFavoriteTitles()) }
     var watchedEpisodes by remember(preferences) { mutableStateOf(preferences.loadWatchedEpisodes()) }
     var watchedEpisodeNumbers by remember(preferences) {
-        mutableStateOf(
-            preferences.loadWatchHistory()
-                .groupBy { it.title }
-                .mapValues { (_, entries) -> entries.map { it.episode }.toSet() },
-        )
+        mutableStateOf(preferences.loadWatchHistory().groupBy { it.title }.mapValues { (_, entries) -> entries.map { it.episode }.toSet() })
     }
     var unlockedEpisodes by remember(preferences) { mutableStateOf(preferences.loadUnlockedEpisodes()) }
-    var monetizationState by remember(preferences) {
-        mutableStateOf(MonetizationState(preferences.loadDiamonds(), preferences.loadPremium()))
-    }
+    var monetizationState by remember(preferences) { mutableStateOf(MonetizationState(preferences.loadDiamonds(), preferences.loadPremium())) }
     var episodeGateTarget by remember { mutableStateOf<Pair<Anime, Int>?>(null) }
-
-    // One access session owns the countdown. The Gate only starts it; Player renders it.
     var playerUnlockTarget by remember { mutableStateOf<Pair<Anime, Int>?>(null) }
     var playerUnlockRemaining by remember { mutableIntStateOf(0) }
 
@@ -116,8 +93,7 @@ fun KakaAnimeApp() {
             PlayBillingGateway(
                 currentActivity,
                 onPremiumEntitled = {
-                    val updated = monetizationState.copy(isPremium = true)
-                    monetizationState = updated
+                    monetizationState = monetizationState.copy(isPremium = true)
                     preferences.savePremium(true)
                 },
                 onBillingState = { premiumBillingState = it },
@@ -187,7 +163,6 @@ fun KakaAnimeApp() {
         playerUnlockRemaining = 90
         selectedAnime = target.first
         selectedEpisode = target.second
-
         if (requestRewardedAd) {
             rewardedAds.show(
                 onReward = { diamonds ->
@@ -232,15 +207,11 @@ fun KakaAnimeApp() {
         resolvedStreamUrl = null
         streamLoading = true
         streamFirstFrameRendered = false
-        resolvedStreamUrl = runCatching {
-            ProviderPlaybackResolver.resolve(anime.title, episode, monetizationState.isPremium)?.url
-        }.getOrNull()
+        resolvedStreamUrl = runCatching { ProviderPlaybackResolver.resolve(anime.title, episode, monetizationState.isPremium)?.url }.getOrNull()
         streamLoading = false
         if (resolvedStreamUrl != null) {
             kotlinx.coroutines.delay(15000L)
-            if (streamFirstFrameRendered && selectedAnime?.title == anime.title && selectedEpisode == episode) {
-                recordWatched(anime, episode)
-            }
+            if (streamFirstFrameRendered && selectedAnime?.title == anime.title && selectedEpisode == episode) recordWatched(anime, episode)
         }
     }
 
@@ -301,10 +272,7 @@ fun KakaAnimeApp() {
                     watchedEpisodeNumbers[selectedAnime!!.title].orEmpty(),
                     providerEpisodes,
                     episodeListLoading,
-                    {
-                        selectedAnime = null
-                        selectedEpisode = null
-                    },
+                    { selectedAnime = null; selectedEpisode = null },
                     {
                         favoriteTitles = if (selectedAnime!!.title in favoriteTitles) favoriteTitles - selectedAnime!!.title else favoriteTitles + selectedAnime!!.title
                         preferences.saveFavoriteTitles(favoriteTitles)
@@ -339,12 +307,10 @@ fun KakaAnimeApp() {
                             isPremium = monetizationState.isPremium,
                             episodes = providerEpisodes,
                             watchedEpisodes = watchedEpisodeNumbers[anime.title].orEmpty(),
-                            unlockRemainingSeconds = playerUnlockTarget?.takeIf { it == anime to episode }?.let { playerUnlockRemaining },
+                            unlockRemainingSeconds = playerUnlockTarget?.takeIf { it == (anime to episode) }?.let { playerUnlockRemaining },
                             onCancelUnlock = { cancelPlayerUnlock() },
                             modifier = Modifier.fillMaxSize(),
-                            onBack = {
-                                if (playerUnlockTarget != null) cancelPlayerUnlock() else selectedEpisode = null
-                            },
+                            onBack = { if (playerUnlockTarget != null) cancelPlayerUnlock() else selectedEpisode = null },
                             onPreviousEpisode = { previousProviderEpisode?.let { openEpisode(anime, it) } },
                             onNextEpisode = { nextProviderEpisode?.takeIf { it <= latestEpisode }?.let { openEpisode(anime, it) } },
                             onEpisodeClick = { target -> if (target != episode) openEpisode(anime, target) },
@@ -368,9 +334,7 @@ fun KakaAnimeApp() {
                     billingState = premiumBillingState,
                     onBack = { showPremium = false },
                     onSubscribe = { basePlanId ->
-                        playBillingGateway?.launchPurchase(basePlanId) ?: run {
-                            premiumBillingState = PremiumBillingState.Unavailable("Google Play tidak tersedia di perangkat ini.")
-                        }
+                        playBillingGateway?.launchPurchase(basePlanId) ?: run { premiumBillingState = PremiumBillingState.Unavailable("Google Play tidak tersedia di perangkat ini.") }
                     },
                     onRetryBilling = { playBillingGateway?.refresh() },
                 )
@@ -388,10 +352,7 @@ fun KakaAnimeApp() {
                 onDismiss = { episodeGateTarget = null },
                 onWatchAdAndUnlock = { startPlayerUnlock(anime to episode, requestRewardedAd = true) },
                 onWaitForUnlock = { startPlayerUnlock(anime to episode, requestRewardedAd = false) },
-                onStartPremium = {
-                    episodeGateTarget = null
-                    showPremium = true
-                },
+                onStartPremium = { episodeGateTarget = null; showPremium = true },
             )
         }
     }
