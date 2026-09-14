@@ -17,6 +17,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -39,44 +40,23 @@ data class SearchUserUi(val name: String, val username: String)
 @Composable
 fun SearchUsersScreen(onBack: () -> Unit = {}, onOpenProfile: (SearchUserUi) -> Unit = {}) {
     var query by remember { mutableStateOf("") }
-    val users = listOf(
-        SearchUserUi("Hana", "@hana"),
-        SearchUserUi("Hanami", "@hanami"),
-        SearchUserUi("Hana021", "@hana021"),
-        SearchUserUi("HanaSky", "@hanasky"),
-        SearchUserUi("Hana_chan", "@hana_chan"),
-    )
+    val users = remember { listOf(SearchUserUi("Hana", "@hana"), SearchUserUi("Hanami", "@hanami"), SearchUserUi("Hana021", "@hana021"), SearchUserUi("HanaSky", "@hanasky"), SearchUserUi("Hana_chan", "@hana_chan")) }
     val filtered = users.filter { it.name.contains(query, true) || it.username.contains(query, true) }
-
     Column(Modifier.fillMaxSize()) {
-        Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back") }
-            Text("Search Users", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+            Text("Search Users", Modifier.weight(1f).padding(start = 4.dp), style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+            Icon(Icons.Default.Search, "Search", Modifier.size(22.dp), tint = MaterialTheme.colorScheme.primary)
         }
-        OutlinedTextField(
-            value = query,
-            onValueChange = { query = it },
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 18.dp),
-            singleLine = true,
-            placeholder = { Text("Search users (username or ID)") },
-            shape = RoundedCornerShape(18.dp),
-        )
-        Spacer(Modifier.height(10.dp))
-        LazyColumn(
-            Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(horizontal = 18.dp, vertical = 8.dp, bottom = 96.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
+        OutlinedTextField(value = query, onValueChange = { query = it }, Modifier.fillMaxWidth().padding(horizontal = 18.dp), singleLine = true, placeholder = { Text("Username or ID") }, shape = RoundedCornerShape(18.dp))
+        Spacer(Modifier.height(8.dp))
+        LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(horizontal = 18.dp, vertical = 8.dp, bottom = 36.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            if (filtered.isEmpty()) item { Text("No users found", Modifier.padding(vertical = 24.dp).fillMaxWidth(), color = MaterialTheme.colorScheme.onSurfaceVariant) }
             items(filtered, key = { it.username }) { user ->
                 Surface(Modifier.fillMaxWidth().clickable { onOpenProfile(user) }, color = MaterialTheme.colorScheme.surfaceVariant, shape = RoundedCornerShape(18.dp)) {
                     Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Surface(Modifier.size(46.dp), shape = CircleShape, color = MaterialTheme.colorScheme.primaryContainer) {
-                            Column(horizontalAlignment = Alignment.CenterHorizontally) { Text(user.name.take(1), modifier = Modifier.padding(top = 11.dp), fontWeight = FontWeight.Bold) }
-                        }
-                        Column(Modifier.padding(start = 12.dp).weight(1f)) {
-                            Text(user.name, fontWeight = FontWeight.SemiBold)
-                            Text(user.username, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        }
+                        Avatar(user.name)
+                        Column(Modifier.padding(start = 12.dp).weight(1f)) { Text(user.name, fontWeight = FontWeight.SemiBold); Text(user.username, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
                         Button(onClick = { }) { Text("Add Friend") }
                     }
                 }
@@ -84,3 +64,5 @@ fun SearchUsersScreen(onBack: () -> Unit = {}, onOpenProfile: (SearchUserUi) -> 
         }
     }
 }
+
+@Composable private fun Avatar(name: String) = Surface(Modifier.size(46.dp), shape = CircleShape, color = MaterialTheme.colorScheme.primaryContainer) { Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) { Text(name.take(1), fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onPrimaryContainer) } }
