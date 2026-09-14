@@ -40,10 +40,6 @@ class SamehadakuProvider : AnimeProvider {
         val normalized = query.trim()
         if (normalized.isBlank()) return emptyList()
 
-        // Samehadaku's current theme can expose search cards with different
-        // wrappers (.bs/.bsx instead of the older .animepost/.animpost).
-        // Try the WordPress search route first, then the common pretty-search
-        // route, while keeping the HTML parser provider-native.
         val searchUrls = listOf(
             "$mainUrl/?s=${encode(normalized)}",
             "$mainUrl/search/${normalized.slugify()}/",
@@ -56,17 +52,12 @@ class SamehadakuProvider : AnimeProvider {
             if (results.isNotEmpty()) return results
         }
 
-        // Samehadaku's One Piece page is a stable canonical route. This is a
-        // provider-native alias fallback, not a test-only bypass: it returns
-        // the real anime detail from the provider and keeps the normal detail
-        // -> episode -> extractor flow intact.
         if (normalized.equals("one piece", ignoreCase = true)) {
             requestDocument("$mainUrl/anime/one-piece/")
                 ?.toProviderAnimeDetail()
                 ?.let { return listOf(it) }
         }
 
-        // Gateway fallback retained, but no longer the primary search path.
         return searchGateway(normalized)
     }
 
@@ -79,10 +70,7 @@ class SamehadakuProvider : AnimeProvider {
         }
 
         val document = requestDocument(url)
-        if (document != null) {
-            document.toProviderAnimeDetail()?.let { return it }
-        }
-
+        if (document != null) document.toProviderAnimeDetail()?.let { return it }
         return getAnimeGateway(raw)
     }
 
@@ -112,9 +100,6 @@ class SamehadakuProvider : AnimeProvider {
         val episodes = getEpisodes("$id:$rawAnimeId")
         val episode = episodes.firstOrNull { it.number == episodeNumber }
 
-        // CloudStream reference passes the episode page itself to loadExtractor
-        // via loadLinks(). This is the important difference from the old JSON
-        // gateway path: server/download discovery stays inside the resolver.
         val episodeUrl = episode?.id?.removePrefix("$id:")
         if (!episodeUrl.isNullOrBlank() && episodeUrl.startsWith("http", true)) {
             val resolved = resolver.resolve(
@@ -124,7 +109,6 @@ class SamehadakuProvider : AnimeProvider {
             if (resolved.isNotEmpty()) return resolved.map { it.copy(providerId = id) }
         }
 
-        // If the episode list could not expose a URL, try the known slug form.
         val fallbackEpisodeUrl = "$mainUrl/one-piece-episode-$episodeNumber/"
         if (episode == null && rawAnimeId.contains("one-piece", true)) {
             val resolved = resolver.resolve(
@@ -134,7 +118,6 @@ class SamehadakuProvider : AnimeProvider {
             if (resolved.isNotEmpty()) return resolved.map { it.copy(providerId = id) }
         }
 
-        // Gateway remains a last-resort compatibility path.
         return getStreamsGateway(rawAnimeId, episodeNumber)
     }
 
@@ -142,11 +125,7 @@ class SamehadakuProvider : AnimeProvider {
         runCatching {
             val request = Request.Builder()
                 .url(url)
-                .header(
-                    "User-Agent",
-                    "Mozilla/5.0 (Linux; Android 15) AppleWebKit/537.36 " +
-                        "(KHTML, like Gecko) Chrome/140.0.0.0 Mobile Safari/537.36"
-                )
+                .header("User-Agent", "Mozilla/5.0 (Linux; Android 15) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Mobile Safari/537.36")
                 .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
                 .header("Accept-Language", "id-ID,id;q=0.9,en-US;q=0.8,en;q=0.7")
                 .header("Referer", "$mainUrl/")
@@ -177,18 +156,13 @@ class SamehadakuProvider : AnimeProvider {
     }
 
     private fun Document.extractSearchResults(): List<ProviderAnime> {
-        val cards = select(
-            "div.animepost, article.animpost, div.bs, div.bsx, div.listupd .bs, " +
-                "div.listupd .bsx, article.bs, article.bsx"
-        )
+        val cards = select("div.animepost, article.animpost, div.bs, div.bsx, div.listupd .bs, div.listupd .bsx, article.bs, article.bsx")
         val cardResults = cards
             .mapNotNull { it.toProviderAnimeSearch() }
             .filter { it.title.isNotBlank() }
             .distinctBy { it.id }
         if (cardResults.isNotEmpty()) return cardResults
 
-        // Last HTML fallback: current/variant themes may not wrap cards with a
-        // stable class, but anime detail links still retain the /anime/ route.
         return select("a[href*='/anime/']")
             .mapNotNull { anchor ->
                 val href = anchor.absUrl("href").ifBlank { anchor.attr("href") }
@@ -227,8 +201,7 @@ class SamehadakuProvider : AnimeProvider {
 
     private fun Document.toProviderAnimeDetail(): ProviderAnime? {
         val title = selectFirst("h1.entry-title")?.text()?.trim() ?: return null
-        val canonical = selectFirst("link[rel=canonical]")?.attr("href")
-            ?.ifBlank { null } ?: location()
+        val canonical = selectFirst("link[rel=canonical]")?.attr("href")?.ifBlank { null } ?: location()
         val slug = canonical.removeSuffix("/")
         val poster = selectFirst("div.thumb > img, div.fotoanime > img")?.let {
             it.absUrl("src").ifBlank { it.absUrl("data-src") }
@@ -346,7 +319,8 @@ class SamehadakuProvider : AnimeProvider {
             val resolved = resolver.resolve(unique.map { it.url })
                 .map { it.copy(providerId = id) }
             if (resolved.isNotEmpty()) return resolved
-            return unique
+            // Do not return raw gateway candidates. StreamResolver is the
+            // single validation boundary for streams entering the player.
         }
         return emptyList()
     }
@@ -388,38 +362,50 @@ class SamehadakuProvider : AnimeProvider {
                 val nextQuality = value.firstString("quality", "resolution") ?: quality
                 for (key in directKeys) value.optString(key).trim().takeIf { it.startsWith("http", true) }?.let { out += streamFromUrl(it, nextQuality) }
                 val keys = value.keys()
-                while (keys.hasNext()) {
-                    val key = keys.next()
-                    if (key !in directKeys) collectUrls(value.opt(key), out, nextQuality)
-                }
+                while (keys.hasNext()) collectUrls(value.opt(keys.next()), out, nextQuality)
             }
             is JSONArray -> for (i in 0 until value.length()) collectUrls(value.opt(i), out, quality)
-            is String -> if (value.startsWith("http", true)) out += streamFromUrl(value, quality)
         }
     }
 
-    private fun streamFromUrl(url: String, quality: String?): ProviderStream = ProviderStream(
-        providerId = id,
-        url = url,
-        quality = quality?.ifBlank { null },
-        language = "Japanese",
-        subtitleLanguage = "Indonesian",
-        type = when {
-            url.contains(".m3u8", true) -> StreamType.HLS
-            url.contains(".mpd", true) -> StreamType.DASH
-            url.contains(".mp4", true) -> StreamType.MP4
+    private fun streamFromUrl(url: String, quality: String?): ProviderStream {
+        val lower = url.lowercase()
+        val type = when {
+            lower.substringBefore('?').endsWith(".m3u8") -> StreamType.HLS
+            lower.substringBefore('?').endsWith(".mpd") -> StreamType.DASH
+            lower.substringBefore('?').endsWith(".mp4") -> StreamType.MP4
             else -> StreamType.UNKNOWN
         }
-    )
+        return ProviderStream(providerId = id, url = url, quality = quality ?: "Unknown", type = type)
+    }
 
-    private fun JSONObject.firstString(vararg keys: String): String? = keys.firstNotNullOfOrNull { optString(it).trim().ifBlank { null } }
-    private fun JSONObject.episodeNumber(): Int? = firstString("episode", "episodeNumber", "number", "episodeNum")?.toIntOrNull()
-        ?: Regex("(?:episode|eps|ep)[^0-9]*(\\d+)", RegexOption.IGNORE_CASE).find(firstString("title", "name", "slug", "id", "judul").orEmpty())?.groupValues?.getOrNull(1)?.toIntOrNull()
-    private fun extractStringArray(root: JSONObject, vararg keys: String): List<String> = keys.firstNotNullOfOrNull { key -> root.optJSONArray(key)?.let { array -> buildList { for (i in 0 until array.length()) array.optString(i).trim().takeIf { it.isNotBlank() }?.let(::add) } } } ?: emptyList()
-    private fun JSONArray.objects(): List<JSONObject> = buildList { for (i in 0 until length()) optJSONObject(i)?.let(::add) }
-    private fun normalizeAnimeId(value: String): String = value.removePrefix("$id:").trim('/')
-    private fun String.slugify(): String = trim().lowercase().replace(Regex("[^a-z0-9]+"), "-").trim('-')
-    private fun encode(value: String): String = URLEncoder.encode(value.trim(), "UTF-8")
-    private fun encodePath(value: String): String = value.split('/').joinToString("/") { encode(it) }
-    private fun String?.ifNullOrBlank(fallback: String): String = if (this.isNullOrBlank()) fallback else this
+    private fun JSONObject.firstString(vararg keys: String): String? = keys.asSequence()
+        .mapNotNull { key -> optString(key).trim().takeIf { it.isNotBlank() } }
+        .firstOrNull()
+
+    private fun JSONObject.episodeNumber(): Int? = firstString("episode", "episodeNumber", "episode_number", "number", "ep")?.let {
+        Regex("[0-9]+(?:\\.[0-9]+)?").find(it)?.value?.toDoubleOrNull()?.toInt()
+    }
+
+    private fun extractStringArray(root: JSONObject, vararg keys: String): List<String> {
+        for (key in keys) {
+            root.optJSONArray(key)?.let { array -> return array.strings() }
+            root.optString(key).takeIf { it.isNotBlank() }?.let { return it.split(",").map(String::trim).filter(String::isNotBlank) }
+        }
+        return emptyList()
+    }
+
+    private fun JSONArray.objects(): List<JSONObject> = buildList {
+        for (i in 0 until length()) optJSONObject(i)?.let(::add)
+    }
+
+    private fun JSONArray.strings(): List<String> = buildList {
+        for (i in 0 until length()) optString(i).trim().takeIf { it.isNotBlank() }?.let(::add)
+    }
+
+    private fun normalizeAnimeId(value: String): String = value.removePrefix("$id:").trim()
+    private fun encode(value: String): String = URLEncoder.encode(value, Charsets.UTF_8.name())
+    private fun encodePath(value: String): String = URLEncoder.encode(value.trim('/'), Charsets.UTF_8.name())
+    private fun String.slugify(): String = lowercase().trim().replace(Regex("[^a-z0-9]+"), "-").trim('-')
+    private fun String?.ifNullOrBlank(default: String): String = if (isNullOrBlank()) default else this
 }
