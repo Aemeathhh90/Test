@@ -40,7 +40,7 @@ fun OtherUserProfileScreen(
         }
         androidx.compose.foundation.lazy.LazyColumn(
             Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(horizontal = 18.dp, bottom = 96.dp),
+            contentPadding = PaddingValues(start = 18.dp, end = 18.dp, bottom = 96.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
             item {
@@ -68,32 +68,19 @@ fun OtherUserProfileScreen(
                     OutlinedButton(onClick = onMessage, modifier = Modifier.weight(1f)) { Text("Message") }
                 }
             }
-            item {
-                Text("Currently Watching", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                Spacer(Modifier.height(8.dp))
-                Surface(Modifier.fillMaxWidth(), color = MaterialTheme.colorScheme.surfaceVariant, shape = RoundedCornerShape(18.dp)) {
-                    Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Surface(Modifier.size(54.dp), shape = RoundedCornerShape(12.dp), color = MaterialTheme.colorScheme.primaryContainer) { Box(contentAlignment = Alignment.Center) { Text("F") } }
-                        Column(Modifier.padding(start = 12.dp)) {
-                            Text("Frieren", fontWeight = FontWeight.SemiBold)
-                            Text("Episode 20", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        }
-                    }
-                }
-            }
-            item {
-                Text("Recent Activity", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                Spacer(Modifier.height(8.dp))
-                Text("Hana created a Watch Together room", color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
+            item { ProfileSection("Currently Watching", listOf("One Piece • Episode 1140", "Frieren • Episode 20")) }
+            item { ProfileSection("Recent Activity", listOf("Added Solo Leveling to Favorite", "Watched One Piece Episode 1140")) }
         }
     }
 }
 
-@Composable
-private fun ProfileStat(value: String, label: String) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(value, fontWeight = FontWeight.Bold)
-        Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+@Composable private fun ProfileStat(value: String, label: String) = Column(horizontalAlignment = Alignment.CenterHorizontally) { Text(value, fontWeight = FontWeight.Bold); Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+
+@Composable private fun ProfileSection(title: String, items: List<String>) {
+    Surface(Modifier.fillMaxWidth(), color = MaterialTheme.colorScheme.surfaceVariant, shape = RoundedCornerShape(18.dp)) {
+        Column(Modifier.padding(14.dp)) {
+            Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+            items.forEach { Text(it, Modifier.padding(top = 8.dp), style = MaterialTheme.typography.bodySmall) }
+        }
     }
 }
