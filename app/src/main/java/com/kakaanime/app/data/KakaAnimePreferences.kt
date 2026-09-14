@@ -167,4 +167,7 @@ data class SeasonAwareWatchHistoryEntry(
     val episodeThumbnailUrl: String?,
     val watchedAt: Long,
     val durationMs: Long,
-)
+) {
+    val identity: AnimeStateIdentity
+        get() = AnimeStateIdentity(animeGroupId, seasonNumber, seasonTitle)
+}
