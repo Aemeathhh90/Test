@@ -99,12 +99,18 @@ fun AnimeDetailScreen(
                     )
                     Button(
                         onClick = { onEpisodeClick(watchedEpisode ?: episodes.firstOrNull()?.number ?: 1) },
+                        enabled = episodes.isNotEmpty(),
                         modifier = Modifier.fillMaxWidth().heightIn(min = 50.dp),
                         shape = RoundedCornerShape(16.dp)
                     ) {
                         Icon(Icons.Filled.PlayArrow, null)
                         Spacer(Modifier.width(8.dp))
-                        Text(if (watchedEpisode != null) "Lanjut Nonton" else "Mulai Nonton", fontWeight = FontWeight.Bold)
+                        Text(
+                            if (episodes.isEmpty()) "Episode Belum Tersedia"
+                            else if (watchedEpisode != null) "Lanjut Nonton"
+                            else "Mulai Nonton",
+                            fontWeight = FontWeight.Bold
+                        )
                     }
                 }
             }
