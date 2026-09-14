@@ -94,10 +94,11 @@ fun VideoPlayerScreen(
     val playerController = rememberPlayerController(context)
     val playerState = rememberPlayerState(playerController)
     val player = playerController.player
+    val currentOnRenderedFirstFrame by rememberUpdatedState(onRenderedFirstFrame)
 
     DisposableEffect(player, videoUrl, episodeNumber) {
         val listener = object : Player.Listener {
-            override fun onRenderedFirstFrame() { onRenderedFirstFrame() }
+            override fun onRenderedFirstFrame() { currentOnRenderedFirstFrame() }
         }
         player.addListener(listener)
         onDispose { player.removeListener(listener) }
