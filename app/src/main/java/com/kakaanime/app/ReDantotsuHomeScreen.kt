@@ -17,7 +17,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
+import androidx.compose.ui.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
@@ -100,8 +100,8 @@ fun ReDantotsuHomeScreen(
             item { HomeAnimeSection("New Updates", backendAnime.sortedByDescending { it.latestEpisode }, posterUrls, onAnimeClick, "NEW") }
             item { HomeAnimeSection("Trending Now", backendAnime, posterUrls, onAnimeClick) }
         } else item {
-            if (filtered.isEmpty()) Surface(Modifier.fillMaxWidth(), RoundedCornerShape(18.dp), color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = .45f)) {
-                Text("Anime tidak ditemukan", Modifier.padding(18.dp), color = MaterialTheme.colorScheme.onSurfaceVariant)
+            if (filtered.isEmpty()) Surface(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(18.dp), color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = .45f)) {
+                Text("Anime tidak ditemukan", modifier = Modifier.padding(18.dp), color = MaterialTheme.colorScheme.onSurfaceVariant)
             } else HomeAnimeSection("Hasil Pencarian", filtered, posterUrls, onAnimeClick)
         }
     }
@@ -132,7 +132,12 @@ private fun HomeTopBar(searchQuery: String, onSearchChange: (String) -> Unit, on
                 shape = RoundedCornerShape(16.dp), leadingIcon = { Icon(Icons.Outlined.Search, "Cari") },
                 placeholder = { Text("Cari anime, genre, atau studio...") },
             )
-            Surface(Modifier.size(54.dp), RoundedCornerShape(16.dp), color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = .55f), onClick = onFilterClick) {
+            Surface(
+                onClick = onFilterClick,
+                modifier = Modifier.size(54.dp),
+                shape = RoundedCornerShape(16.dp),
+                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = .55f),
+            ) {
                 Box(contentAlignment = Alignment.Center) { Icon(Icons.Outlined.Tune, "Filter") }
             }
         }
@@ -181,7 +186,7 @@ private fun HomeProfileHeader(backgroundUrl: String?, diamonds: Int, isPremium: 
 
 @Composable
 private fun ProfileBadge(text: String) {
-    Surface(RoundedCornerShape(12.dp), color = MaterialTheme.colorScheme.primary.copy(alpha = .16f)) {
+    Surface(modifier = Modifier, shape = RoundedCornerShape(12.dp), color = MaterialTheme.colorScheme.primary.copy(alpha = .16f)) {
         Text(text, Modifier.padding(horizontal = 8.dp, vertical = 4.dp), fontSize = 10.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
     }
 }
