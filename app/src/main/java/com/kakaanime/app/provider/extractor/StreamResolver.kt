@@ -9,9 +9,8 @@ import kotlinx.coroutines.supervisorScope
 /**
  * Resolves provider/server URLs through the extractor chain.
  *
- * The resolver dispatches specific and generic extractors, validates the
- * resulting candidates, then uses a browser-backed fallback when a player
- * page is JavaScript-driven and no typed stream was recovered.
+ * Only typed, validated streams are allowed to leave this resolver. A URL
+ * being discovered is not enough to make it playable by Media3.
  */
 class StreamResolver(
     private val registry: ExtractorRegistry,
@@ -24,6 +23,8 @@ class StreamResolver(
         val inputUrls = urls.map(String::trim)
             .filter(String::isNotBlank)
             .distinct()
+
+        if (inputUrls.isEmpty()) return@supervisorScope emptyList()
 
         val extracted = inputUrls.flatMap { url ->
             val candidates = registry.find(url)
@@ -46,24 +47,17 @@ class StreamResolver(
             async { validator.validate(stream) }
         }.awaitAll()
             .filterNotNull()
+            .filter { it.type != StreamType.UNKNOWN }
             .distinctBy { it.url }
 
-        val typedValidated = validated.filter { it.type != StreamType.UNKNOWN }
-        if (typedValidated.isNotEmpty()) return@supervisorScope typedValidated
+        if (validated.isNotEmpty()) return@supervisorScope validated
 
-        // JavaScript player pages can expose only an iframe/config URL to
-        // OkHttp. Try browser resolution against both the original page and
-        // every extracted host/player URL. This preserves the extractor chain
-        // instead of relying on the episode page alone.
+        // OkHttp may only see an iframe/config page while the real media URL is
+        // created by JavaScript. Give WebView a chance, but never return the
+        // unvalidated extractor output to Media3.
         val browserInputs = (extracted.map { it.url } + inputUrls)
             .distinct()
-        val browserStreams = resolveWithBrowser(browserInputs, referer)
-        if (browserStreams.isNotEmpty()) return@supervisorScope browserStreams
-
-        // Validation remains a reliability signal rather than a hard dependency.
-        // UNKNOWN validated streams should never survive: the validator now
-        // rejects UNKNOWN unless a supported media type was actually proven.
-        if (validated.isNotEmpty()) validated else extracted
+        resolveWithBrowser(browserInputs, referer)
     }
 
     private suspend fun resolveWithBrowser(
@@ -79,6 +73,7 @@ class StreamResolver(
         }.awaitAll()
             .flatten()
             .filter { it.type != StreamType.UNKNOWN }
+            .filter { it.url.startsWith("http", ignoreCase = true) }
             .distinctBy { it.url }
     }
 }
