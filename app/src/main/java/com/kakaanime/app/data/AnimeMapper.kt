@@ -16,13 +16,17 @@ object AnimeMapper {
             type = "TV",
             status = mapStatus(anime.status),
             year = anime.year,
-            season = null,
+            season = anime.seasonTitle,
             genres = anime.genres,
             studio = null,
             rating = anime.rating,
             totalEpisodes = anime.latestEpisode,
             latestEpisode = anime.latestEpisode,
-            updatedAt = 0L
+            updatedAt = 0L,
+            animeGroupId = anime.animeGroupId,
+            seasonNumber = anime.seasonNumber,
+            seasonTitle = anime.seasonTitle,
+            searchAliases = anime.searchAliases,
         )
     }
 
@@ -35,10 +39,15 @@ object AnimeMapper {
             animeId = animeId,
             episodeNumber = episode.number,
             title = episode.title,
-            thumbnailUrl = null,
+            thumbnailUrl = episode.thumbnailUrl,
             isNew = episode.isNew,
             releasedAt = episode.releasedAt,
-            durationSeconds = null
+            durationSeconds = null,
+            availability = when (episode.availability) {
+                com.kakaanime.app.provider.EpisodeAvailability.AVAILABLE -> EpisodeAvailability.AVAILABLE
+                com.kakaanime.app.provider.EpisodeAvailability.NOT_AVAILABLE -> EpisodeAvailability.NOT_AVAILABLE
+                com.kakaanime.app.provider.EpisodeAvailability.NOT_RELEASED -> EpisodeAvailability.NOT_RELEASED
+            }
         )
     }
 
@@ -46,6 +55,7 @@ object AnimeMapper {
         return when (status?.trim()?.uppercase()) {
             "ONGOING", "AIRING", "CURRENT" -> AnimeStatus.ONGOING
             "FINISHED", "COMPLETED", "COMPLETE" -> AnimeStatus.FINISHED
+            "HIATUS", "ON_HIATUS", "ON HIATUS" -> AnimeStatus.HIATUS
             "UPCOMING", "NOT_YET_AIRED", "NOT YET AIRED" -> AnimeStatus.UPCOMING
             else -> AnimeStatus.UNKNOWN
         }
