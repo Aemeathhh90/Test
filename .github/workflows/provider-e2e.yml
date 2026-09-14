@@ -36,6 +36,22 @@ jobs:
           test -w /dev/kvm
           ls -l /dev/kvm
 
+      - name: Run Samehadaku Episode 7 diagnostics
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          target: google_apis
+          arch: x86_64
+          cores: 8
+          ram-size: 8192M
+          disk-size: 8192M
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -no-snapshot-save
+          script: >-
+            ./gradlew :app:connectedDebugAndroidTest
+            -Pandroid.testInstrumentationRunnerArguments.class=com.kakaanime.app.provider.SamehadakuEpisodeDiagnosticsTest#onePieceEpisodeSevenReportsServerHosts
+            --stacktrace
+
       - name: Run Samehadaku Episode 7 E2E
         uses: reactivecircus/android-emulator-runner@v2
         with:
