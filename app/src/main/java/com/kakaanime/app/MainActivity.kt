@@ -34,7 +34,27 @@ import com.kakaanime.app.ui.theme.KakaAccent
 import com.kakaanime.app.ui.theme.KakaAnimeTheme
 import com.kakaanime.app.ui.theme.KakaThemeState
 
-data class Anime(val title: String, val latestEpisode: Int, val genre: String, val description: String, val studio: String, val season: String, val year: String, val type: String, val status: String, val rating: String, val introStart: Long = 0L, val introEnd: Long = 0L, val outroStart: Long = 0L, val outroEnd: Long = 0L)
+data class Anime(
+    val title: String,
+    val latestEpisode: Int,
+    val genre: String,
+    val description: String,
+    val studio: String,
+    val season: String,
+    val year: String,
+    val type: String,
+    val status: String,
+    val rating: String,
+    val introStart: Long = 0L,
+    val introEnd: Long = 0L,
+    val outroStart: Long = 0L,
+    val outroEnd: Long = 0L,
+    // Season-aware catalog identity. Defaults preserve existing call sites until the catalog bridge lands.
+    val animeGroupId: String = title,
+    val seasonNumber: Int? = null,
+    val seasonTitle: String? = null,
+    val searchAliases: List<String> = emptyList(),
+)
 
 val localAnime = listOf(
     Anime("One Piece", 1140, "Action, Adventure, Fantasy", "Monkey D. Luffy dan kru Topi Jerami melanjutkan perjalanan mereka menuju One Piece.", "Toei Animation", "Ongoing", "1999", "TV", "Ongoing", "9.0", 90L, 180L, 1380L, 1440L),
