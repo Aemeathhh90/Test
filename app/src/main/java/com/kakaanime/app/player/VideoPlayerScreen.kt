@@ -13,6 +13,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.ChatBubbleOutline
 import androidx.compose.material.icons.filled.Fullscreen
 import androidx.compose.material.icons.filled.Lock
@@ -30,6 +31,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -109,7 +111,12 @@ fun VideoPlayerScreen(
     }
 
     LaunchedEffect(autoNext, autoSkipIntro, autoSkipOutro, selectedQuality) {
-        settings.edit().putBoolean("auto_next", autoNext).putBoolean("auto_skip_intro", autoSkipIntro).putBoolean("auto_skip_outro", autoSkipOutro).putString("default_quality", selectedQuality).apply()
+        settings.edit()
+            .putBoolean("auto_next", autoNext)
+            .putBoolean("auto_skip_intro", autoSkipIntro)
+            .putBoolean("auto_skip_outro", autoSkipOutro)
+            .putString("default_quality", selectedQuality)
+            .apply()
     }
 
     LaunchedEffect(qualityRequest, title, episodeNumber, isPremium, videoUrl) {
@@ -125,7 +132,12 @@ fun VideoPlayerScreen(
         if (target != null && (requested != "1080p" || isPremium)) {
             val position = player.currentPosition.coerceAtLeast(0L)
             val resolved = runCatching {
-                ProviderPlaybackResolver.resolve(title = title, episodeNumber = episodeNumber, premium = isPremium, preferredQuality = target)
+                ProviderPlaybackResolver.resolve(
+                    title = title,
+                    episodeNumber = episodeNumber,
+                    premium = isPremium,
+                    preferredQuality = target,
+                )
             }.getOrNull()
             if (resolved != null && resolved.url.isNotBlank() && resolved.url != player.currentMediaItem?.localConfiguration?.uri?.toString()) {
                 playerController.setVideo(resolved.url)
@@ -142,8 +154,11 @@ fun VideoPlayerScreen(
         while (true) {
             delay(500L)
             val position = player.currentPosition.coerceAtLeast(0L)
-            if (autoSkipIntro && introEnd > introStart && position in introStart until introEnd) playerController.seekTo(introEnd)
-            else if (autoSkipOutro && outroEnd > outroStart && position in outroStart until outroEnd) playerController.seekTo(outroEnd)
+            if (autoSkipIntro && introEnd > introStart && position in introStart until introEnd) {
+                playerController.seekTo(introEnd)
+            } else if (autoSkipOutro && outroEnd > outroStart && position in outroStart until outroEnd) {
+                playerController.seekTo(outroEnd)
+            }
         }
     }
 
@@ -155,6 +170,14 @@ fun VideoPlayerScreen(
     if (isLandscape) {
         Box(modifier.fillMaxSize().background(Color.Black)) {
             PlayerSurface(player)
+
+            // KakaAnime landscape chrome: neutral cinematic foundation with theme accent used only for emphasis.
+            LandscapePlayerTopBar(
+                title = title,
+                episodeNumber = episodeNumber,
+                onBack = { activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT },
+            )
+
             ReDantotsuPlayerController(
                 state = playerState,
                 title = "$title • Episode $episodeNumber",
@@ -172,8 +195,29 @@ fun VideoPlayerScreen(
                 onFullscreen = { activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT },
                 onSpeed = { showSpeedMenu = true },
             )
-            if (unlockRemainingSeconds != null) PlayerUnlockOverlay(unlockRemainingSeconds, onCancelUnlock)
-            if (showSpeedMenu) SpeedMenu(speed, { speed = it; playerController.setSpeed(it); showSpeedMenu = false }, { showSpeedMenu = false })
+
+            LandscapeEpisodeRail(
+                previousEpisode = previousEpisode,
+                currentEpisode = episodeNumber,
+                nextEpisode = nextEpisode,
+                episodes = episodes,
+                watchedEpisodes = watchedEpisodes,
+                onPreviousEpisode = onPreviousEpisode,
+                onNextEpisode = onNextEpisode,
+                onEpisodeClick = onEpisodeClick,
+            )
+
+            if (unlockRemainingSeconds != null) {
+                PlayerUnlockOverlay(unlockRemainingSeconds, onCancelUnlock)
+            }
+
+            if (showSpeedMenu) {
+                SpeedMenu(
+                    speed,
+                    { value -> speed = value; playerController.setSpeed(value); showSpeedMenu = false },
+                    { showSpeedMenu = false },
+                )
+            }
         }
     } else {
         LazyColumn(
@@ -224,7 +268,10 @@ fun VideoPlayerScreen(
                     )
                     DropdownMenu(expanded = showQualityMenu, onDismissRequest = { showQualityMenu = false }) {
                         listOf("360p", "480p", "720p").forEach { quality ->
-                            DropdownMenuItem(text = { Text(if (quality == selectedQuality) "✓ $quality" else quality) }, onClick = { qualityRequest = quality; showQualityMenu = false })
+                            DropdownMenuItem(
+                                text = { Text(if (quality == selectedQuality) "✓ $quality" else quality) },
+                                onClick = { qualityRequest = quality; showQualityMenu = false },
+                            )
                         }
                         DropdownMenuItem(
                             text = {
@@ -237,18 +284,29 @@ fun VideoPlayerScreen(
                             onClick = { if (isPremium) { qualityRequest = "1080p"; showQualityMenu = false } },
                         )
                     }
-                    if (showSpeedMenu) SpeedMenu(speed, { speed = it; playerController.setSpeed(it); showSpeedMenu = false }, { showSpeedMenu = false })
+                    if (showSpeedMenu) SpeedMenu(speed, { value -> speed = value; playerController.setSpeed(value); showSpeedMenu = false }, { showSpeedMenu = false })
                 }
             }
 
             if (description.isNotBlank()) {
                 item {
-                    Surface(Modifier.padding(horizontal = 18.dp), shape = RoundedCornerShape(18.dp), color = colors.surfaceVariant.copy(alpha = .38f)) {
+                    Surface(
+                        Modifier.padding(horizontal = 18.dp),
+                        shape = RoundedCornerShape(18.dp),
+                        color = colors.surfaceVariant.copy(alpha = .38f),
+                    ) {
                         Column(Modifier.padding(16.dp)) {
                             Text("Tentang Episode", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
                             Spacer(Modifier.height(8.dp))
-                            Text(if (descriptionExpanded || description.length <= 180) description else description.take(180) + "...", fontSize = 14.sp, lineHeight = 21.sp, color = colors.onSurfaceVariant)
-                            if (description.length > 180) TextButton(onClick = { descriptionExpanded = !descriptionExpanded }) { Text(if (descriptionExpanded) "Sembunyikan" else "Selengkapnya") }
+                            Text(
+                                if (descriptionExpanded || description.length <= 180) description else description.take(180) + "...",
+                                fontSize = 14.sp,
+                                lineHeight = 21.sp,
+                                color = colors.onSurfaceVariant,
+                            )
+                            if (description.length > 180) TextButton(onClick = { descriptionExpanded = !descriptionExpanded }) {
+                                Text(if (descriptionExpanded) "Sembunyikan" else "Selengkapnya")
+                            }
                         }
                     }
                     Spacer(Modifier.height(22.dp))
@@ -280,7 +338,11 @@ fun VideoPlayerScreen(
             }
 
             item {
-                Surface(Modifier.padding(horizontal = 18.dp).fillMaxWidth(), shape = RoundedCornerShape(18.dp), color = colors.surfaceVariant.copy(alpha = .35f)) {
+                Surface(
+                    Modifier.padding(horizontal = 18.dp).fillMaxWidth(),
+                    shape = RoundedCornerShape(18.dp),
+                    color = colors.surfaceVariant.copy(alpha = .35f),
+                ) {
                     Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
                         Icon(Icons.Default.ChatBubbleOutline, null, tint = colors.primary, modifier = Modifier.size(24.dp))
                         Spacer(Modifier.width(10.dp))
@@ -290,6 +352,123 @@ fun VideoPlayerScreen(
                         }
                     }
                 }
+            }
+        }
+    }
+}
+
+@Composable
+private fun LandscapePlayerTopBar(title: String, episodeNumber: Int, onBack: () -> Unit) {
+    val colors = MaterialTheme.colorScheme
+    Box(
+        Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 12.dp),
+    ) {
+        Surface(
+            shape = RoundedCornerShape(16.dp),
+            color = Color.Black.copy(alpha = .48f),
+            tonalElevation = 0.dp,
+        ) {
+            Row(
+                Modifier.padding(horizontal = 6.dp, vertical = 5.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                IconButton(onClick = onBack, modifier = Modifier.size(40.dp)) {
+                    Icon(Icons.Default.ArrowBack, "Kembali ke portrait", tint = Color.White)
+                }
+                Column(Modifier.padding(end = 14.dp)) {
+                    Text(
+                        title,
+                        color = Color.White,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    Text("Episode $episodeNumber", color = Color.White.copy(alpha = .72f), fontSize = 11.sp)
+                }
+                Spacer(Modifier.weight(1f))
+                Surface(shape = RoundedCornerShape(999.dp), color = colors.primary.copy(alpha = .88f)) {
+                    Text("KakaAnime", color = colors.onPrimary, fontSize = 10.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp))
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun LandscapeEpisodeRail(
+    previousEpisode: Int,
+    currentEpisode: Int,
+    nextEpisode: Int,
+    episodes: List<ProviderEpisode>,
+    watchedEpisodes: Set<Int>,
+    onPreviousEpisode: () -> Unit,
+    onNextEpisode: () -> Unit,
+    onEpisodeClick: (Int) -> Unit,
+) {
+    val colors = MaterialTheme.colorScheme
+    val previous = episodes.firstOrNull { it.number == previousEpisode }
+    val next = episodes.firstOrNull { it.number == nextEpisode }
+
+    Row(
+        Modifier.fillMaxWidth().align(Alignment.BottomCenter).padding(horizontal = 18.dp, vertical = 68.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        LandscapeEpisodePreview(
+            episode = previous,
+            number = previousEpisode,
+            watched = previousEpisode in watchedEpisodes,
+            enabled = previousEpisode > 0,
+            onClick = onPreviousEpisode,
+        )
+        Surface(
+            shape = RoundedCornerShape(999.dp),
+            color = colors.surface.copy(alpha = .82f),
+            tonalElevation = 3.dp,
+        ) {
+            Text("EP $currentEpisode", color = colors.onSurface, fontSize = 11.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp))
+        }
+        LandscapeEpisodePreview(
+            episode = next,
+            number = nextEpisode,
+            watched = nextEpisode in watchedEpisodes,
+            enabled = true,
+            onClick = onNextEpisode,
+        )
+    }
+}
+
+@Composable
+private fun LandscapeEpisodePreview(
+    episode: ProviderEpisode?,
+    number: Int,
+    watched: Boolean,
+    enabled: Boolean,
+    onClick: () -> Unit,
+) {
+    val colors = MaterialTheme.colorScheme
+    Surface(
+        modifier = Modifier.width(150.dp).clickable(enabled = enabled, onClick = onClick),
+        shape = RoundedCornerShape(14.dp),
+        color = Color.Black.copy(alpha = .58f),
+        tonalElevation = 0.dp,
+    ) {
+        Row(Modifier.padding(5.dp), verticalAlignment = Alignment.CenterVertically) {
+            Box(Modifier.size(width = 62.dp, height = 38.dp).clip(RoundedCornerShape(9.dp)), contentAlignment = Alignment.Center) {
+                AsyncImage(
+                    model = episode?.thumbnailUrl,
+                    contentDescription = "Episode $number",
+                    modifier = Modifier.matchParentSize(),
+                    contentScale = ContentScale.Crop,
+                )
+                Box(Modifier.matchParentSize().background(Color.Black.copy(alpha = .48f)))
+                if (!watched) Icon(Icons.Default.Lock, "Terkunci", tint = Color.White, modifier = Modifier.size(15.dp))
+            }
+            Spacer(Modifier.width(7.dp))
+            Column(Modifier.weight(1f)) {
+                Text("Episode $number", color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(if (watched) "Sudah ditonton" else "Berikutnya", color = colors.primary.copy(alpha = .92f), fontSize = 9.sp, maxLines = 1)
             }
         }
     }
@@ -351,7 +530,7 @@ private fun PlayerUnlockOverlay(remainingSeconds: Int, onCancel: () -> Unit) {
                 Spacer(Modifier.height(8.dp))
                 Text("Episode sedang dibuka", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
                 Spacer(Modifier.height(5.dp))
-                Text("Tunggu sebentar. Setelah selesai, 2 diamond diberikan dan 1 diamond langsung digunakan.", textAlign = androidx.compose.ui.text.style.TextAlign.Center, color = colors.onSurfaceVariant, fontSize = 13.sp)
+                Text("Tunggu sebentar. Setelah selesai, 2 diamond diberikan dan 1 diamond langsung digunakan.", textAlign = TextAlign.Center, color = colors.onSurfaceVariant, fontSize = 13.sp)
                 Spacer(Modifier.height(18.dp))
                 Box(contentAlignment = Alignment.Center, modifier = Modifier.size(148.dp)) {
                     CircularProgressIndicator(progress = { progress }, modifier = Modifier.fillMaxSize(), strokeWidth = 9.dp)
