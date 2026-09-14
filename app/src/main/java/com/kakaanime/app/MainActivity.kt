@@ -382,6 +382,8 @@ fun KakaAnimeApp() {
                             isPremium = monetizationState.isPremium,
                             episodes = providerEpisodes,
                             watchedEpisodes = watchedEpisodeNumbers[identityKey].orEmpty(),
+                            seasonNumber = anime.seasonNumber,
+                            seasonTitle = anime.seasonTitle,
                             unlockRemainingSeconds = playerUnlockTarget?.takeIf { it == (anime to episode) }?.let { playerUnlockRemaining },
                             onCancelUnlock = { cancelPlayerUnlock() },
                             modifier = Modifier.fillMaxSize(),
