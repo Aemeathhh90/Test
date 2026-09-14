@@ -41,7 +41,7 @@ val localAnime = listOf(
     Anime("Solo Leveling", 25, "Action, Fantasy", "Sung Jin-woo berkembang dari hunter terlemah menjadi hunter yang sangat kuat.", "A-1 Pictures", "Season 2", "2025", "TV", "Finished", "8.8", 75L, 165L, 1380L, 1440L),
 )
 
-private enum class AnimeScreen { HOME, DETAIL, PLAYER, PREMIUM }
+private enum class AnimeScreen { HOME, DETAIL, PLAYER, PREMIUM, WATCH_TOGETHER }
 enum class BottomTab { HOME, CALENDAR, SOCIAL, LIBRARY, PROFILE }
 
 class MainActivity : ComponentActivity() {
@@ -68,6 +68,7 @@ fun KakaAnimeApp() {
     var selectedEpisode by remember { mutableStateOf<Int?>(null) }
     var selectedTab by remember { mutableStateOf(BottomTab.HOME) }
     var showPremium by remember { mutableStateOf(false) }
+    var showWatchTogether by remember { mutableStateOf(false) }
     var resolvedStreamUrl by remember { mutableStateOf<String?>(null) }
     var streamLoading by remember { mutableStateOf(false) }
     var streamRetry by remember { mutableIntStateOf(0) }
@@ -234,6 +235,7 @@ fun KakaAnimeApp() {
     }
 
     val screen = when {
+        showWatchTogether -> AnimeScreen.WATCH_TOGETHER
         showPremium -> AnimeScreen.PREMIUM
         selectedAnime != null && selectedEpisode != null -> AnimeScreen.PLAYER
         selectedAnime != null -> AnimeScreen.DETAIL
@@ -257,13 +259,15 @@ fun KakaAnimeApp() {
                         when (tab) {
                             BottomTab.HOME -> ReDantotsuHomeScreen(localAnime, { selectedAnime = it }, { anime, episode -> openEpisode(anime, episode) }, homeRefreshKey)
                             BottomTab.CALENDAR -> CalendarScreen(localAnime, { selectedAnime = it }, favoriteTitles)
-                            BottomTab.SOCIAL -> SocialScreen()
+                            BottomTab.SOCIAL -> SocialScreen(onOpenWatchTogether = { showWatchTogether = true })
                             BottomTab.LIBRARY -> LibraryTabsScreen(localAnime, { selectedAnime = it })
                             BottomTab.PROFILE -> ProfileScreen(themeState, monetizationState, { showPremium = true }) { selectedTab = BottomTab.LIBRARY }
                         }
                     }
                     KakaBottomNavigation(selectedTab) { selectedTab = it as BottomTab }
                 }
+
+                AnimeScreen.WATCH_TOGETHER -> WatchTogetherScreen(onBack = { showWatchTogether = false })
 
                 AnimeScreen.DETAIL -> AnimeDetailScreen(
                     selectedAnime!!,
@@ -313,7 +317,7 @@ fun KakaAnimeApp() {
                             onBack = { if (playerUnlockTarget != null) cancelPlayerUnlock() else selectedEpisode = null },
                             onPreviousEpisode = { previousProviderEpisode?.let { openEpisode(anime, it) } },
                             onNextEpisode = { nextProviderEpisode?.takeIf { it <= latestEpisode }?.let { openEpisode(anime, it) } },
-                            onEpisodeClick = { target -> if (target != episode) openEpisode(anime, target) },
+                            onEpisodeClick = { targetEpisode -> if (targetEpisode != episode) openEpisode(anime, targetEpisode) },
                             onRenderedFirstFrame = { streamFirstFrameRendered = true },
                         )
                     } else {
