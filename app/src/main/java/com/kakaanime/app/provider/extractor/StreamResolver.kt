@@ -40,6 +40,11 @@ class StreamResolver(
             .distinctBy { it.url }
 
         if (extracted.isEmpty()) {
+            // Some providers expose a direct signed media URL that has no
+            // extractor mapping and no obvious file extension. Validate the
+            // actual HTTP response before falling back to browser extraction.
+            val direct = validateDirectUrls(inputUrls)
+            if (direct.isNotEmpty()) return@supervisorScope direct
             return@supervisorScope resolveWithBrowser(inputUrls, referer)
         }
 
@@ -53,11 +58,31 @@ class StreamResolver(
         if (validated.isNotEmpty()) return@supervisorScope validated
 
         // OkHttp may only see an iframe/config page while the real media URL is
-        // created by JavaScript. Give WebView a chance, but never return the
-        // unvalidated extractor output to Media3.
+        // created by JavaScript. Give direct media URLs one final HTTP preflight
+        // before WebView, but never return unvalidated extractor output to Media3.
+        val direct = validateDirectUrls(inputUrls)
+        if (direct.isNotEmpty()) return@supervisorScope direct
+
         val browserInputs = (extracted.map { it.url } + inputUrls)
             .distinct()
         resolveWithBrowser(browserInputs, referer)
+    }
+
+    private suspend fun validateDirectUrls(urls: List<String>): List<ProviderStream> = supervisorScope {
+        urls.map { url ->
+            async {
+                validator.validate(
+                    ProviderStream(
+                        providerId = "",
+                        url = url,
+                        type = StreamType.UNKNOWN
+                    )
+                )
+            }
+        }.awaitAll()
+            .filterNotNull()
+            .filter { it.type != StreamType.UNKNOWN }
+            .distinctBy { it.url }
     }
 
     private suspend fun resolveWithBrowser(
