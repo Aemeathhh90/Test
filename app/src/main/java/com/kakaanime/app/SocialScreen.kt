@@ -3,6 +3,7 @@ package com.kakaanime.app
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -11,13 +12,16 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -26,217 +30,168 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 
 /**
- * Social V1 entry screen.
+ * Social V1 home foundation.
  *
- * Feature screens are opened through explicit callbacks so the Home surface
- * does not contain dead navigation actions.
+ * Watch Together is the only live navigation action on this screen until the
+ * remaining Social destinations have real feature screens behind them.
+ * Preview content is intentionally presentation-only; it is not backend data.
  */
 @Composable
 fun SocialScreen(
     onOpenWatchTogether: () -> Unit = {},
 ) {
-    val surfaceVariant = MaterialTheme.colorScheme.surfaceVariant
-    val primary = MaterialTheme.colorScheme.primary
-
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(start = 16.dp, top = 16.dp, end = 16.dp, bottom = 88.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
+        contentPadding = PaddingValues(start = 18.dp, top = 18.dp, end = 18.dp, bottom = 96.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         item {
             Column {
                 Text(
                     text = "Social",
                     style = MaterialTheme.typography.headlineMedium,
-                    fontWeight = FontWeight.Bold
+                    fontWeight = FontWeight.Bold,
                 )
-                Spacer(modifier = Modifier.height(4.dp))
+                Spacer(Modifier.height(4.dp))
                 Text(
                     text = "Find friends. Chat. Watch together.",
                     style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
         }
 
         item {
-            SocialHeroCard(
-                title = "Watch Together",
-                subtitle = "Start or join a room and watch anime with friends.",
-                actionLabel = "Open",
-                onClick = onOpenWatchTogether
-            )
+            WatchTogetherHero(onClick = onOpenWatchTogether)
         }
 
         item {
-            SocialSectionHeader("Active Friends", "See All")
-            Spacer(modifier = Modifier.height(8.dp))
+            SocialSectionHeader("Active Friends")
+            Spacer(Modifier.height(8.dp))
             ActiveFriendsRow()
         }
 
         item {
-            SocialSectionHeader("Recent Messages", "See All")
-            Spacer(modifier = Modifier.height(8.dp))
-            RecentMessageCard("Kael", "Bro, episode terbaru udah rilis?", "12:24")
-            Spacer(modifier = Modifier.height(8.dp))
-            RecentMessageCard("Hana", "Yuk nonton bareng nanti malam!", "11:03")
-            Spacer(modifier = Modifier.height(8.dp))
+            SocialSectionHeader("Recent Messages")
+            Spacer(Modifier.height(8.dp))
+            RecentMessageCard("Kael", "Bro, episode barunya udah rilis?", "12:24", unread = 2)
+            Spacer(Modifier.height(8.dp))
+            RecentMessageCard("Hana", "Yuk nonton bareng nanti malam!", "11:03", unread = 1)
+            Spacer(Modifier.height(8.dp))
             RecentMessageCard("Rynn", "Gila sih, episode kemarin keren.", "Yesterday")
         }
 
         item {
-            SocialSectionHeader("Friends", "See All")
-            Spacer(modifier = Modifier.height(8.dp))
-            SocialActionCard("My Friends", "Teman yang sudah terhubung", onClick = { })
-            Spacer(modifier = Modifier.height(8.dp))
-            SocialActionCard("Friend Requests", "Lihat dan kelola permintaan teman", onClick = { })
-            Spacer(modifier = Modifier.height(8.dp))
-            SocialActionCard("Search Users", "Cari username atau ID", onClick = { })
-        }
-
-        item {
-            SocialSectionHeader("Friend Activity", null)
-            Spacer(modifier = Modifier.height(8.dp))
-            ActivityCard("Shin", "Watching One Piece E1150", "10m ago")
-            Spacer(modifier = Modifier.height(8.dp))
-            ActivityCard("Kael", "Finished Solo Leveling", "2h ago")
-            Spacer(modifier = Modifier.height(8.dp))
+            SocialSectionHeader("Friend Activity")
+            Spacer(Modifier.height(8.dp))
+            ActivityCard("Mizu", "Finished Solo Leveling EP 8", "2h ago")
+            Spacer(Modifier.height(8.dp))
             ActivityCard("Hana", "Created a Watch Together room", "3h ago")
         }
 
         item {
-            SocialSectionHeader("Notifications", "See All")
-            Spacer(modifier = Modifier.height(8.dp))
+            SocialSectionHeader("Friends")
+            Spacer(Modifier.height(8.dp))
+            SocialActionCard("My Friends", "Teman yang sudah terhubung")
+            Spacer(Modifier.height(8.dp))
+            SocialActionCard("Friend Requests", "Lihat dan kelola permintaan teman")
+            Spacer(Modifier.height(8.dp))
+            SocialActionCard("Search Users", "Cari username atau ID")
+        }
+
+        item {
+            SocialSectionHeader("Notifications")
+            Spacer(Modifier.height(8.dp))
             NotificationCard("Kael sent you a friend request", "10m ago")
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(Modifier.height(8.dp))
             NotificationCard("Hana invited you to a Watch Together room", "30m ago")
         }
 
-        item {
-            Surface(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(18.dp))
-                    .background(surfaceVariant),
-                color = surfaceVariant,
-                shape = RoundedCornerShape(18.dp)
-            ) {
-                Row(
-                    modifier = Modifier.padding(16.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text("🌎", style = MaterialTheme.typography.titleLarge)
-                    Column(modifier = Modifier.padding(start = 12.dp).weight(1f)) {
-                        Text("Global Chat", fontWeight = FontWeight.SemiBold)
-                        Text(
-                            "Coming Soon • V2",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                    Text("V2", color = primary, fontWeight = FontWeight.Bold)
-                }
-            }
-        }
-
-        item {
-            Surface(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(18.dp)),
-                color = surfaceVariant,
-                shape = RoundedCornerShape(18.dp)
-            ) {
-                Row(
-                    modifier = Modifier.padding(16.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text("🎬", style = MaterialTheme.typography.titleLarge)
-                    Column(modifier = Modifier.padding(start = 12.dp).weight(1f)) {
-                        Text("Episode Chat", fontWeight = FontWeight.SemiBold)
-                        Text(
-                            "Coming Soon • V2",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                    Text("V2", color = primary, fontWeight = FontWeight.Bold)
-                }
-            }
-        }
+        item { V2Placeholder("🌎", "Global Chat") }
+        item { V2Placeholder("🎬", "Episode Chat") }
     }
 }
 
 @Composable
-private fun SocialHeroCard(
-    title: String,
-    subtitle: String,
-    actionLabel: String,
-    onClick: () -> Unit
-) {
+private fun WatchTogetherHero(onClick: () -> Unit) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick),
-        shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+        shape = RoundedCornerShape(24.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
     ) {
-        Row(
-            modifier = Modifier.padding(18.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text("🎬", style = MaterialTheme.typography.headlineMedium)
-            Column(modifier = Modifier.padding(start = 14.dp).weight(1f)) {
-                Text(title, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-                Text(
-                    subtitle,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(top = 4.dp)
-                )
+        Column(modifier = Modifier.padding(18.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Surface(
+                    modifier = Modifier.size(44.dp),
+                    shape = CircleShape,
+                    color = MaterialTheme.colorScheme.primary,
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Text("▶", color = MaterialTheme.colorScheme.onPrimary, fontWeight = FontWeight.Bold)
+                    }
+                }
+                Column(Modifier.padding(start = 12.dp).weight(1f)) {
+                    Text("Watch Together", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                    Text(
+                        "Nonton anime bareng teman dalam satu room.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer,
+                    )
+                }
+                Text("›", style = MaterialTheme.typography.headlineMedium, color = MaterialTheme.colorScheme.primary)
             }
-            Text(actionLabel, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+            Spacer(Modifier.height(14.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                TextButton(onClick = onClick) {
+                    Text("Create Room", fontWeight = FontWeight.Bold)
+                }
+                TextButton(onClick = onClick) {
+                    Text("Join Room", fontWeight = FontWeight.Bold)
+                }
+            }
         }
     }
 }
 
 @Composable
-private fun SocialSectionHeader(title: String, action: String?) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Text(title, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-        Spacer(modifier = Modifier.weight(1f))
-        if (action != null) {
-            Text(action, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.SemiBold)
-        }
-    }
+private fun SocialSectionHeader(title: String) {
+    Text(
+        text = title,
+        style = MaterialTheme.typography.titleLarge,
+        fontWeight = FontWeight.Bold,
+    )
 }
 
 @Composable
 private fun ActiveFriendsRow() {
     Row(
         modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(10.dp)
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        listOf("Shin", "Kael", "Rynn", "Mizu").forEach { name ->
+        listOf("Shin" to "Watching", "Kael" to "Online", "Hana" to "In Room", "Mizu" to "Online").forEach { (name, status) ->
             Surface(
                 modifier = Modifier.weight(1f),
                 color = MaterialTheme.colorScheme.surfaceVariant,
-                shape = RoundedCornerShape(16.dp)
+                shape = RoundedCornerShape(18.dp),
             ) {
                 Column(
-                    modifier = Modifier.padding(vertical = 14.dp, horizontal = 6.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
+                    modifier = Modifier.padding(vertical = 14.dp, horizontal = 4.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
-                    Text("●", color = MaterialTheme.colorScheme.primary)
+                    Box(
+                        modifier = Modifier
+                            .size(42.dp)
+                            .clip(CircleShape)
+                            .background(MaterialTheme.colorScheme.primaryContainer),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text(name.take(1), fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onPrimaryContainer)
+                    }
+                    Spacer(Modifier.height(6.dp))
                     Text(name, fontWeight = FontWeight.SemiBold)
-                    Text(
-                        "Online",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                    Text(status, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
         }
@@ -244,31 +199,66 @@ private fun ActiveFriendsRow() {
 }
 
 @Composable
-private fun RecentMessageCard(name: String, message: String, time: String) {
-    SocialListCard(leading = "💬", title = name, subtitle = message, trailing = time)
+private fun RecentMessageCard(name: String, message: String, time: String, unread: Int = 0) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        color = MaterialTheme.colorScheme.surfaceVariant,
+        shape = RoundedCornerShape(18.dp),
+    ) {
+        Row(modifier = Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+            Avatar(name)
+            Column(Modifier.padding(start = 12.dp).weight(1f)) {
+                Text(name, fontWeight = FontWeight.SemiBold)
+                Text(message, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            Column(horizontalAlignment = Alignment.End) {
+                Text(time, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                if (unread > 0) {
+                    Spacer(Modifier.height(4.dp))
+                    Surface(shape = CircleShape, color = MaterialTheme.colorScheme.primary) {
+                        Text(
+                            unread.toString(),
+                            modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.dp),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onPrimary,
+                            fontWeight = FontWeight.Bold,
+                        )
+                    }
+                }
+            }
+        }
+    }
 }
 
 @Composable
 private fun ActivityCard(name: String, activity: String, time: String) {
-    SocialListCard(leading = "●", title = name, subtitle = activity, trailing = time)
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        color = MaterialTheme.colorScheme.surfaceVariant,
+        shape = RoundedCornerShape(18.dp),
+    ) {
+        Row(modifier = Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+            Avatar(name)
+            Column(Modifier.padding(start = 12.dp).weight(1f)) {
+                Text(name, fontWeight = FontWeight.SemiBold)
+                Text(activity, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            Text(time, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+    }
 }
 
 @Composable
-private fun NotificationCard(message: String, time: String) {
-    SocialListCard(leading = "🔔", title = message, subtitle = "", trailing = time)
-}
-
-@Composable
-private fun SocialActionCard(title: String, subtitle: String, onClick: () -> Unit) {
-    Card(
-        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+private fun SocialActionCard(title: String, subtitle: String) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        color = MaterialTheme.colorScheme.surfaceVariant,
+        shape = RoundedCornerShape(18.dp),
     ) {
         Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-            Column(modifier = Modifier.weight(1f)) {
+            Column(Modifier.weight(1f)) {
                 Text(title, fontWeight = FontWeight.SemiBold)
-                Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 3.dp))
+                Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             Text("›", style = MaterialTheme.typography.headlineSmall, color = MaterialTheme.colorScheme.primary)
         }
@@ -276,17 +266,55 @@ private fun SocialActionCard(title: String, subtitle: String, onClick: () -> Uni
 }
 
 @Composable
-private fun SocialListCard(leading: String, title: String, subtitle: String, trailing: String) {
-    Surface(modifier = Modifier.fillMaxWidth(), color = MaterialTheme.colorScheme.surfaceVariant, shape = RoundedCornerShape(16.dp)) {
+private fun NotificationCard(message: String, time: String) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        color = MaterialTheme.colorScheme.surfaceVariant,
+        shape = RoundedCornerShape(18.dp),
+    ) {
         Row(modifier = Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text(leading, style = MaterialTheme.typography.titleMedium)
-            Column(modifier = Modifier.padding(start = 12.dp).weight(1f)) {
-                Text(title, fontWeight = FontWeight.SemiBold)
-                if (subtitle.isNotBlank()) {
-                    Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 3.dp))
-                }
+            Surface(
+                modifier = Modifier.size(38.dp),
+                shape = CircleShape,
+                color = MaterialTheme.colorScheme.primaryContainer,
+            ) {
+                Box(contentAlignment = Alignment.Center) { Text("!", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onPrimaryContainer) }
             }
-            Text(trailing, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Column(Modifier.padding(start = 12.dp).weight(1f)) {
+                Text(message, fontWeight = FontWeight.SemiBold)
+                Text(time, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
+    }
+}
+
+@Composable
+private fun V2Placeholder(icon: String, title: String) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        color = MaterialTheme.colorScheme.surfaceVariant,
+        shape = RoundedCornerShape(18.dp),
+    ) {
+        Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text(icon, style = MaterialTheme.typography.titleLarge)
+            Column(Modifier.padding(start = 12.dp).weight(1f)) {
+                Text(title, fontWeight = FontWeight.SemiBold)
+                Text("Coming Soon • V2", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            Text("V2", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+        }
+    }
+}
+
+@Composable
+private fun Avatar(name: String) {
+    Surface(
+        modifier = Modifier.size(42.dp),
+        shape = CircleShape,
+        color = MaterialTheme.colorScheme.primaryContainer,
+    ) {
+        Box(contentAlignment = Alignment.Center) {
+            Text(name.take(1), fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onPrimaryContainer)
         }
     }
 }
