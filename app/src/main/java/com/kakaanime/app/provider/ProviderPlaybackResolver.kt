@@ -79,12 +79,61 @@ object ProviderPlaybackResolver {
             if (seasonNumber == null) return results
 
             val matching = results.filter { candidate ->
-                val identity = SeasonIdentityParser.parse(candidate.title, candidate.id)
-                identity.seasonNumber == seasonNumber || candidate.seasonNumber == seasonNumber
+                candidate.seasonNumber == seasonNumber ||
+                    SeasonIdentityParser.parse(candidate.title, candidate.id).seasonNumber == seasonNumber
             }
             if (matching.isNotEmpty()) return matching
         }
 
         return emptyList()
+    }
+}
+
+/**
+ * Conservative parser for explicit season markers in provider titles/ids.
+ * Ambiguous titles remain unnumbered rather than being guessed.
+ */
+data class SeasonIdentity(
+    val animeGroupId: String,
+    val seasonNumber: Int?,
+    val seasonTitle: String?,
+    val searchAliases: List<String>,
+)
+
+object SeasonIdentityParser {
+    private val seasonPattern = Regex(
+        "(?:\\bseason\\s*(\\d+)\\b|\\bs(?:eason)?\\s*(\\d+)\\b)",
+        RegexOption.IGNORE_CASE,
+    )
+
+    fun parse(title: String, slug: String = ""): SeasonIdentity {
+        val source = "$title $slug"
+        val match = seasonPattern.find(source)
+        val number = match?.groupValues?.drop(1)?.firstOrNull { it.isNotBlank() }?.toIntOrNull()
+        val normalizedTitle = title.trim().replace(Regex("\\s+"), " ")
+        val groupTitle = normalizedTitle
+            .replace(Regex("\\s*[-:]?\\s*season\\s*\\d+\\b", RegexOption.IGNORE_CASE), "")
+            .replace(Regex("\\s*[-:]?\\s*s(?:eason)?\\s*\\d+\\b", RegexOption.IGNORE_CASE), "")
+            .trim()
+            .ifBlank { normalizedTitle }
+        val groupId = groupTitle
+            .lowercase()
+            .replace(Regex("[^a-z0-9]+"), "-")
+            .trim('-')
+            .ifBlank { "unknown" }
+        val aliases = buildList {
+            add(groupTitle)
+            if (number != null) {
+                add("$groupTitle Season $number")
+                add("$groupTitle S$number")
+            }
+            add(normalizedTitle)
+        }.distinct()
+        return SeasonIdentity(
+            animeGroupId = groupId,
+            seasonNumber = number,
+            seasonTitle = number?.let { "Season $it" },
+            searchAliases = aliases,
+        )
     }
 }
