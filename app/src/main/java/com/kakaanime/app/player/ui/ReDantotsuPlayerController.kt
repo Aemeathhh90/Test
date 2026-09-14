@@ -54,8 +54,8 @@ fun ReDantotsuPlayerController(
         }
     }
 
-    LaunchedEffect(autoNext, state.position, state.duration) {
-        if (!autoNext) {
+    LaunchedEffect(autoNext, nextEpisode, state.position, state.duration) {
+        if (!autoNext || nextEpisode == null) {
             autoNextTriggered = false
             return@LaunchedEffect
         }
