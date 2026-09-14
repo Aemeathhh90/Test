@@ -1,0 +1,42 @@
+name: Temporary Calendar Season Patch
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Patch season-aware calendar matching
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('app/src/main/java/com/kakaanime/app/CalendarScreen.kt')
+          text = path.read_text()
+          old_match = '''                val matchedAnime = animeList.firstOrNull { it.title.equals(entry.title, ignoreCase = true) }\n                val calendarAnime = matchedAnime ?: entry.toAnime()'''
+          new_match = '''                val calendarAnime = animeList\n                    .filter { it.matchesCalendarEntry(entry) }\n                    .sortedWith(compareBy<Anime> { seasonNumberFromTitle(entry.title) != null && it.seasonNumber != seasonNumberFromTitle(entry.title) })\n                    .firstOrNull()\n                    ?: entry.toAnime()'''
+          if old_match not in text:
+              raise SystemExit('Calendar match block not found')
+          text = text.replace(old_match, new_match, 1)
+
+          old_func = '''private fun AniListScheduleEntry.toAnime(): Anime {\n    val title = title.trim()\n    return Anime(\n        title = title,\n        latestEpisode = episode.coerceAtLeast(1),\n        genre = genres.joinToString(", ").ifBlank { "Unknown" },\n        description = "Anime dari jadwal AniList. Detail dan daftar episode akan dimuat dari provider KakaAnime.",\n        studio = "Unknown",\n        season = "Ongoing",\n        year = "—",\n        type = format?.replace('_', ' ')?.lowercase(Locale.ENGLISH)?.replaceFirstChar { it.uppercase() } ?: "TV",\n        status = "Ongoing",\n        rating = score?.let { "%.1f".format(Locale.ENGLISH, it / 10.0) } ?: "—"\n    )\n}'''
+          new_func = '''private fun Anime.matchesCalendarEntry(entry: AniListScheduleEntry): Boolean {\n    val entryTitle = normalizeCalendarTitle(entry.title)\n    val ownTitles = sequenceOf(title, *searchAliases.toTypedArray())\n        .map(::normalizeCalendarTitle)\n        .filter { it.isNotBlank() }\n        .toSet()\n    if (entryTitle in ownTitles) return true\n\n    val entryGroupTitle = normalizeCalendarTitle(stripSeasonMarker(entry.title))\n    val ownGroupTitle = normalizeCalendarTitle(stripSeasonMarker(title))\n    val aliasGroupTitles = searchAliases.asSequence().map { normalizeCalendarTitle(stripSeasonMarker(it)) }.toSet()\n    return entryGroupTitle.isNotBlank() && (entryGroupTitle == ownGroupTitle || entryGroupTitle in aliasGroupTitles)\n}\n\nprivate fun AniListScheduleEntry.toAnime(): Anime {\n    val scheduleTitle = title.trim()\n    val seasonNumber = seasonNumberFromTitle(scheduleTitle)\n    val groupTitle = stripSeasonMarker(scheduleTitle).trim().ifBlank { scheduleTitle }\n    return Anime(\n        title = scheduleTitle,\n        latestEpisode = episode.coerceAtLeast(1),\n        genre = genres.joinToString(", ").ifBlank { "Unknown" },\n        description = "Anime dari jadwal AniList. Detail dan daftar episode akan dimuat dari provider KakaAnime.",\n        studio = "Unknown",\n        season = if (seasonNumber != null) "Season $seasonNumber" else "Ongoing",\n        year = "—",\n        type = format?.replace('_', ' ')?.lowercase(Locale.ENGLISH)?.replaceFirstChar { it.uppercase() } ?: "TV",\n        status = "Ongoing",\n        rating = score?.let { "%.1f".format(Locale.ENGLISH, it / 10.0) } ?: "—",\n        animeGroupId = groupTitle,\n        seasonNumber = seasonNumber,\n        seasonTitle = seasonNumber?.let { "Season $it" },\n        searchAliases = listOf(scheduleTitle, groupTitle),\n    )\n}\n\nprivate fun normalizeCalendarTitle(value: String): String =\n    value.trim().lowercase(Locale.ENGLISH).replace(Regex("\\\\s+"), " ")\n\nprivate fun stripSeasonMarker(value: String): String =\n    value.trim()\n        .replace(Regex("(?i)\\\\bseason\\\\s+\\\\d+\\\\b"), " ")\n        .replace(Regex("(?i)\\\\bs\\\\d+\\\\b"), " ")\n        .replace(Regex("\\\\s+"), " ")\n        .trim()\n\nprivate fun seasonNumberFromTitle(value: String): Int? =\n    Regex("(?i)\\\\b(?:season\\\\s*|s)\\\\s*(\\\\d+)\\\\b").find(value)?.groupValues?.getOrNull(1)?.toIntOrNull()'''
+          if old_func not in text:
+              raise SystemExit('Calendar toAnime function not found')
+          path.write_text(text.replace(old_func, new_func, 1))
+          PY
+      - name: Commit patch and remove temporary workflow
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app/src/main/java/com/kakaanime/app/CalendarScreen.kt
+          git commit -m "fix: match calendar entries by anime season"
+          rm .github/workflows/patch-calendar-season.yml
+          git add .github/workflows/patch-calendar-season.yml
+          git commit -m "chore: remove temporary calendar season patcher"
+          git push
