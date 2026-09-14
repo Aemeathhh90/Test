@@ -119,6 +119,8 @@ private fun HomeTopBar(searchQuery: String, onSearchChange: (String) -> Unit, on
                 Text("KakaAnime", fontSize = 25.sp, fontWeight = FontWeight.ExtraBold)
                 Text("Watch Anime, Together.", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
+            // Home header: Message + Notification. Search remains in the dedicated search field below;
+            // Settings is intentionally kept out of Home to match the agreed compact header.
             HomeHeaderIcon(Icons.Outlined.Message, "Pesan")
             Spacer(Modifier.width(8.dp))
             Box {
