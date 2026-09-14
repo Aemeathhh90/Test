@@ -47,7 +47,6 @@ import androidx.compose.ui.unit.dp
 import com.kakaanime.app.data.AnimeStateIdentity
 import com.kakaanime.app.data.KakaAnimePreferences
 import com.kakaanime.app.data.SeasonAwareStateRepository
-import com.kakaanime.app.data.SeasonAwareWatchHistoryEntry
 
 private data class LibraryHistoryItem(
     val identity: AnimeStateIdentity,
@@ -304,7 +303,7 @@ private fun HistoryRow(
             text = { Text("Episode ${entry.episode} dari ${anime.title} akan dihapus.") },
             confirmButton = {
                 Button(onClick = {
-                    stateRepository.deleteHistory(entry.identity, entry.episode)
+                    stateRepository.deleteHistory(entry.identity, entry.episode, entry.title)
                     confirm = false
                     onChanged()
                 }) { Text("Hapus") }
@@ -323,7 +322,7 @@ private fun LibraryAnimeCard(anime: Anime, onClick: (Anime) -> Unit) {
     ) {
         Column(Modifier.padding(14.dp)) {
             Text(anime.title, style = MaterialTheme.typography.titleMedium, maxLines = 2)
-            val seasonLabel = anime.seasonNumber?.let { "Season $it" } ?: anime.seasonTitle
+            val seasonLabel = anime.seasonNumber?.let { "Season ${it}" } ?: anime.seasonTitle
             if (!seasonLabel.isNullOrBlank()) {
                 Spacer(Modifier.height(2.dp))
                 Text(seasonLabel, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
