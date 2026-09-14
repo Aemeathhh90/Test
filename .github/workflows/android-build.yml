@@ -33,6 +33,6 @@ jobs:
       - name: Upload release APK
         uses: actions/upload-artifact@v4
         with:
-          name: KakaAnime-release
+          name: release-apk
           path: app/build/outputs/apk/release/*.apk
           if-no-files-found: error
