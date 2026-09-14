@@ -76,14 +76,16 @@ class KakaAnimePreferences(context: Context) {
     fun recordWatchHistory(identity: AnimeStateIdentity, title: String, episode: Int, episodeTitle: String? = null, episodeThumbnailUrl: String? = null, durationMs: Long = 0L) {
         if (episode <= 0 || identity.animeGroupId.isBlank()) return
         val current = loadWatchHistorySeasonAware().toMutableList()
-        val index = current.indexOfFirst { it.animeGroupId == identity.animeGroupId && it.seasonNumber == identity.seasonNumber && it.seasonTitle == identity.seasonTitle && it.episode == episode }
+        val normalizedSeasonTitle = normalizeSeasonTitle(identity.seasonTitle)
+        val index = current.indexOfFirst { it.animeGroupId == identity.animeGroupId && it.seasonNumber == identity.seasonNumber && normalizeSeasonTitle(it.seasonTitle) == normalizedSeasonTitle && it.episode == episode }
         val old = current.getOrNull(index)
-        val entry = SeasonAwareWatchHistoryEntry(identity.animeGroupId.trim(), identity.seasonNumber, identity.seasonTitle, episode, title, episodeTitle ?: old?.episodeTitle, episodeThumbnailUrl ?: old?.episodeThumbnailUrl, System.currentTimeMillis(), if (durationMs > 0L) durationMs else old?.durationMs ?: 0L)
+        val entry = SeasonAwareWatchHistoryEntry(identity.animeGroupId.trim(), identity.seasonNumber, identity.seasonTitle?.trim()?.takeIf { it.isNotBlank() }, episode, title, episodeTitle ?: old?.episodeTitle, episodeThumbnailUrl ?: old?.episodeThumbnailUrl, System.currentTimeMillis(), if (durationMs > 0L) durationMs else old?.durationMs ?: 0L)
         if (index >= 0) current[index] = entry else current.add(entry)
         saveWatchHistorySeasonAware(current.take(MAX_WATCH_HISTORY_ENTRIES))
     }
     fun deleteWatchHistoryEntry(identity: AnimeStateIdentity, episode: Int) {
-        saveWatchHistorySeasonAware(loadWatchHistorySeasonAware().filterNot { it.animeGroupId == identity.animeGroupId && it.seasonNumber == identity.seasonNumber && it.seasonTitle == identity.seasonTitle && it.episode == episode })
+        val normalizedSeasonTitle = normalizeSeasonTitle(identity.seasonTitle)
+        saveWatchHistorySeasonAware(loadWatchHistorySeasonAware().filterNot { it.animeGroupId == identity.animeGroupId && it.seasonNumber == identity.seasonNumber && normalizeSeasonTitle(it.seasonTitle) == normalizedSeasonTitle && it.episode == episode })
     }
     fun clearWatchHistorySeasonAware() { saveWatchHistorySeasonAware(emptyList()) }
 
@@ -97,6 +99,8 @@ class KakaAnimePreferences(context: Context) {
 
     private fun saveWatchHistory(entries: List<WatchHistoryEntry>) { val array = JSONArray(); entries.forEach { e -> array.put(JSONObject().put("title", e.title).put("episode", e.episode).put("episodeTitle", e.episodeTitle.orEmpty()).put("episodeThumbnailUrl", e.episodeThumbnailUrl.orEmpty()).put("watchedAt", e.watchedAt).put("durationMs", e.durationMs)) }; prefs.edit().putString(KEY_WATCH_HISTORY, array.toString()).apply() }
     private fun saveWatchHistorySeasonAware(entries: List<SeasonAwareWatchHistoryEntry>) { val array = JSONArray(); entries.forEach { e -> val item = JSONObject().put("animeGroupId", e.animeGroupId).put("episode", e.episode).put("title", e.title.orEmpty()).put("seasonTitle", e.seasonTitle.orEmpty()).put("episodeTitle", e.episodeTitle.orEmpty()).put("episodeThumbnailUrl", e.episodeThumbnailUrl.orEmpty()).put("watchedAt", e.watchedAt).put("durationMs", e.durationMs); e.seasonNumber?.let { item.put("seasonNumber", it) }; array.put(item) }; prefs.edit().putString(KEY_WATCH_HISTORY_SEASON_AWARE, array.toString()).apply() }
+
+    private fun normalizeSeasonTitle(value: String?): String = value?.trim()?.lowercase()?.replace(Regex("\\s+"), " ").orEmpty()
 
     fun loadDiamonds(): Int = prefs.getInt(KEY_DIAMONDS, 0)
     fun saveDiamonds(value: Int) { prefs.edit().putInt(KEY_DIAMONDS, value.coerceAtLeast(0)).apply() }
