@@ -50,7 +50,11 @@ class SamehadakuEpisodeExtractor : StreamExtractor {
         url: String,
         referer: String?
     ): List<ProviderStream> {
-        val page = getPage(url) ?: return emptyList()
+        println("SAMEHADAKU_CCTV_EXTRACTOR_INPUT url=$url referer=$referer")
+        val page = getPage(url) ?: run {
+            println("SAMEHADAKU_CCTV_PAGE_FAIL url=$url")
+            return emptyList()
+        }
         val discovered = linkedMapOf<String, DiscoveredLink>()
 
         // Reference implementations use the download list first.
@@ -62,16 +66,24 @@ class SamehadakuEpisodeExtractor : StreamExtractor {
                 discovered.putIfAbsent(href, DiscoveredLink(href, quality))
             }
         }
+        println("SAMEHADAKU_CCTV_DOWNLOAD_LINKS count=${discovered.size} hosts=${discovered.keys.map(::hostOf).distinct()}")
 
         // Newer/current pages can expose servers that require player_ajax.
-        page.select("#server > ul > li > div").forEach { server ->
+        val servers = page.select("#server > ul > li > div")
+        println("SAMEHADAKU_CCTV_SERVERS count=${servers.size}")
+        servers.forEach { server ->
             val post = server.attr("data-post").trim()
             val nume = server.attr("data-nume").trim()
             val type = server.attr("data-type").trim()
+            println("SAMEHADAKU_CCTV_SERVER post=$post nume=$nume type=$type label=${server.selectFirst("span")?.text()?.trim()}")
             if (post.isBlank() || nume.isBlank() || type.isBlank()) return@forEach
 
             val embed = requestPlayerAjax(url, post, nume, type)
-                ?: return@forEach
+                ?: run {
+                    println("SAMEHADAKU_CCTV_AJAX_FAIL post=$post nume=$nume type=$type")
+                    return@forEach
+                }
+            println("SAMEHADAKU_CCTV_AJAX_OK host=${hostOf(embed)} url=$embed")
             discovered.putIfAbsent(
                 embed,
                 DiscoveredLink(
@@ -88,15 +100,18 @@ class SamehadakuEpisodeExtractor : StreamExtractor {
                     .ifBlank { iframe.attr("data-src") }
                     .trim()
                 if (href.startsWith("http", true)) {
+                    println("SAMEHADAKU_CCTV_IFRAME_FALLBACK host=${hostOf(href)} url=$href")
                     discovered[href] = DiscoveredLink(href, null)
                 }
             }
         }
 
+        println("SAMEHADAKU_CCTV_DISCOVERED count=${discovered.size} hosts=${discovered.keys.map(::hostOf).distinct()}")
         if (discovered.isEmpty()) return emptyList()
 
         val streams = mutableListOf<ProviderStream>()
         for ((_, link) in discovered) {
+            println("SAMEHADAKU_CCTV_RESOLVE_INPUT host=${hostOf(link.url)} url=${link.url} quality=${link.quality}")
             val resolved = when {
                 isDirectMedia(link.url) -> listOf(directStream(link.url, url, link.quality))
                 else -> {
@@ -104,32 +119,31 @@ class SamehadakuEpisodeExtractor : StreamExtractor {
                         urls = listOf(link.url),
                         referer = url
                     )
+                    println("SAMEHADAKU_CCTV_HOST_RESOLVED host=${hostOf(link.url)} count=${hostResolved.size} types=${hostResolved.map { it.type }.distinct()}")
                     val typedHostResolved = hostResolved.filter { it.type != StreamType.UNKNOWN }
                     if (typedHostResolved.isNotEmpty()) {
                         typedHostResolved
                     } else {
-                        // CloudStream's Samehadaku implementation has a
-                        // second-stage generic embed parser: when the server
-                        // returns an extensionless embed URL, GET that page
-                        // and inspect <video>/<source> for the real media URL.
-                        // Do this only for Samehadaku's server link so the
-                        // global resolver/validator remains strict.
                         val embedStreams = resolveEmbedPage(
                             embedUrl = link.url,
                             episodeUrl = url,
                             quality = link.quality
                         )
+                        println("SAMEHADAKU_CCTV_EMBED_RESOLVED host=${hostOf(link.url)} count=${embedStreams.size} types=${embedStreams.map { it.type }.distinct()}")
                         if (embedStreams.isNotEmpty()) embedStreams else hostResolved
                     }
                 }
             }
+            println("SAMEHADAKU_CCTV_RESOLVE_RESULT host=${hostOf(link.url)} count=${resolved.size} types=${resolved.map { it.type }.distinct()}")
             streams += resolved.map { stream ->
                 if (link.quality.isNullOrBlank()) stream
                 else stream.copy(quality = link.quality)
             }
         }
 
-        return streams.distinctBy { it.url }
+        val finalStreams = streams.distinctBy { it.url }
+        println("SAMEHADAKU_CCTV_EXTRACTOR_RESULT count=${finalStreams.size} types=${finalStreams.map { it.type }.distinct()}")
+        return finalStreams
     }
 
     private fun getPage(url: String): org.jsoup.nodes.Document? = runCatching {
@@ -140,17 +154,14 @@ class SamehadakuEpisodeExtractor : StreamExtractor {
             .header("Accept-Language", "id-ID,id;q=0.9,en;q=0.8")
             .build()
         client.newCall(request).execute().use { response ->
+            println("SAMEHADAKU_CCTV_PAGE_HTTP code=${response.code} finalUrl=${response.request.url}")
             if (!response.isSuccessful) return@runCatching null
             response.body?.string()?.takeIf { it.isNotBlank() }?.let { Jsoup.parse(it, url) }
         }
+    }.onFailure {
+        println("SAMEHADAKU_CCTV_PAGE_EXCEPTION ${it::class.java.simpleName}:${it.message}")
     }.getOrNull()
 
-    /**
-     * Resolve a host/embed page when its URL itself has no media extension.
-     * The returned stream may initially be UNKNOWN; the outer StreamResolver
-     * will run StreamValidator and infer HLS/DASH/MP4 from response headers or
-     * content before the player sees it.
-     */
     private fun resolveEmbedPage(
         embedUrl: String,
         episodeUrl: String,
@@ -176,8 +187,6 @@ class SamehadakuEpisodeExtractor : StreamExtractor {
             if (href.startsWith("http", true)) mediaUrls += href
         }
 
-        // Some Samehadaku-compatible hosts expose a JSON data-page payload
-        // instead of a literal <source>. Prefer the URL field when present.
         document.selectFirst("#app[data-page], [data-page]")?.attr("data-page")
             ?.let(::extractDataPageUrl)
             ?.takeIf { it.startsWith("http", true) }
@@ -211,11 +220,14 @@ class SamehadakuEpisodeExtractor : StreamExtractor {
             .header("Referer", embedUrl.ifBlank { episodeUrl })
             .build()
         client.newCall(request).execute().use { response ->
+            println("SAMEHADAKU_CCTV_EMBED_HTTP code=${response.code} host=${hostOf(embedUrl)} finalUrl=${response.request.url}")
             if (!response.isSuccessful) return@runCatching null
             response.body?.string()?.takeIf { it.isNotBlank() }?.let {
                 Jsoup.parse(it, embedUrl)
             }
         }
+    }.onFailure {
+        println("SAMEHADAKU_CCTV_EMBED_EXCEPTION host=${hostOf(embedUrl)} ${it::class.java.simpleName}:${it.message}")
     }.getOrNull()
 
     private fun extractDataPageUrl(value: String): String? {
@@ -252,10 +264,14 @@ class SamehadakuEpisodeExtractor : StreamExtractor {
             .build()
 
         client.newCall(request).execute().use { response ->
+            println("SAMEHADAKU_CCTV_AJAX_HTTP code=${response.code} post=$post nume=$nume type=$type")
             if (!response.isSuccessful) return@runCatching null
             val html = response.body?.string().orEmpty()
+            println("SAMEHADAKU_CCTV_AJAX_BODY length=${html.length} iframeCount=${Jsoup.parse(html).select("iframe[src],iframe[data-src]").size}")
             extractUrl(html, episodeUrl)
         }
+    }.onFailure {
+        println("SAMEHADAKU_CCTV_AJAX_EXCEPTION post=$post nume=$nume type=$type ${it::class.java.simpleName}:${it.message}")
     }.getOrNull()
 
     private fun extractUrl(value: String, baseUrl: String): String? {
@@ -296,6 +312,9 @@ class SamehadakuEpisodeExtractor : StreamExtractor {
         url.contains(".mp4", true) || url.contains(".webm", true) -> StreamType.MP4
         else -> StreamType.UNKNOWN
     }
+
+    private fun hostOf(url: String): String =
+        runCatching { URI(url).host.orEmpty().lowercase() }.getOrDefault("")
 
     private data class DiscoveredLink(
         val url: String,
