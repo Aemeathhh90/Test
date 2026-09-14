@@ -25,7 +25,13 @@ data class AnimeData(
     val totalEpisodes: Int? = null,
     val latestEpisode: Int? = null,
 
-    val updatedAt: Long = 0L
+    val updatedAt: Long = 0L,
+
+    // Season-aware catalog identity. Defaults keep existing repository/provider mappings compatible.
+    val animeGroupId: String = id,
+    val seasonNumber: Int? = null,
+    val seasonTitle: String? = null,
+    val searchAliases: List<String> = emptyList(),
 )
 
 enum class AnimeStatus {
