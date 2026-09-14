@@ -1,28 +1,34 @@
 # Bug Hunter — Provider Playback Gate — 2026-09-14
 
 ## Scope
-Grouped Fix P0: provider/extractor playback safety.
+Grouped Fix P0: provider/extractor playback safety and Media3 handoff.
 
 ## Audit finding
 The provider extractor pipeline could validate candidates, fail to obtain a typed candidate, and then return raw extracted URLs through a final fallback. That allowed an `UNKNOWN` stream to reach later normalization/player selection. Historical runtime evidence showed this failure mode reaching Media3 and producing `ERROR_CODE_PARSING_CONTAINER_UNSUPPORTED` / `UnrecognizedInputFormatException`.
 
-## Change
-`app/src/main/java/com/kakaanime/app/provider/extractor/StreamResolver.kt`
+A second handoff issue was confirmed: `NormalizedStream` carries stream type and headers, but the current UI/player boundary reduced the result to a URL before `PlayerCore`. `PlayerCore` then created a bare `MediaItem.fromUri(url)`, leaving Media3 to guess the container.
 
-The resolver now:
-- returns only HTTP(S) streams that passed validation and have a known supported `StreamType`;
-- keeps WebView as a fallback for JavaScript-driven player pages;
-- rejects `UNKNOWN` WebView results;
-- removes the raw `extracted` fallback entirely.
+## Changes
+1. `StreamResolver.kt`
+   - returns only HTTP(S) streams that passed validation and have a known supported `StreamType`;
+   - keeps WebView as a fallback for JavaScript-driven player pages;
+   - rejects `UNKNOWN` WebView results;
+   - removes the raw `extracted` fallback entirely.
+
+2. `PlayerCore.kt` — commit `b3a77f546be5324f7037141c8c87fd3a82969fae`
+   - builds `MediaItem` explicitly;
+   - supplies HLS/DASH/MP4/WebM MIME type when the resolved URL exposes a matching media extension;
+   - keeps the player API backward-compatible for the current call sites.
 
 ## Decision
 - 🟢 Keep ProviderEngine, SmartProviderRouter, ProviderPlaybackResolver, deduplication, normalization, validator, extractor registry, and WebView fallback.
 - 🔴 Remove the unsafe raw-stream escape path.
 - 🟡 Keep provider-specific gateway fallbacks temporarily; audit/remove unproven providers separately.
 - 🔴 Do not add new providers during Bug Hunt.
+- 🟡 Media3 handoff is improved, but headers and provider-supplied MIME type still need to be carried end-to-end where URL extension is insufficient.
 
 ## Verification
-Source was re-fetched from `main` after the change and the new resolver content was confirmed. Android Actions build evidence is still not green; recent runs have failed before exposing usable step logs. Therefore this checkpoint does **not** claim release-build or first-frame success.
+The source was re-fetched from `main` before modification and the PlayerCore change was committed directly to `main`. No first-frame evidence exists yet. Android Actions build evidence is still not green, so this checkpoint does not claim release-build or provider playback success.
 
 ## Next
-Audit the Media3 handoff and provider-specific candidate headers/type handling, then run the smallest available provider/runtime test. Only mark provider green after actual `onRenderedFirstFrame()` evidence.
+Audit and repair the remaining metadata handoff so `NormalizedStream.type` and `NormalizedStream.headers` survive into Media3. Then run the smallest available provider/runtime test. Provider may only become 🟢 after actual `onRenderedFirstFrame()` evidence.
