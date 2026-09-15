@@ -58,7 +58,7 @@ dependencies {
     implementation("com.android.billingclient:billing:9.1.0")
 
     implementation("com.kakaanime:provider") {
-        version { branch = "main" }
+        version { branch = "fix/otakudesu-episode-parser" }
     }
 
     androidTestImplementation("androidx.test:core:1.7.0")
