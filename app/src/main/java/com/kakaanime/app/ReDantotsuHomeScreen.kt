@@ -17,7 +17,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.clip
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
@@ -119,8 +119,6 @@ private fun HomeTopBar(searchQuery: String, onSearchChange: (String) -> Unit, on
                 Text("KakaAnime", fontSize = 25.sp, fontWeight = FontWeight.ExtraBold)
                 Text("Watch Anime, Together.", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
-            // Home header: Message + Notification. Search remains in the dedicated search field below;
-            // Settings is intentionally kept out of Home to match the agreed compact header.
             HomeHeaderIcon(Icons.Outlined.Message, "Pesan")
             Spacer(Modifier.width(8.dp))
             Box {
