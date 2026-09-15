@@ -1,5 +1,7 @@
 package com.kakaanime.app.provider
 
+import android.util.Log
+
 class ProviderEngine(
     private val registry: ProviderRegistry
 ) {
@@ -20,6 +22,22 @@ class ProviderEngine(
         val deduplicated = ProviderStreamDeduplicator.deduplicate(rawStreams, providerPriorities)
         val normalized = StreamNormalizer.normalize(deduplicated)
 
+        Log.d(
+            TAG,
+            "STREAM_CCTV_ENGINE_STREAMS animeId=$animeId episode=$episodeNumber " +
+                "raw=${rawStreams.size} dedup=${deduplicated.size} normalized=${normalized.size} " +
+                "types=${normalized.groupingBy { it.type }.eachCount()} " +
+                "qualities=${normalized.groupingBy { it.quality }.eachCount()}"
+        )
+        normalized.take(12).forEachIndexed { index, stream ->
+            Log.d(
+                TAG,
+                "STREAM_CCTV_ENGINE_CANDIDATE[$index] provider=${stream.providerId} " +
+                    "type=${stream.type} quality=${stream.quality} premium=${stream.isPremium} " +
+                    "headers=${stream.headers.keys} url=${stream.url.take(180)}"
+            )
+        }
+
         return NormalizedEpisodeStream(
             animeId = animeId,
             episodeNumber = episodeNumber,
@@ -34,10 +52,22 @@ class ProviderEngine(
         premium: Boolean = false
     ): NormalizedStream? {
         val result = getEpisodeStreams(animeId, episodeNumber)
-        return StreamSelector.best(
+        val selected = StreamSelector.best(
             streams = result.streams,
             preferredQuality = preferredQuality,
             premium = premium
         )
+        Log.d(
+            TAG,
+            "STREAM_CCTV_ENGINE_SELECTION animeId=$animeId episode=$episodeNumber " +
+                "preferred=$preferredQuality premium=$premium selected=" +
+                "${selected?.providerId ?: "NONE"} type=${selected?.type ?: "NONE"} " +
+                "quality=${selected?.quality ?: "NONE"} url=${selected?.url?.take(180) ?: "none"}"
+        )
+        return selected
+    }
+
+    private companion object {
+        const val TAG = "KakaAnime-StreamCCTV"
     }
 }
