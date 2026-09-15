@@ -1,6 +1,7 @@
 package com.kakaanime.app.player.core
 
 import android.content.Context
+import android.util.Log
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MimeTypes
 import androidx.media3.common.PlaybackParameters
@@ -31,13 +32,21 @@ class PlayerCore(
     private val listener = object : Player.Listener {
         override fun onPlaybackStateChanged(playbackState: Int) {
             isReady = playbackState == Player.STATE_READY
+            Log.d(TAG, "STREAM_CCTV_PLAYER_STATE state=$playbackState ready=$isReady")
         }
         override fun onIsPlayingChanged(playing: Boolean) {
             isPlaying = playing
+            Log.d(TAG, "STREAM_CCTV_PLAYER_PLAYING playing=$playing")
         }
         override fun onPlayerError(error: PlaybackException) {
             hasError = true
             errorMessage = error.message
+            Log.e(
+                TAG,
+                "STREAM_CCTV_PLAYER_ERROR code=${error.errorCodeName} " +
+                    "message=${error.message ?: "none"} " +
+                    "cause=${causeChain(error.cause)}"
+            )
         }
     }
 
@@ -46,8 +55,13 @@ class PlayerCore(
     }
 
     fun setVideo(url: String) {
-        val stream = StreamMetadataCache.find(url)
-            ?: NormalizedStream(providerId = "", url = url)
+        val cached = StreamMetadataCache.find(url)
+        Log.d(
+            TAG,
+            "STREAM_CCTV_PLAYER_INPUT metadata=${cached != null} type=${cached?.type ?: StreamType.UNKNOWN} " +
+                "provider=${cached?.providerId ?: ""} url=${url.take(180)}"
+        )
+        val stream = cached ?: NormalizedStream(providerId = "", url = url)
         setVideo(stream)
     }
 
@@ -55,6 +69,12 @@ class PlayerCore(
         hasError = false
         errorMessage = null
         isReady = false
+
+        Log.d(
+            TAG,
+            "STREAM_CCTV_PLAYER_MEDIA type=${stream.type} quality=${stream.quality} " +
+                "provider=${stream.providerId} headers=${stream.headers.keys} url=${stream.url.take(180)}"
+        )
 
         val mediaItem = MediaItem.Builder()
             .setUri(stream.url)
@@ -73,6 +93,7 @@ class PlayerCore(
 
         player.setMediaSource(mediaSource)
         player.prepare()
+        Log.d(TAG, "STREAM_CCTV_PLAYER_PREPARE type=${stream.type} url=${stream.url.take(180)}")
     }
 
     private fun mimeTypeFor(type: StreamType): String? = when (type) {
@@ -82,6 +103,12 @@ class PlayerCore(
         StreamType.UNKNOWN -> null
     }
 
+    private fun causeChain(cause: Throwable?): String =
+        generateSequence(cause) { it.cause }
+            .take(5)
+            .joinToString(" -> ") { it::class.java.simpleName + ": " + (it.message ?: "") }
+            .ifBlank { "none" }
+
     fun play() = player.play()
     fun pause() = player.pause()
     fun togglePlayPause() { if (player.isPlaying) pause() else play() }
@@ -90,4 +117,8 @@ class PlayerCore(
     fun seekTo(position: Long) = player.seekTo(position.coerceAtLeast(0L))
     fun setSpeed(speed: Float) = player.setPlaybackParameters(PlaybackParameters(speed))
     fun release() { player.removeListener(listener); player.release() }
+
+    private companion object {
+        const val TAG = "KakaAnime-StreamCCTV"
+    }
 }
