@@ -15,13 +15,41 @@ import androidx.compose.ui.unit.dp
 fun KakaBottomNavigation(selectedTab: Any, onTabSelected: (Any) -> Unit) {
     val labels = listOf("Home", "Calendar", "Social", "Library", "Profile")
     val icons = listOf(Icons.Outlined.Home, Icons.Outlined.CalendarMonth, Icons.Outlined.Groups, Icons.Outlined.CollectionsBookmark, Icons.Outlined.Person)
-    Surface(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp), RoundedCornerShape(26.dp), color = MaterialTheme.colorScheme.surface.copy(alpha = .96f), tonalElevation = 6.dp, shadowElevation = 10.dp) {
-        Row(Modifier.fillMaxWidth().padding(6.dp), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
+    Surface(
+        Modifier
+            .fillMaxWidth()
+            .navigationBarsPadding()
+            .padding(horizontal = 12.dp, vertical = 6.dp),
+        RoundedCornerShape(26.dp),
+        color = MaterialTheme.colorScheme.surface.copy(alpha = .96f),
+        tonalElevation = 6.dp,
+        shadowElevation = 10.dp
+    ) {
+        Row(
+            Modifier.fillMaxWidth().padding(6.dp),
+            horizontalArrangement = Arrangement.SpaceEvenly,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
             labels.indices.forEach { index ->
                 val selected = selectedTab.toString().substringAfterLast('.').equals(labels[index].uppercase(), true)
-                Column(Modifier.weight(1f).clickable { onTabSelected(selectedTabFromIndex(index, selectedTab)) }.padding(vertical = 5.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                    Icon(icons[index], labels[index], tint = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(23.dp))
-                    Text(labels[index], style = MaterialTheme.typography.labelMedium, color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
+                Column(
+                    Modifier
+                        .weight(1f)
+                        .clickable { onTabSelected(selectedTabFromIndex(index, selectedTab)) }
+                        .padding(vertical = 5.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Icon(
+                        icons[index],
+                        labels[index],
+                        tint = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(23.dp)
+                    )
+                    Text(
+                        labels[index],
+                        style = MaterialTheme.typography.labelMedium,
+                        color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
             }
         }
