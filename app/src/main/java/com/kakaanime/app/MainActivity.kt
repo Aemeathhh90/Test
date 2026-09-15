@@ -2,6 +2,7 @@ package com.kakaanime.app
 
 import android.app.Activity
 import android.os.Bundle
+import androidx.activity.BackHandler
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.animation.AnimatedContent
@@ -270,6 +271,22 @@ fun KakaAnimeApp() {
         selectedAnime != null && selectedEpisode != null -> AnimeScreen.PLAYER
         selectedAnime != null -> AnimeScreen.DETAIL
         else -> AnimeScreen.HOME
+    }
+
+    BackHandler {
+        when {
+            episodeGateTarget != null -> episodeGateTarget = null
+            playerUnlockTarget != null -> cancelPlayerUnlock()
+            selectedEpisode != null -> selectedEpisode = null
+            selectedAnime != null -> selectedAnime = null
+            showPremium -> showPremium = false
+            showWatchTogether -> {
+                showWatchTogether = false
+                selectedTab = BottomTab.SOCIAL
+            }
+            selectedTab != BottomTab.HOME -> selectedTab = BottomTab.HOME
+            else -> activity?.finish()
+        }
     }
 
     KakaAnimeTheme(themeState = themeState) {
