@@ -64,7 +64,11 @@ class KakaThemeState(
     var accent by mutableStateOf(accent)
     var mode by mutableStateOf(mode)
 
-    /** Kept for existing screens that still read/write the old boolean setting. */
+    constructor(accent: KakaAccent, darkMode: Boolean) : this(
+        accent = accent,
+        mode = if (darkMode) KakaThemeMode.DARK else KakaThemeMode.LIGHT
+    )
+
     var darkMode: Boolean
         get() = mode == KakaThemeMode.DARK
         set(value) { mode = if (value) KakaThemeMode.DARK else KakaThemeMode.LIGHT }
