@@ -27,8 +27,9 @@ jobs:
           target: google_apis
           arch: x86_64
           profile: pixel_2
-          emulator-options: -no-window -no-audio -no-boot-anim -gpu swiftshader_indirect
+          emulator-options: -no-window -no-audio -no-boot-anim -gpu swiftshader_indirect -no-snapshot
           disable-animations: true
+          emulator-boot-timeout: 1200000
           script: |
             # android-emulator-runner invokes the script through sh on this runner.
             # Re-exec under bash because we use PIPESTATUS below.
