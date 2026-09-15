@@ -7,6 +7,7 @@ import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Stable
+import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -74,6 +75,8 @@ class KakaThemeState(
         set(value) { mode = if (value) KakaThemeMode.DARK else KakaThemeMode.LIGHT }
 }
 
+val LocalKakaThemeState = compositionLocalOf { KakaThemeState() }
+
 @Composable
 fun rememberKakaThemeState(): KakaThemeState = remember { KakaThemeState() }
 
@@ -93,5 +96,7 @@ fun KakaAnimeTheme(
     } else {
         lightColorScheme(primary = accent.primary, secondary = accent.secondary, background = Color(0xFFF5F8FC), surface = Color.White, surfaceVariant = Color(0xFFE9F0F7))
     }
-    MaterialTheme(colorScheme = colors, typography = KakaTypography, content = content)
+    CompositionLocalProvider(LocalKakaThemeState provides themeState) {
+        MaterialTheme(colorScheme = colors, typography = KakaTypography, content = content)
+    }
 }
