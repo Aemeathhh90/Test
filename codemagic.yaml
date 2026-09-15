@@ -1,0 +1,56 @@
+workflows:
+  android-debug:
+    name: KakaAnime Android Debug
+    max_build_duration: 60
+    instance_type: mac_mini_m2
+    scripts:
+      - name: Set Android SDK location
+        script: echo "sdk.dir=$ANDROID_SDK_ROOT" > "$CM_BUILD_DIR/local.properties"
+      - name: Make Gradle executable
+        script: chmod +x ./gradlew
+      - name: Assemble debug APK
+        script: ./gradlew :app:assembleDebug --stacktrace
+      - name: Assemble Android test APK
+        script: ./gradlew :app:assembleDebugAndroidTest --stacktrace
+    artifacts:
+      - app/build/outputs/apk/debug/*.apk
+      - app/build/outputs/apk/androidTest/debug/*.apk
+
+  provider-e2e:
+    name: KakaAnime Provider E2E - emulator.wtf
+    max_build_duration: 60
+    instance_type: mac_mini_m2
+    environment:
+      groups:
+        - emulatorwtf
+    scripts:
+      - name: Set Android SDK location
+        script: echo "sdk.dir=$ANDROID_SDK_ROOT" > "$CM_BUILD_DIR/local.properties"
+      - name: Make Gradle executable
+        script: chmod +x ./gradlew
+      - name: Build app and instrumentation APKs
+        script: ./gradlew :app:assembleDebug :app:assembleDebugAndroidTest --stacktrace
+      - name: Install emulator.wtf CLI
+        script: |
+          mkdir -p "$HOME/bin"
+          curl https://maven.emulator.wtf/releases/ew-cli -o "$HOME/bin/ew-cli"
+          chmod a+x "$HOME/bin/ew-cli"
+          export PATH="$HOME/bin:$PATH"
+          ew-cli --version
+      - name: Run Otakudesu Episode 7 FIRST FRAME E2E
+        script: |
+          export PATH="$HOME/bin:$PATH"
+          mkdir -p provider-e2e-results
+          ew-cli \
+            --app app/build/outputs/apk/debug/app-debug.apk \
+            --test app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk \
+            --device model=Pixel7,version=34 \
+            --test-targets "class com.kakaanime.app.provider.OtakudesuProviderE2ETest#onePieceEpisodeSevenRendersFirstFrame" \
+            --record-video \
+            --side-effects \
+            --timeout 10m \
+            --outputs-dir provider-e2e-results
+    artifacts:
+      - provider-e2e-results/**
+      - app/build/outputs/apk/debug/*.apk
+      - app/build/outputs/apk/androidTest/debug/*.apk
