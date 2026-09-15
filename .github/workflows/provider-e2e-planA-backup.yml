@@ -1,0 +1,61 @@
+name: Provider E2E (Plan A Backup)
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  provider-e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: gradle
+
+      - name: Run provider E2E with full CCTV
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          target: google_apis
+          arch: x86_64
+          profile: pixel_2
+          emulator-options: -no-window -no-audio -no-boot-anim -gpu swiftshader_indirect
+          disable-animations: true
+          script: |
+            set +e
+            mkdir -p provider-cctv
+            adb start-server
+            adb logcat -c
+            ./gradlew :app:connectedDebugAndroidTest \
+              -Pandroid.testInstrumentationRunnerArguments.class=com.kakaanime.app.provider.OtakudesuProviderE2ETest#onePieceEpisodeSevenRendersFirstFrame,com.kakaanime.app.provider.SamehadakuEpisodeDiagnosticsTest#onePieceEpisodeSevenReportsServerHosts,com.kakaanime.app.provider.SamehadakuProviderE2ETest#onePieceEpisodeSevenRendersFirstFrame \
+              --stacktrace 2>&1 | tee provider-cctv/gradle-e2e.log
+            TEST_EXIT=${PIPESTATUS[0]}
+            adb logcat -d -v threadtime > provider-cctv/logcat-full.txt
+            grep -E 'STREAM_CCTV_|PROVIDER_CCTV_|E2E_PROVIDER=|Samehadaku|Otakudesu' provider-cctv/logcat-full.txt > provider-cctv/cctv-filtered.txt || true
+            {
+              echo "TEST_EXIT=$TEST_EXIT"
+              echo "--- CCTV COUNTS ---"
+              printf 'STREAM_CCTV='; grep -c 'STREAM_CCTV_' provider-cctv/logcat-full.txt || true
+              printf 'PROVIDER_CCTV='; grep -c 'PROVIDER_CCTV_' provider-cctv/logcat-full.txt || true
+              printf 'E2E_PROVIDER='; grep -c 'E2E_PROVIDER=' provider-cctv/logcat-full.txt || true
+              echo "--- LAST CCTV LINES ---"
+              grep -E 'STREAM_CCTV_|PROVIDER_CCTV_|E2E_PROVIDER=' provider-cctv/logcat-full.txt | tail -n 200 || true
+            } > provider-cctv/cctv-summary.txt
+            exit "$TEST_EXIT"
+
+      - name: Upload full provider CCTV
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: provider-e2e-cctv
+          path: provider-cctv/
+          if-no-files-found: warn
+          retention-days: 14
