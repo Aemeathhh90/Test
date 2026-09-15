@@ -76,9 +76,7 @@ fun HomeV1Screen(
         contentPadding = PaddingValues(16.dp, 10.dp, 16.dp, 116.dp),
         verticalArrangement = Arrangement.spacedBy(18.dp),
     ) {
-        item {
-            HomeTopBar(query, { query = it }, showFilters, { showFilters = !showFilters }, onNotificationsClick)
-        }
+        item { HomeTopBar(query, { query = it }, showFilters, { showFilters = !showFilters }, onNotificationsClick) }
         if (showFilters) {
             item {
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -88,16 +86,10 @@ fun HomeV1Screen(
                 }
             }
         }
-        item {
-            HomeProfileHeader(state.username, state.diamonds, state.isPremium, onProfileClick, onDiamondClick, onPremiumClick, onWatchTogetherClick)
-        }
+        item { HomeProfileHeader(state.username, state.diamonds, state.isPremium, onProfileClick, onDiamondClick, onPremiumClick, onWatchTogetherClick) }
         if (query.isBlank()) {
-            if (state.continueWatching.isNotEmpty()) {
-                item { HomeContinueSection(state.continueWatching, onContinueWatchingClick) }
-            }
-            item {
-                HomeAnimeSection("New Updates", state.anime.filter { it.isNew }.ifEmpty { state.anime.sortedByDescending { it.latestEpisode } }, onAnimeClick, "NEW")
-            }
+            if (state.continueWatching.isNotEmpty()) item { HomeContinueSection(state.continueWatching, onContinueWatchingClick) }
+            item { HomeAnimeSection("New Updates", state.anime.filter { it.isNew }.ifEmpty { state.anime.sortedByDescending { it.latestEpisode } }, onAnimeClick, "NEW") }
             item { HomeAnimeSection("Trending Now", state.anime, onAnimeClick) }
         } else {
             item {
@@ -125,7 +117,7 @@ private fun HomeTopBar(query: String, onQueryChange: (String) -> Unit, showFilte
         }
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             OutlinedTextField(query, onQueryChange, Modifier.weight(1f), singleLine = true, shape = RoundedCornerShape(16.dp), leadingIcon = { Icon(Icons.Outlined.Search, "Cari") }, placeholder = { Text("Cari anime, genre, atau studio...") })
-            Surface(onClick = onFilterClick, Modifier.size(54.dp), RoundedCornerShape(16.dp), color = if (showFilters) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = .55f)) {
+            Surface(onClick = onFilterClick, modifier = Modifier.size(54.dp), shape = RoundedCornerShape(16.dp), color = if (showFilters) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = .55f)) {
                 Box(contentAlignment = Alignment.Center) { Icon(Icons.Outlined.Tune, "Filter") }
             }
         }
