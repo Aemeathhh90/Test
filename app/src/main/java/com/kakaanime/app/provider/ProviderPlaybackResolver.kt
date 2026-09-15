@@ -1,9 +1,13 @@
 package com.kakaanime.app.provider
 
-/** Resolves playable streams and provider episode lists without exposing provider details to the UI. */
+/**
+ * Compatibility facade for the app layer.
+ *
+ * The provider implementation now lives in the standalone `vider` library.
+ * This facade keeps the existing app-facing package/API stable while the
+ * migration is completed without duplicating provider behavior.
+ */
 object ProviderPlaybackResolver {
-    private val engine by lazy { ProviderFactory.createEngine() }
-
     suspend fun resolve(
         title: String,
         episodeNumber: Int,
@@ -12,128 +16,77 @@ object ProviderPlaybackResolver {
         seasonNumber: Int? = null,
         seasonTitle: String? = null,
     ): NormalizedStream? {
-        val candidates = findCandidates(title, seasonNumber, seasonTitle)
-        if (candidates.isEmpty()) return null
+        val resolved = com.kakaanime.provider.ProviderPlaybackResolver.resolve(
+            title = title,
+            episodeNumber = episodeNumber,
+            premium = premium,
+            preferredQuality = preferredQuality?.toLibraryQuality(),
+            seasonNumber = seasonNumber,
+            seasonTitle = seasonTitle,
+        ) ?: return null
 
-        val ordered = candidates
-            .sortedWith(compareBy<ProviderAnime> { it.providerId.isBlank() }.thenByDescending { it.latestEpisode ?: 0 })
-
-        for (candidate in ordered) {
-            val stream = runCatching {
-                engine.getBestStream(
-                    animeId = candidate.id,
-                    episodeNumber = episodeNumber,
-                    preferredQuality = preferredQuality,
-                    premium = premium
-                )
-            }.getOrNull()
-            if (stream != null && stream.url.isNotBlank()) return stream
-        }
-
-        return null
+        return NormalizedStream(
+            providerId = resolved.providerId,
+            url = resolved.url,
+            quality = resolved.quality.toAppQuality(),
+            type = resolved.type.toAppStreamType(),
+            language = resolved.language,
+            subtitleLanguage = resolved.subtitleLanguage,
+            headers = resolved.headers,
+            isPremium = resolved.isPremium,
+        )
     }
 
     suspend fun episodes(
         title: String,
         seasonNumber: Int? = null,
         seasonTitle: String? = null,
-    ): List<ProviderEpisode> {
-        val candidates = findCandidates(title, seasonNumber, seasonTitle)
-        if (candidates.isEmpty()) return emptyList()
-
-        val ordered = candidates
-            .sortedWith(compareBy<ProviderAnime> { it.providerId.isBlank() }.thenByDescending { it.latestEpisode ?: 0 })
-
-        for (candidate in ordered) {
-            val episodes = runCatching { engine.getEpisodes(candidate.id) }
-                .getOrDefault(emptyList())
-                .filter { it.number > 0 }
-                .distinctBy { it.number }
-                .sortedByDescending { it.number }
-            if (episodes.isNotEmpty()) return episodes
+    ): List<ProviderEpisode> =
+        com.kakaanime.provider.ProviderPlaybackResolver.episodes(
+            title = title,
+            seasonNumber = seasonNumber,
+            seasonTitle = seasonTitle,
+        ).map { episode ->
+            ProviderEpisode(
+                id = episode.id,
+                animeId = episode.animeId,
+                number = episode.number,
+                providerId = episode.providerId,
+                title = episode.title,
+                thumbnailUrl = episode.thumbnailUrl,
+                isNew = episode.isNew,
+                releasedAt = episode.releasedAt,
+                animeGroupId = episode.animeGroupId,
+                seasonNumber = episode.seasonNumber,
+                seasonTitle = episode.seasonTitle,
+                availability = when (episode.availability) {
+                    com.kakaanime.provider.EpisodeAvailability.AVAILABLE -> EpisodeAvailability.AVAILABLE
+                    com.kakaanime.provider.EpisodeAvailability.NOT_AVAILABLE -> EpisodeAvailability.NOT_AVAILABLE
+                    com.kakaanime.provider.EpisodeAvailability.NOT_RELEASED -> EpisodeAvailability.NOT_RELEASED
+                },
+            )
         }
 
-        return emptyList()
+    private fun StreamQuality.toLibraryQuality(): com.kakaanime.provider.StreamQuality = when (this) {
+        StreamQuality.Q360 -> com.kakaanime.provider.StreamQuality.Q360
+        StreamQuality.Q480 -> com.kakaanime.provider.StreamQuality.Q480
+        StreamQuality.Q720 -> com.kakaanime.provider.StreamQuality.Q720
+        StreamQuality.Q1080 -> com.kakaanime.provider.StreamQuality.Q1080
+        StreamQuality.UNKNOWN -> com.kakaanime.provider.StreamQuality.UNKNOWN
     }
 
-    private suspend fun findCandidates(
-        title: String,
-        seasonNumber: Int?,
-        seasonTitle: String?,
-    ): List<ProviderAnime> {
-        val normalizedTitle = title.trim()
-        if (normalizedTitle.isBlank()) return emptyList()
-
-        val queries = buildList {
-            if (seasonNumber != null) {
-                add("$normalizedTitle Season $seasonNumber")
-                add("$normalizedTitle S$seasonNumber")
-            }
-            seasonTitle?.trim()?.takeIf { it.isNotBlank() }?.let { add("$normalizedTitle $it") }
-            add(normalizedTitle)
-        }.distinct()
-
-        for (query in queries) {
-            val results = runCatching { engine.search(query) }.getOrDefault(emptyList())
-            if (results.isEmpty()) continue
-            if (seasonNumber == null) return results
-
-            val matching = results.filter { candidate ->
-                candidate.seasonNumber == seasonNumber ||
-                    SeasonIdentityParser.parse(candidate.title, candidate.id).seasonNumber == seasonNumber
-            }
-            if (matching.isNotEmpty()) return matching
-        }
-
-        return emptyList()
+    private fun com.kakaanime.provider.StreamQuality.toAppQuality(): StreamQuality = when (this) {
+        com.kakaanime.provider.StreamQuality.Q360 -> StreamQuality.Q360
+        com.kakaanime.provider.StreamQuality.Q480 -> StreamQuality.Q480
+        com.kakaanime.provider.StreamQuality.Q720 -> StreamQuality.Q720
+        com.kakaanime.provider.StreamQuality.Q1080 -> StreamQuality.Q1080
+        com.kakaanime.provider.StreamQuality.UNKNOWN -> StreamQuality.UNKNOWN
     }
-}
 
-/**
- * Conservative parser for explicit season markers in provider titles/ids.
- * Ambiguous titles remain unnumbered rather than being guessed.
- */
-data class SeasonIdentity(
-    val animeGroupId: String,
-    val seasonNumber: Int?,
-    val seasonTitle: String?,
-    val searchAliases: List<String>,
-)
-
-object SeasonIdentityParser {
-    private val seasonPattern = Regex(
-        "(?:\\bseason\\s*(\\d+)\\b|\\bs(?:eason)?\\s*(\\d+)\\b)",
-        RegexOption.IGNORE_CASE,
-    )
-
-    fun parse(title: String, slug: String = ""): SeasonIdentity {
-        val source = "$title $slug"
-        val match = seasonPattern.find(source)
-        val number = match?.groupValues?.drop(1)?.firstOrNull { it.isNotBlank() }?.toIntOrNull()
-        val normalizedTitle = title.trim().replace(Regex("\\s+"), " ")
-        val groupTitle = normalizedTitle
-            .replace(Regex("\\s*[-:]?\\s*season\\s*\\d+\\b", RegexOption.IGNORE_CASE), "")
-            .replace(Regex("\\s*[-:]?\\s*s(?:eason)?\\s*\\d+\\b", RegexOption.IGNORE_CASE), "")
-            .trim()
-            .ifBlank { normalizedTitle }
-        val groupId = groupTitle
-            .lowercase()
-            .replace(Regex("[^a-z0-9]+"), "-")
-            .trim('-')
-            .ifBlank { "unknown" }
-        val aliases = buildList {
-            add(groupTitle)
-            if (number != null) {
-                add("$groupTitle Season $number")
-                add("$groupTitle S$number")
-            }
-            add(normalizedTitle)
-        }.distinct()
-        return SeasonIdentity(
-            animeGroupId = groupId,
-            seasonNumber = number,
-            seasonTitle = number?.let { "Season $it" },
-            searchAliases = aliases,
-        )
+    private fun com.kakaanime.provider.StreamType.toAppStreamType(): StreamType = when (this) {
+        com.kakaanime.provider.StreamType.HLS -> StreamType.HLS
+        com.kakaanime.provider.StreamType.DASH -> StreamType.DASH
+        com.kakaanime.provider.StreamType.MP4 -> StreamType.MP4
+        com.kakaanime.provider.StreamType.UNKNOWN -> StreamType.UNKNOWN
     }
 }
