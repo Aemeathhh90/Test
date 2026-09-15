@@ -1,46 +1,91 @@
 # KakaAnime Checkpoint System
 
-This folder is the source for project continuity and technical history.
+This folder is the source for project continuity, locked decisions, technical diagnosis, and historical validation.
 
-## Structure
+## Source of truth
 
-- `MASTER_CHECKPOINT.md` — compact project dashboard and locked rules.
-- `PROVIDER_MAPPING.md` — global map of the 29 provider targets and their families.
-- `providers/` — one technical checkpoint per provider. Create/update the provider file when that provider is actively audited or changed.
+- `main` is the integration/release source of truth.
+- `checkpoint/MASTER_CHECKPOINT.md` is the compact project dashboard and locked-rule reference.
+- Historical checkpoints are evidence, not disposable changelogs.
+
+## Mandatory work order — LOCKED
+
+Before **any audit, investigation, implementation, refactor, dependency change, or workflow change**:
+
+```text
+CHECK CURRENT REPO
+      ↓
+CHECK BRANCH + LATEST COMMIT
+      ↓
+READ RELEVANT CHECKPOINT / HISTORY
+      ↓
+INSPECT CURRENT CODE / WORKFLOW / LOGS
+      ↓
+AUDIT ROOT CAUSE OR DESIGN STATE
+      ↓
+REFERENCE CHECK IF NEEDED
+      ↓
+IMPLEMENT
+      ↓
+VALIDATE
+      ↓
+CHECKPOINT
+```
+
+Never begin from an assumption that the repository still matches an older conversation, screenshot, or memory.
+
+## Checkpoint structure
+
+- `MASTER_CHECKPOINT.md` — compact status, locked rules, architecture gates.
+- `PROVIDER_MAPPING.md` — provider map and provider-family decisions.
+- `providers/` — provider-specific technical checkpoints.
 - `extractors/` — extractor and stream-resolution architecture history.
 - `backend/` — backend architecture and audit notes.
 - `player/` — Media3/video-player decisions and validation.
-- `ui/` — UI architecture and decisions.
-- `builds/` — historical CI/E2E build checkpoints.
+- `ui/` — UI architecture and locked UI decisions.
+- `social/` — Social/Profile decisions.
+- `builds/` — historical CI/E2E validation.
+- `audit/` — audit evidence and root-cause investigations.
+- `recovery/` — recovery/rollback evidence.
+- `bughunter/` — focused bug-hunting records.
+- `data/` — data/model-related checkpoints.
 
-## Rules
+### Active vs historical
 
-1. `main` is the source of truth.
-2. Do not overwrite historical checkpoints.
-3. Every meaningful code/config/architecture change gets recorded.
-4. Provider status is not green until Media3 reaches `onRenderedFirstFrame()`.
-5. Provider-specific mapping belongs in `providers/<PROVIDER>_CHECKPOINT.md`.
-6. Do not invent provider details before the provider is actually audited.
+`MASTER_CHECKPOINT.md` and this README are the active index. Topic-specific files preserve history and should not be rewritten merely to make the latest state look cleaner. When a decision changes, add a new checkpoint/addendum and link the old decision rather than erasing its history.
 
-## Audit → Reference → Fix → Validate rule
+## Audit → Reference → Fix → Validate
 
-For every meaningful technical bug, use this order:
+For every meaningful technical bug or architecture change:
 
-1. **Audit first** — identify the exact failing stage and root-cause candidates from the current code/logs.
-2. **Reference check** — search CloudStream, official Android/Media3 documentation, GitHub implementations, or other proven implementations when the problem involves provider/extractor/player architecture.
-3. **Compatibility decision** — explicitly state whether the reference fits AniLab/KakaAnime's current architecture. Do not copy a reference blindly.
-4. **Fix** — implement the smallest native AniLab change that addresses the proven root cause. Do not stack speculative patches.
-5. **Validate** — run the relevant build/E2E gate and inspect the new evidence.
-6. **Escalate only when needed** — if the fix still fails, decide whether another reference search is useful. Search again when the new evidence points to a different or more specific technical problem; otherwise continue debugging from the evidence.
-7. **Checkpoint** — record the audit, reference decision, code/config change, validation result, and classification (`BUG`, `WORKAROUND`, `ENHANCEMENT`, `LOCKED`, or `BLOCKED`) when the change is meaningful.
+1. **Audit first** — use the current repository, code, logs, and relevant checkpoint history.
+2. **Reference check** — search CloudStream, official Android/Media3 documentation, GitHub implementations, or other proven implementations when useful.
+3. **Compatibility decision** — explicitly state whether the reference fits KakaAnime's current architecture. Do not copy a reference blindly.
+4. **Fix / implement** — make the smallest change supported by the evidence.
+5. **Validate** — run the relevant build/test gate and inspect the new evidence.
+6. **Checkpoint** — record what changed, why, evidence, validation, and classification when meaningful.
 
-### Practical shorthand
+### Classification
 
-- **Fix?** → Yes, when the root cause is sufficiently supported.
-- **Cari referensi?** → Yes when external/proven patterns can reduce uncertainty; no when the current evidence is already sufficient and another search would add noise.
-- **Cocok?** → Always compare the reference against AniLab's existing architecture before implementation.
-- **Fix dulu atau cari lagi?** → If a proven compatible reference exists, fix. If the root cause remains uncertain or the reference does not match, search/audit again first.
+- 🔴 **BUG** — implementation/logic/configuration is wrong.
+- 🟡 **WORKAROUND** — temporary solution; keep looking for a final fix when appropriate.
+- 🟢 **ENHANCEMENT** — working system improvement.
+- ⚪ **LOCKED** — proven decision/behavior; do not change without technical reason.
+- ⚫ **BLOCKED** — proven external/technical blocker after audit.
+
+## Testing rules
+
+- Android Build is the routine validation gate.
+- Provider E2E is manual-only and is used when provider → stream → playback evidence is required.
+- UI/UX work does not wait for Provider E2E when provider behavior is unrelated.
+- GitHub Actions are not dispatched by the assistant; the user manually starts E2E when requested.
+
+## Work split
+
+- `Aemeathhh90/vider` — dedicated Provider workspace.
+- `Aemeathhh90/uy-uk` — dedicated UI/UX workspace.
+- `Aemeathhh90/Test` — main integration/release repository and historical safety net.
 
 ## Migration note
 
-Older checkpoint files that still exist at repository root are historical documents being migrated into this structure. Their Git history remains intact; migration does not rewrite historical commits.
+Older checkpoint files remain preserved so their Git history and diagnostic value are not lost. Cleanup means creating a clear index and separating active state from history; it does **not** mean deleting useful evidence.
