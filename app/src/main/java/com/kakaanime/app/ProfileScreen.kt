@@ -129,7 +129,7 @@ fun ProfileScreen(
                 Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Box(Modifier.fillMaxWidth().height(178.dp).clip(RoundedCornerShape(20.dp))) {
                         if (bannerUri != null) {
-                            AsyncImage(bannerUri, "Banner profil", Modifier.fillMaxWidth().height(142.dp), contentScale = ContentScale.Crop)
+                            AsyncImage(model = bannerUri, contentDescription = "Banner profil", modifier = Modifier.fillMaxWidth().height(142.dp), contentScale = ContentScale.Crop)
                         } else {
                             Box(Modifier.fillMaxWidth().height(142.dp).background(Brush.linearGradient(listOf(avatarColor.copy(alpha = .82f), MaterialTheme.colorScheme.primary.copy(alpha = .62f), Color(0xFF101827)))))
                         }
@@ -143,8 +143,8 @@ fun ProfileScreen(
                         Row(Modifier.align(Alignment.BottomStart).padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.Bottom) {
                             Box(Modifier.size(72.dp).clip(CircleShape).background(avatarColor), contentAlignment = Alignment.Center) {
                                 when {
-                                    monetizationState.isPremium && animatedProfileUri != null -> AsyncImage(animatedProfileUri, "Animated profile", Modifier.fillMaxSize(), imageLoader = gifImageLoader, contentScale = ContentScale.Crop)
-                                    profilePhotoUri != null -> AsyncImage(profilePhotoUri, "Foto profil", Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+                                    monetizationState.isPremium && animatedProfileUri != null -> AsyncImage(model = animatedProfileUri, contentDescription = "Animated profile", modifier = Modifier.fillMaxSize(), imageLoader = gifImageLoader, contentScale = ContentScale.Crop)
+                                    profilePhotoUri != null -> AsyncImage(model = profilePhotoUri, contentDescription = "Foto profil", modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
                                     else -> Text(initials, fontSize = 20.sp, fontWeight = FontWeight.Black, color = Color.White)
                                 }
                             }
@@ -161,9 +161,9 @@ fun ProfileScreen(
                     }
 
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        ProfileQuickCard(Icons.Outlined.Diamond, "${monetizationState.diamonds}", "Diamond") {}
-                        ProfileQuickCard(Icons.Outlined.Star, if (monetizationState.isPremium) "Premium" else "Free", "Membership") { onPremiumClick() }
-                        ProfileQuickCard(Icons.Outlined.Groups, "Watch", "Together") { }
+                        ProfileQuickCard(Modifier.weight(1f), Icons.Outlined.Diamond, "${monetizationState.diamonds}", "Diamond") {}
+                        ProfileQuickCard(Modifier.weight(1f), Icons.Outlined.Star, if (monetizationState.isPremium) "Premium" else "Free", "Membership") { onPremiumClick() }
+                        ProfileQuickCard(Modifier.weight(1f), Icons.Outlined.Groups, "Watch", "Together") { }
                     }
                 }
             }
@@ -224,8 +224,8 @@ fun ProfileScreen(
     if (showAbout) SimpleDialog("About KakaAnime", "KakaAnime — anime always with you.") { showAbout = false }
 }
 
-@Composable private fun ProfileQuickCard(icon: androidx.compose.ui.graphics.vector.ImageVector, value: String, label: String, onClick: () -> Unit) {
-    Surface(Modifier.weight(1f).height(66.dp).clickable(onClick = onClick), RoundedCornerShape(17.dp), color = MaterialTheme.colorScheme.background.copy(alpha = .42f)) {
+@Composable private fun ProfileQuickCard(modifier: Modifier, icon: androidx.compose.ui.graphics.vector.ImageVector, value: String, label: String, onClick: () -> Unit) {
+    Surface(modifier.height(66.dp).clickable(onClick = onClick), RoundedCornerShape(17.dp), color = MaterialTheme.colorScheme.background.copy(alpha = .42f)) {
         Column(Modifier.padding(9.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) { Icon(icon, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp)); Spacer(Modifier.height(2.dp)); Text(value, fontSize = 12.sp, fontWeight = FontWeight.Bold, maxLines = 1); Text(label, fontSize = 9.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1) }
     }
 }
@@ -234,7 +234,7 @@ fun ProfileScreen(
     Surface(Modifier.fillMaxWidth().clickable(onClick = onClick), RoundedCornerShape(19.dp), color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = .44f)) {
         Row(Modifier.padding(9.dp), verticalAlignment = Alignment.CenterVertically) {
             Box(Modifier.width(112.dp).height(68.dp).clip(RoundedCornerShape(13.dp))) {
-                if (!entry.episodeThumbnailUrl.isNullOrBlank()) AsyncImage(entry.episodeThumbnailUrl, "Episode ${entry.episode}", Modifier.fillMaxSize(), contentScale = ContentScale.Crop) else Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.surfaceVariant))
+                if (!entry.episodeThumbnailUrl.isNullOrBlank()) AsyncImage(model = entry.episodeThumbnailUrl, contentDescription = "Episode ${entry.episode}", modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop) else Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.surfaceVariant))
                 Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.scrim.copy(alpha = .22f)))
                 Box(Modifier.align(Alignment.BottomStart).padding(6.dp).clip(RoundedCornerShape(7.dp)).background(MaterialTheme.colorScheme.scrim.copy(alpha = .72f)).padding(horizontal = 5.dp, vertical = 2.dp)) { Text("EP ${entry.episode}", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface) }
             }
