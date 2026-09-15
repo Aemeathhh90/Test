@@ -2,8 +2,8 @@ package com.kakaanime.app
 
 import android.app.Activity
 import android.os.Bundle
-import androidx.activity.BackHandler
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.fadeIn
