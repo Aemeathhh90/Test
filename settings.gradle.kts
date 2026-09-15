@@ -1,3 +1,5 @@
+import java.net.URI
+
 pluginManagement {
     repositories {
         google()
@@ -15,7 +17,7 @@ dependencyResolutionManagement {
 }
 
 sourceControl {
-    gitRepository("https://github.com/Aemeathhh90/vider.git") {
+    gitRepository(URI("https://github.com/Aemeathhh90/vider.git")) {
         producesModule("com.kakaanime:provider")
     }
 }
