@@ -30,24 +30,28 @@ jobs:
           emulator-options: -no-window -no-audio -no-boot-anim -gpu swiftshader_indirect
           disable-animations: true
           script: |
-            set +e
-            mkdir -p provider-cctv
-            adb start-server
-            adb logcat -c
-            ./gradlew :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.kakaanime.app.provider.OtakudesuProviderE2ETest#onePieceEpisodeSevenRendersFirstFrame,com.kakaanime.app.provider.SamehadakuEpisodeDiagnosticsTest#onePieceEpisodeSevenReportsServerHosts,com.kakaanime.app.provider.SamehadakuProviderE2ETest#onePieceEpisodeSevenRendersFirstFrame --stacktrace 2>&1 | tee provider-cctv/gradle-e2e.log
-            TEST_EXIT=${PIPESTATUS[0]}
-            adb logcat -d -v threadtime > provider-cctv/logcat-full.txt
-            grep -E 'STREAM_CCTV_|PROVIDER_CCTV_|E2E_PROVIDER=|Samehadaku|Otakudesu' provider-cctv/logcat-full.txt > provider-cctv/cctv-filtered.txt || true
-            {
-              echo "TEST_EXIT=$TEST_EXIT"
-              echo "--- CCTV COUNTS ---"
-              printf 'STREAM_CCTV='; grep -c 'STREAM_CCTV_' provider-cctv/logcat-full.txt || true
-              printf 'PROVIDER_CCTV='; grep -c 'PROVIDER_CCTV_' provider-cctv/logcat-full.txt || true
-              printf 'E2E_PROVIDER='; grep -c 'E2E_PROVIDER=' provider-cctv/logcat-full.txt || true
-              echo "--- LAST CCTV LINES ---"
-              grep -E 'STREAM_CCTV_|PROVIDER_CCTV_|E2E_PROVIDER=' provider-cctv/logcat-full.txt | tail -n 200 || true
-            } > provider-cctv/cctv-summary.txt
-            exit "$TEST_EXIT"
+            # android-emulator-runner invokes the script through sh on this runner.
+            # Re-exec under bash because we use PIPESTATUS below.
+            exec bash -c '
+              set +e
+              mkdir -p provider-cctv
+              adb start-server
+              adb logcat -c
+              ./gradlew :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.kakaanime.app.provider.OtakudesuProviderE2ETest#onePieceEpisodeSevenRendersFirstFrame,com.kakaanime.app.provider.SamehadakuEpisodeDiagnosticsTest#onePieceEpisodeSevenReportsServerHosts,com.kakaanime.app.provider.SamehadakuProviderE2ETest#onePieceEpisodeSevenRendersFirstFrame --stacktrace 2>&1 | tee provider-cctv/gradle-e2e.log
+              TEST_EXIT=${PIPESTATUS[0]}
+              adb logcat -d -v threadtime > provider-cctv/logcat-full.txt
+              grep -E "STREAM_CCTV_|PROVIDER_CCTV_|E2E_PROVIDER=|Samehadaku|Otakudesu" provider-cctv/logcat-full.txt > provider-cctv/cctv-filtered.txt || true
+              {
+                echo "TEST_EXIT=$TEST_EXIT"
+                echo "--- CCTV COUNTS ---"
+                printf "STREAM_CCTV="; grep -c "STREAM_CCTV_" provider-cctv/logcat-full.txt || true
+                printf "PROVIDER_CCTV="; grep -c "PROVIDER_CCTV_" provider-cctv/logcat-full.txt || true
+                printf "E2E_PROVIDER="; grep -c "E2E_PROVIDER=" provider-cctv/logcat-full.txt || true
+                echo "--- LAST CCTV LINES ---"
+                grep -E "STREAM_CCTV_|PROVIDER_CCTV_|E2E_PROVIDER=" provider-cctv/logcat-full.txt | tail -n 200 || true
+              } > provider-cctv/cctv-summary.txt
+              exit "$TEST_EXIT"
+            '
 
       - name: Upload full provider CCTV
         if: always()
