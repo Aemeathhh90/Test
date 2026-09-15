@@ -14,5 +14,11 @@ dependencyResolutionManagement {
     }
 }
 
+sourceControl {
+    gitRepository("https://github.com/Aemeathhh90/vider.git") {
+        producesModule("com.kakaanime:provider")
+    }
+}
+
 rootProject.name = "KakaAnime"
 include(":app")
