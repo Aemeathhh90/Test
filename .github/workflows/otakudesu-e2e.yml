@@ -5,7 +5,7 @@ on:
 
 jobs:
   otakudesu-e2e:
-    runs-on: warp-ubuntu-latest-x64-16x;nested-virtualization.enabled=true
+    runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
       contents: read
@@ -23,27 +23,14 @@ jobs:
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
 
-      - name: Enable KVM group permissions
-        run: |
-          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' \
-            | sudo tee /etc/udev/rules.d/99-kvm4all.rules
-          sudo udevadm control --reload-rules
-          sudo udevadm trigger --name-match=kvm
-
-      - name: Verify KVM
-        run: |
-          test -e /dev/kvm
-          test -w /dev/kvm
-          ls -l /dev/kvm
-
       - name: Run Otakudesu Episode 7 E2E
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: 35
           target: google_apis
           arch: x86_64
-          cores: 8
-          ram-size: 8192M
+          cores: 4
+          ram-size: 6144M
           disk-size: 8192M
           disable-animations: true
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -no-snapshot-save
