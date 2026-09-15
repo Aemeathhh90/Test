@@ -6,6 +6,7 @@ import androidx.compose.material3.Typography
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.getValue
@@ -17,17 +18,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
-enum class KakaAccent(
-    val primary: Color,
-    val secondary: Color
-) {
-    Blue(Color(0xFF2196F3), Color(0xFF64B5F6)),
-    Purple(Color(0xFF9C6BFF), Color(0xFFB58CFF)),
-    Pink(Color(0xFFFF5FA2), Color(0xFFFF82B7)),
-    Red(Color(0xFFFF4D67), Color(0xFFFF7186)),
-    Green(Color(0xFF35C98A), Color(0xFF5BE0A6)),
-    Cyan(Color(0xFF20C8E8), Color(0xFF58DDF2)),
-    Orange(Color(0xFFFF9A3D), Color(0xFFFFB66B))
+enum class KakaAccent(val primary: Color, val secondary: Color) {
+    Blue(Color(0xFF2196F3), Color(0xFF64B5F6)), Purple(Color(0xFF9C6BFF), Color(0xFFB58CFF)), Pink(Color(0xFFFF5FA2), Color(0xFFFF82B7)), Red(Color(0xFFFF4D67), Color(0xFFFF7186)), Green(Color(0xFF35C98A), Color(0xFF5BE0A6)), Cyan(Color(0xFF20C8E8), Color(0xFF58DDF2)), Orange(Color(0xFFFF9A3D), Color(0xFFFFB66B))
 }
 
 enum class KakaThemeMode { LIGHT, DARK, AUTO }
@@ -58,18 +50,10 @@ private val KakaTypography = Typography(
 )
 
 @Stable
-class KakaThemeState(
-    accent: KakaAccent = KakaAccent.Blue,
-    mode: KakaThemeMode = KakaThemeMode.DARK
-) {
+class KakaThemeState(accent: KakaAccent = KakaAccent.Blue, mode: KakaThemeMode = KakaThemeMode.DARK) {
     var accent by mutableStateOf(accent)
     var mode by mutableStateOf(mode)
-
-    constructor(accent: KakaAccent, darkMode: Boolean) : this(
-        accent = accent,
-        mode = if (darkMode) KakaThemeMode.DARK else KakaThemeMode.LIGHT
-    )
-
+    constructor(accent: KakaAccent, darkMode: Boolean) : this(accent, if (darkMode) KakaThemeMode.DARK else KakaThemeMode.LIGHT)
     var darkMode: Boolean
         get() = mode == KakaThemeMode.DARK
         set(value) { mode = if (value) KakaThemeMode.DARK else KakaThemeMode.LIGHT }
@@ -81,10 +65,7 @@ val LocalKakaThemeState = compositionLocalOf { KakaThemeState() }
 fun rememberKakaThemeState(): KakaThemeState = remember { KakaThemeState() }
 
 @Composable
-fun KakaAnimeTheme(
-    themeState: KakaThemeState = rememberKakaThemeState(),
-    content: @Composable () -> Unit
-) {
+fun KakaAnimeTheme(themeState: KakaThemeState = rememberKakaThemeState(), content: @Composable () -> Unit) {
     val accent = themeState.accent
     val isDark = when (themeState.mode) {
         KakaThemeMode.DARK -> true
