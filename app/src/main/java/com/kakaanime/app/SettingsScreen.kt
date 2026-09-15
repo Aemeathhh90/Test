@@ -18,6 +18,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.kakaanime.app.monetization.MonetizationState
+import com.kakaanime.app.ui.theme.KakaThemeMode
+import com.kakaanime.app.ui.theme.LocalKakaThemeState
 
 private val SettingsOuterPadding = 18.dp
 private val SettingsSectionRadius = 22.dp
@@ -32,6 +34,7 @@ fun SettingsScreen(
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val settings = remember(context) { context.getSharedPreferences("kakaanime_settings", Context.MODE_PRIVATE) }
+    val themeState = LocalKakaThemeState.current
     var defaultQuality by remember { mutableStateOf(settings.getString("default_quality", "Auto") ?: "Auto") }
     var autoNext by remember { mutableStateOf(settings.getBoolean("auto_next", true)) }
     var autoSkipIntro by remember { mutableStateOf(settings.getBoolean("auto_skip_intro", false)) }
@@ -66,6 +69,21 @@ fun SettingsScreen(
                     Text("Customize your anime experience", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
                 Icon(Icons.Outlined.Settings, null, tint = MaterialTheme.colorScheme.primary)
+            }
+        }
+
+        item {
+            SettingsSection(Icons.Outlined.Palette, "Appearance", "Choose how KakaAnime looks") {
+                SettingsRow(
+                    Icons.Outlined.Brightness6,
+                    "Theme",
+                    "Light, Dark, or follow system",
+                    when (themeState.mode) {
+                        KakaThemeMode.LIGHT -> "Light"
+                        KakaThemeMode.DARK -> "Dark"
+                        KakaThemeMode.AUTO -> "Auto"
+                    }
+                ) { dialog = SettingsDialog.Theme }
             }
         }
 
@@ -113,6 +131,7 @@ fun SettingsScreen(
     }
 
     when (dialog) {
+        SettingsDialog.Theme -> ThemeModeDialog(themeState, settings) { dialog = null }
         SettingsDialog.Player -> SimpleSettingsDialog("Video Player", "Pengaturan lanjutan player seperti orientasi layar, gesture seek, brightness/volume gesture, dan kontrol player akan ditempatkan di sini.") { dialog = null }
         SettingsDialog.Quality -> QualityDialog(defaultQuality, listOf("Auto", "360p", "480p", "720p", "1080p"), monetizationState.isPremium, onPremiumClick) { value -> defaultQuality = value; save("default_quality", value); dialog = null }
         SettingsDialog.DownloadQuality -> QualityDialog(downloadQuality, listOf("360p", "480p", "720p", "1080p"), monetizationState.isPremium, onPremiumClick) { value -> downloadQuality = value; save("download_quality", value); dialog = null }
@@ -121,7 +140,41 @@ fun SettingsScreen(
     message?.let { SimpleSettingsDialog("KakaAnime", it) { message = null } }
 }
 
-private enum class SettingsDialog { Player, Quality, DownloadQuality }
+private enum class SettingsDialog { Theme, Player, Quality, DownloadQuality }
+
+@Composable
+private fun ThemeModeDialog(themeState: com.kakaanime.app.ui.theme.KakaThemeState, settings: android.content.SharedPreferences, onClose: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onClose,
+        title = { Text("Theme") },
+        text = {
+            Column {
+                listOf(
+                    KakaThemeMode.LIGHT to "Light",
+                    KakaThemeMode.DARK to "Dark",
+                    KakaThemeMode.AUTO to "Auto"
+                ).forEach { (mode, label) ->
+                    Row(
+                        Modifier.fillMaxWidth().clickable {
+                            themeState.mode = mode
+                            settings.edit().putString("theme_mode", mode.name).apply()
+                            onClose()
+                        }.padding(vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        RadioButton(selected = themeState.mode == mode, onClick = {
+                            themeState.mode = mode
+                            settings.edit().putString("theme_mode", mode.name).apply()
+                            onClose()
+                        })
+                        Text(label, modifier = Modifier.weight(1f))
+                    }
+                }
+            }
+        },
+        confirmButton = { TextButton(onClick = onClose) { Text("Batal") } }
+    )
+}
 
 @Composable
 private fun SettingsSection(icon: ImageVector, title: String, subtitle: String, content: @Composable ColumnScope.() -> Unit) {
@@ -158,16 +211,7 @@ private fun SettingsRow(icon: ImageVector, title: String, subtitle: String, valu
 }
 
 @Composable
-private fun SettingsSwitch(
-    icon: ImageVector,
-    title: String,
-    subtitle: String,
-    checked: Boolean,
-    premium: Boolean = false,
-    enabled: Boolean = true,
-    onLockedClick: () -> Unit = {},
-    onCheckedChange: (Boolean) -> Unit
-) {
+private fun SettingsSwitch(icon: ImageVector, title: String, subtitle: String, checked: Boolean, premium: Boolean = false, enabled: Boolean = true, onLockedClick: () -> Unit = {}, onCheckedChange: (Boolean) -> Unit) {
     Row(Modifier.fillMaxWidth().heightIn(min = SettingsRowMinHeight).padding(horizontal = 7.dp, vertical = 7.dp), verticalAlignment = Alignment.CenterVertically) {
         Icon(icon, null, tint = if (enabled) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = .45f), modifier = Modifier.size(SettingsIconSize))
         Spacer(Modifier.width(12.dp))
