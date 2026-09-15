@@ -1,5 +1,6 @@
 package com.kakaanime.app.ui.theme
 
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Typography
 import androidx.compose.material3.darkColorScheme
@@ -28,7 +29,8 @@ enum class KakaAccent(
     Orange(Color(0xFFFF9A3D), Color(0xFFFFB66B))
 }
 
-/** KakaAnime's shared layout and interaction tokens. Keep feature screens on these values. */
+enum class KakaThemeMode { LIGHT, DARK, AUTO }
+
 object KakaTokens {
     val screenPadding = 18.dp
     val sectionGap = 14.dp
@@ -44,52 +46,28 @@ object KakaTokens {
 }
 
 private val KakaTypography = Typography(
-    headlineSmall = androidx.compose.ui.text.TextStyle(
-        fontSize = 24.sp,
-        lineHeight = 30.sp,
-        fontWeight = FontWeight.Bold
-    ),
-    titleLarge = androidx.compose.ui.text.TextStyle(
-        fontSize = 20.sp,
-        lineHeight = 26.sp,
-        fontWeight = FontWeight.SemiBold
-    ),
-    titleMedium = androidx.compose.ui.text.TextStyle(
-        fontSize = 16.sp,
-        lineHeight = 22.sp,
-        fontWeight = FontWeight.SemiBold
-    ),
-    bodyLarge = androidx.compose.ui.text.TextStyle(
-        fontSize = 16.sp,
-        lineHeight = 22.sp
-    ),
-    bodyMedium = androidx.compose.ui.text.TextStyle(
-        fontSize = 14.sp,
-        lineHeight = 20.sp
-    ),
-    bodySmall = androidx.compose.ui.text.TextStyle(
-        fontSize = 12.sp,
-        lineHeight = 16.sp
-    ),
-    labelLarge = androidx.compose.ui.text.TextStyle(
-        fontSize = 14.sp,
-        lineHeight = 20.sp,
-        fontWeight = FontWeight.SemiBold
-    ),
-    labelMedium = androidx.compose.ui.text.TextStyle(
-        fontSize = 12.sp,
-        lineHeight = 16.sp,
-        fontWeight = FontWeight.Medium
-    )
+    headlineSmall = androidx.compose.ui.text.TextStyle(fontSize = 24.sp, lineHeight = 30.sp, fontWeight = FontWeight.Bold),
+    titleLarge = androidx.compose.ui.text.TextStyle(fontSize = 20.sp, lineHeight = 26.sp, fontWeight = FontWeight.SemiBold),
+    titleMedium = androidx.compose.ui.text.TextStyle(fontSize = 16.sp, lineHeight = 22.sp, fontWeight = FontWeight.SemiBold),
+    bodyLarge = androidx.compose.ui.text.TextStyle(fontSize = 16.sp, lineHeight = 22.sp),
+    bodyMedium = androidx.compose.ui.text.TextStyle(fontSize = 14.sp, lineHeight = 20.sp),
+    bodySmall = androidx.compose.ui.text.TextStyle(fontSize = 12.sp, lineHeight = 16.sp),
+    labelLarge = androidx.compose.ui.text.TextStyle(fontSize = 14.sp, lineHeight = 20.sp, fontWeight = FontWeight.SemiBold),
+    labelMedium = androidx.compose.ui.text.TextStyle(fontSize = 12.sp, lineHeight = 16.sp, fontWeight = FontWeight.Medium)
 )
 
 @Stable
 class KakaThemeState(
     accent: KakaAccent = KakaAccent.Blue,
-    darkMode: Boolean = true
+    mode: KakaThemeMode = KakaThemeMode.DARK
 ) {
     var accent by mutableStateOf(accent)
-    var darkMode by mutableStateOf(darkMode)
+    var mode by mutableStateOf(mode)
+
+    /** Kept for existing screens that still read/write the old boolean setting. */
+    var darkMode: Boolean
+        get() = mode == KakaThemeMode.DARK
+        set(value) { mode = if (value) KakaThemeMode.DARK else KakaThemeMode.LIGHT }
 }
 
 @Composable
@@ -101,27 +79,15 @@ fun KakaAnimeTheme(
     content: @Composable () -> Unit
 ) {
     val accent = themeState.accent
-    val colors = if (themeState.darkMode) {
-        darkColorScheme(
-            primary = accent.primary,
-            secondary = accent.secondary,
-            background = Color(0xFF090D12),
-            surface = Color(0xFF111820),
-            surfaceVariant = Color(0xFF17212B)
-        )
-    } else {
-        lightColorScheme(
-            primary = accent.primary,
-            secondary = accent.secondary,
-            background = Color(0xFFF5F8FC),
-            surface = Color.White,
-            surfaceVariant = Color(0xFFE9F0F7)
-        )
+    val isDark = when (themeState.mode) {
+        KakaThemeMode.DARK -> true
+        KakaThemeMode.LIGHT -> false
+        KakaThemeMode.AUTO -> isSystemInDarkTheme()
     }
-
-    MaterialTheme(
-        colorScheme = colors,
-        typography = KakaTypography,
-        content = content
-    )
+    val colors = if (isDark) {
+        darkColorScheme(primary = accent.primary, secondary = accent.secondary, background = Color(0xFF090D12), surface = Color(0xFF111820), surfaceVariant = Color(0xFF17212B))
+    } else {
+        lightColorScheme(primary = accent.primary, secondary = accent.secondary, background = Color(0xFFF5F8FC), surface = Color.White, surfaceVariant = Color(0xFFE9F0F7))
+    }
+    MaterialTheme(colorScheme = colors, typography = KakaTypography, content = content)
 }
