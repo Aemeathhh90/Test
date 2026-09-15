@@ -57,9 +57,7 @@ dependencies {
     implementation("com.google.android.gms:play-services-ads:24.8.0")
     implementation("com.android.billingclient:billing:9.1.0")
 
-    implementation("com.kakaanime:provider") {
-        version { branch = "fix/otakudesu-episode-parser" }
-    }
+    implementation("com.kakaanime:provider")
 
     androidTestImplementation("androidx.test:core:1.7.0")
     androidTestImplementation("androidx.test.ext:junit:1.3.0")
