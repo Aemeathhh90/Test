@@ -1,7 +1,6 @@
 package com.kakaanime.app
 
 import androidx.compose.runtime.*
-import androidx.compose.ui.platform.LocalContext
 import com.kakaanime.app.data.AniListCalendarService
 import com.kakaanime.app.data.AniListScheduleEntry
 import com.kakaanime.app.ui.calendar.CalendarDayUi
@@ -34,9 +33,11 @@ fun CalendarScreen(
         )
     }
 
+    fun resolveAnime(entry: AniListScheduleEntry): Anime =
+        animeList.firstOrNull { it.matchesCalendarEntry(entry) } ?: entry.toCalendarAnime()
+
     fun toUi(entry: AniListScheduleEntry): CalendarEpisodeUi {
-        val matched = animeList.firstOrNull { it.matchesCalendarEntry(entry) }
-        val anime = matched ?: entry.toCalendarAnime()
+        val anime = resolveAnime(entry)
         val airing = Instant.ofEpochSecond(entry.airingAt).atZone(ZoneId.systemDefault())
         return CalendarEpisodeUi(
             anime = anime.toHomeAnimeUi(),
@@ -66,8 +67,17 @@ fun CalendarScreen(
     CalendarV1Screen(
         state = CalendarUiState(days = dayModels, selectedDayKey = today.toString(), updates = updates),
         onAnimeClick = { selected ->
-            animeList.firstOrNull { it.animeGroupId.ifBlank { it.title } == selected.id || it.title == selected.title }
-                ?.let(onAnimeClick)
+            val matched = animeList.firstOrNull {
+                it.animeGroupId.ifBlank { it.title } == selected.id || it.title.equals(selected.title, true)
+            }
+            if (matched != null) {
+                onAnimeClick(matched)
+            } else {
+                val fallbackEntry = schedules.firstOrNull {
+                    normalizeCalendarTitle(it.title) == normalizeCalendarTitle(selected.title)
+                }
+                if (fallbackEntry != null) onAnimeClick(resolveAnime(fallbackEntry))
+            }
         },
     )
 }
