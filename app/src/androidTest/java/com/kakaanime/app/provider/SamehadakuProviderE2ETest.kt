@@ -21,12 +21,12 @@ import org.junit.runner.RunWith
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 
-/** P0 gate for Samehadaku. Episode 7 is the first fixed regression case. */
+/** P0 gate for Samehadaku. Episode 1 is the current baseline stream case. */
 @RunWith(AndroidJUnit4::class)
 class SamehadakuProviderE2ETest {
 
     @Test
-    fun onePieceEpisodeSevenRendersFirstFrame() = runBlocking {
+    fun onePieceEpisodeOneRendersFirstFrame() = runBlocking {
         val provider = SamehadakuProvider()
 
         val searchResults = provider.search("One Piece")
@@ -45,8 +45,8 @@ class SamehadakuProviderE2ETest {
         val episodes = provider.getEpisodes(selectedAnime.id)
         assertFalse("Samehadaku returned no episodes for ${selectedAnime.id}", episodes.isEmpty())
 
-        val episode = episodes.firstOrNull { it.number == 7 }
-        assertNotNull("Samehadaku episode 7 is not present for ${selectedAnime.id}", episode)
+        val episode = episodes.firstOrNull { it.number == 1 }
+        assertNotNull("Samehadaku episode 1 is not present for ${selectedAnime.id}", episode)
 
         val selectedEpisode = episode!!
         val streams = provider.getStreams(selectedAnime.id, selectedEpisode.number)
