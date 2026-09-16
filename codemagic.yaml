@@ -28,7 +28,7 @@ workflows:
         script: echo "sdk.dir=$ANDROID_SDK_ROOT" > "$CM_BUILD_DIR/local.properties"
       - name: Make Gradle executable
         script: chmod +x ./gradlew
-      - name: Build app and instrumentation APKs
+      - name: Assemble app and instrumentation APKs
         script: ./gradlew :app:assembleDebug :app:assembleDebugAndroidTest --stacktrace
       - name: Install emulator.wtf CLI
         script: |
@@ -37,7 +37,7 @@ workflows:
           chmod a+x "$HOME/bin/ew-cli"
           export PATH="$HOME/bin:$PATH"
           ew-cli --version
-      - name: Run Otakudesu Episode 7 FIRST FRAME E2E
+      - name: Run Samehadaku Episode 7 FIRST FRAME E2E
         script: |
           export PATH="$HOME/bin:$PATH"
           mkdir -p provider-e2e-results
@@ -45,7 +45,7 @@ workflows:
             --app app/build/outputs/apk/debug/app-debug.apk \
             --test app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk \
             --device model=Pixel7,version=34 \
-            --test-targets "class com.kakaanime.app.provider.OtakudesuProviderE2ETest#onePieceEpisodeSevenRendersFirstFrame" \
+            --test-targets "class com.kakaanime.app.provider.SamehadakuProviderE2ETest#onePieceEpisodeSevenRendersFirstFrame" \
             --record-video \
             --side-effects \
             --timeout 10m \
