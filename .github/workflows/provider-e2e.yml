@@ -34,12 +34,28 @@ jobs:
             adb start-server
             adb logcat -c
 
-            ./gradlew :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.kakaanime.app.provider.ProviderBatchE2ETest#fourNativeProvidersRunToFirstFrameOrExactFailurePoint --stacktrace > provider-cctv/gradle-e2e.log 2>&1
-            TEST_EXIT=$?
-            cat provider-cctv/gradle-e2e.log
+            echo "=== BUILD TEST APK ===" | tee provider-cctv/runner.log
+            ./gradlew :app:assembleDebug :app:assembleDebugAndroidTest --stacktrace >> provider-cctv/runner.log 2>&1
+            BUILD_EXIT=$?
+            if [ "$BUILD_EXIT" -ne 0 ]; then
+              cat provider-cctv/runner.log
+              exit "$BUILD_EXIT"
+            fi
 
+            echo "=== INSTALL APKs ===" | tee -a provider-cctv/runner.log
+            adb install -r app/build/outputs/apk/debug/app-debug.apk >> provider-cctv/runner.log 2>&1
+            adb install -r app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk >> provider-cctv/runner.log 2>&1
+
+            echo "=== DIRECT INSTRUMENTATION ===" | tee -a provider-cctv/runner.log
+            adb shell am instrument -w -r \
+              -e class com.kakaanime.app.provider.ProviderBatchE2ETest#fourNativeProvidersRunToFirstFrameOrExactFailurePoint \
+              com.kakaanime.app.test/androidx.test.runner.AndroidJUnitRunner \
+              >> provider-cctv/runner.log 2>&1
+            TEST_EXIT=$?
+
+            cat provider-cctv/runner.log
             adb logcat -d -v threadtime > provider-cctv/logcat-full.txt
-            grep -E "KAKAANIME NATIVE PROVIDER BATCH|Samehadaku-native|Otakudesu-native|Anoboy-native-html|Kuronime-native-html|SEARCH_OK|DETAIL_OK|EPISODE_OK|STREAM_OK|FIRST_FRAME_OK|FAILED|ERROR" provider-cctv/logcat-full.txt > provider-cctv/batch-summary.txt || true
+            grep -E "KAKAANIME NATIVE PROVIDER BATCH|Samehadaku-native|Otakudesu-native|Anoboy-native-html|Kuronime-native-html|SEARCH_OK|DETAIL_OK|EPISODE_OK|STREAM_OK|FIRST_FRAME_OK|FAILED|ERROR|run finished|OK \(|FAILURES|INSTRUMENTATION_STATUS" provider-cctv/logcat-full.txt > provider-cctv/batch-summary.txt || true
             {
               echo "TEST_EXIT=$TEST_EXIT"
               echo "--- NATIVE BATCH SUMMARY ---"
