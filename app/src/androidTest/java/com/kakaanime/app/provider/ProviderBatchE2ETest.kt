@@ -13,7 +13,7 @@ import com.kakaanime.provider.AnimeProvider
 import com.kakaanime.provider.NativeHtmlProvider
 import com.kakaanime.provider.OtakudesuProvider
 import com.kakaanime.provider.ProviderStream
-import com.kakaanime.provider.SamehadakuProvider
+import com.kakaanime.provider.RemoteSourceProviderV2
 import com.kakaanime.provider.StreamType
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertTrue
@@ -27,7 +27,7 @@ class ProviderBatchE2ETest {
     @Test
     fun fourNativeProvidersRunToFirstFrameOrExactFailurePoint() = runBlocking {
         val providers = listOf(
-            "Samehadaku-native" to SamehadakuProvider(null),
+            "Samehadaku-shared-v2" to RemoteSourceProviderV2("samehadaku", "Samehadaku Shared V2", 20, "samehadaku"),
             "Otakudesu-native" to OtakudesuProvider(null),
             "Anoboy-native-html" to NativeHtmlProvider("anoboy", "Anoboy", 60, "https://anoboy.xyz", null),
             "Kuronime-native-html" to NativeHtmlProvider("kuronime", "Kuronime", 80, "https://kuronime.net", null)
