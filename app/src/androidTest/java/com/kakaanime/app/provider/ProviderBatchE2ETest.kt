@@ -11,7 +11,6 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.kakaanime.provider.AnimeProvider
 import com.kakaanime.provider.NativeHtmlProvider
-import com.kakaanime.provider.OtakudesuProvider
 import com.kakaanime.provider.ProviderStream
 import com.kakaanime.provider.SamehadakuProvider
 import com.kakaanime.provider.StreamType
@@ -59,6 +58,7 @@ class ProviderBatchE2ETest {
         println("[$label] STREAM_OK count=${streams.size}")
         val selected = streams.filter { it.url.startsWith("http://") || it.url.startsWith("https://") }
             .sortedByDescending { score(it.type) }.firstOrNull() ?: return "HTTP_STREAM_FAILED"
+        println("[KAKA-CCTV][$label] STREAM type=${selected.type} quality=${selected.quality ?: "unknown"} url=${selected.url.take(180)}")
         if (selected.type == StreamType.UNKNOWN) return "UNKNOWN_STREAM_TYPE url=${selected.url.take(120)}"
         renderFirstFrame(label, selected)
         return "FIRST_FRAME_OK"
@@ -82,8 +82,17 @@ class ProviderBatchE2ETest {
                 val http = DefaultHttpDataSource.Factory().setUserAgent("KakaAnime/0.1").setDefaultRequestProperties(stream.headers)
                 player = ExoPlayer.Builder(context).setMediaSourceFactory(DefaultMediaSourceFactory(DefaultDataSource.Factory(context, http))).build().also { exo ->
                     exo.addAnalyticsListener(object : AnalyticsListener {
-                        override fun onRenderedFirstFrame(eventTime: AnalyticsListener.EventTime, output: Any, renderTimeMs: Long) = rendered.countDown()
-                        override fun onPlayerError(eventTime: AnalyticsListener.EventTime, playbackException: androidx.media3.common.PlaybackException) { error = playbackException.errorCodeName + " " + (playbackException.message ?: "") }
+                        override fun onRenderedFirstFrame(eventTime: AnalyticsListener.EventTime, output: Any, renderTimeMs: Long) {
+                            println("[KAKA-CCTV][$label] FIRST_FRAME_RENDERED")
+                            rendered.countDown()
+                        }
+                        override fun onPlayerError(eventTime: AnalyticsListener.EventTime, playbackException: androidx.media3.common.PlaybackException) {
+                            error = playbackException.errorCodeName + " " + (playbackException.message ?: "")
+                            println("[KAKA-CCTV][$label] PLAYER_ERROR $error")
+                        }
+                        override fun onPlaybackStateChanged(eventTime: AnalyticsListener.EventTime, state: Int) {
+                            println("[KAKA-CCTV][$label] STATE=$state")
+                        }
                     })
                     val item = MediaItem.Builder().setUri(stream.url).apply {
                         when (stream.type) { StreamType.HLS -> setMimeType(MimeTypes.APPLICATION_M3U8); StreamType.DASH -> setMimeType(MimeTypes.APPLICATION_MPD); else -> Unit }
