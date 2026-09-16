@@ -12,8 +12,8 @@ import androidx.media3.exoplayer.analytics.AnalyticsListener
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
+import com.kakaanime.provider.AnimeSailProvider
 import com.kakaanime.provider.ProviderStream
-import com.kakaanime.provider.RemoteSourceProvider
 import com.kakaanime.provider.StreamType
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertFalse
@@ -24,13 +24,13 @@ import org.junit.runner.RunWith
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 
-/** P0 gate for AnimeSail. One Piece episode 1 is the baseline stream case. */
+/** P0 gate for the native AnimeSail adapter. One Piece episode 1 is the baseline stream case. */
 @RunWith(AndroidJUnit4::class)
 class AnimeSailProviderE2ETest {
 
     @Test
     fun onePieceEpisodeOneRendersFirstFrame() = runBlocking {
-        val provider = RemoteSourceProvider("animesail", "AnimeSail", 310, "animesail")
+        val provider = AnimeSailProvider()
         val searchResults = provider.search("One Piece")
         assertFalse("AnimeSail search returned no results", searchResults.isEmpty())
 
@@ -41,7 +41,8 @@ class AnimeSailProviderE2ETest {
         assertNotNull("AnimeSail search did not return the canonical One Piece result", anime)
 
         val selectedAnime = anime!!
-        assertNotNull("AnimeSail detail resolution failed for ${selectedAnime.id}", provider.getAnime(selectedAnime.id))
+        val detail = provider.getAnime(selectedAnime.id)
+        assertNotNull("AnimeSail detail resolution failed for ${selectedAnime.id}", detail)
 
         val episodes = provider.getEpisodes(selectedAnime.id)
         assertFalse("AnimeSail returned no episodes for ${selectedAnime.id}", episodes.isEmpty())
