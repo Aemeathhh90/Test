@@ -59,7 +59,7 @@ dependencies {
 
     // Pin E2E to the exact provider commit under test so Codemagic cannot reuse
     // a stale main-branch artifact.
-    implementation("com.kakaanime:provider:3e2b2bf765cb5b88ce221c84e8ccc14e986aaa19")
+    implementation("com.kakaanime:provider:6b4a13f7345d6ba0cb5a6953c321fb77d4185c05")
 
     androidTestImplementation("androidx.test:core:1.7.0")
     androidTestImplementation("androidx.test.ext:junit:1.3.0")
