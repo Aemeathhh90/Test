@@ -37,7 +37,7 @@ workflows:
           chmod a+x "$HOME/bin/ew-cli"
           export PATH="$HOME/bin:$PATH"
           ew-cli --version
-      - name: Run AnimeIndo Episode 1 FIRST FRAME E2E
+      - name: Run FOUR PROVIDER DIAGNOSTIC BATCH
         script: |
           export PATH="$HOME/bin:$PATH"
           mkdir -p provider-e2e-results
@@ -45,7 +45,7 @@ workflows:
             --app app/build/outputs/apk/debug/app-debug.apk \
             --test app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk \
             --device model=Pixel7,version=34 \
-            --test-targets "class com.kakaanime.app.provider.AnimeIndoProviderE2ETest#onePieceEpisodeOneRendersFirstFrame" \
+            --test-targets "class com.kakaanime.app.provider.ProviderBatchE2ETest#fourProvidersRunToFirstFrameOrExactFailurePoint" \
             --record-video \
             --side-effects \
             --timeout 10m \
