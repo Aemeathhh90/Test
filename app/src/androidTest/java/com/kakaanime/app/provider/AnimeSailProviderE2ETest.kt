@@ -12,8 +12,8 @@ import androidx.media3.exoplayer.analytics.AnalyticsListener
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
-import com.kakaanime.provider.AnimeSailProvider
 import com.kakaanime.provider.ProviderStream
+import com.kakaanime.provider.RemoteSourceProvider
 import com.kakaanime.provider.StreamType
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertFalse
@@ -30,7 +30,7 @@ class AnimeSailProviderE2ETest {
 
     @Test
     fun onePieceEpisodeOneRendersFirstFrame() = runBlocking {
-        val provider = AnimeSailProvider()
+        val provider = RemoteSourceProvider("animesail", "AnimeSail", 310, "animesail")
         val searchResults = provider.search("One Piece")
         assertFalse("AnimeSail search returned no results", searchResults.isEmpty())
 
@@ -96,9 +96,7 @@ class AnimeSailProviderE2ETest {
                     val mediaSourceFactory = DefaultMediaSourceFactory(dataSourceFactory)
                     player = ExoPlayer.Builder(context).setMediaSourceFactory(mediaSourceFactory).build().also { exoPlayer ->
                         exoPlayer.addAnalyticsListener(object : AnalyticsListener {
-                            override fun onRenderedFirstFrame(eventTime: AnalyticsListener.EventTime, output: Any, renderTimeMs: Long) {
-                                rendered.countDown()
-                            }
+                            override fun onRenderedFirstFrame(eventTime: AnalyticsListener.EventTime, output: Any, renderTimeMs: Long) { rendered.countDown() }
                             override fun onPlayerError(eventTime: AnalyticsListener.EventTime, error: androidx.media3.common.PlaybackException) {
                                 failureMessage = error.message ?: error.errorCodeName
                                 failureCode = error.errorCodeName
@@ -118,9 +116,7 @@ class AnimeSailProviderE2ETest {
                         exoPlayer.prepare()
                         exoPlayer.playWhenReady = true
                     }
-                } finally {
-                    created.countDown()
-                }
+                } finally { created.countDown() }
             }
             assertTrue("Media3 player setup timed out", created.await(10, TimeUnit.SECONDS))
             val renderedInTime = rendered.await(90, TimeUnit.SECONDS)
