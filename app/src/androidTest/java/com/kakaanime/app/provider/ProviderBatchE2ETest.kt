@@ -13,7 +13,7 @@ import com.kakaanime.provider.AnimeProvider
 import com.kakaanime.provider.NativeHtmlProvider
 import com.kakaanime.provider.OtakudesuProvider
 import com.kakaanime.provider.ProviderStream
-import com.kakaanime.provider.RemoteSourceProviderV2
+import com.kakaanime.provider.SamehadakuProvider
 import com.kakaanime.provider.StreamType
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertTrue
@@ -27,10 +27,10 @@ class ProviderBatchE2ETest {
     @Test
     fun fourNativeProvidersRunToFirstFrameOrExactFailurePoint() = runBlocking {
         val providers = listOf(
-            "Samehadaku-shared-v2" to RemoteSourceProviderV2("samehadaku", "Samehadaku Shared V2", 20, "samehadaku"),
-            "Otakudesu-native" to OtakudesuProvider(null),
+            "Samehadaku-native" to SamehadakuProvider(null),
+            "Oploverz-native-html" to NativeHtmlProvider("oploverz", "Oploverz", 200, "https://oploverz.cc", null),
             "Anoboy-native-html" to NativeHtmlProvider("anoboy", "Anoboy", 60, "https://anoboy.xyz", null),
-            "Kuronime-native-html" to NativeHtmlProvider("kuronime", "Kuronime", 80, "https://kuronime.net", null)
+            "Zoronime-native-html" to NativeHtmlProvider("zoronime", "Zoronime", 50, "https://zoronime.com", null)
         )
         val summary = mutableListOf<String>()
         for ((label, provider) in providers) {
