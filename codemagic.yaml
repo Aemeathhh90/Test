@@ -37,7 +37,7 @@ workflows:
           chmod a+x "$HOME/bin/ew-cli"
           export PATH="$HOME/bin:$PATH"
           ew-cli --version
-      - name: Run Samehadaku Episode 7 FIRST FRAME E2E
+      - name: Run Samehadaku Episode 1 FIRST FRAME E2E
         script: |
           export PATH="$HOME/bin:$PATH"
           mkdir -p provider-e2e-results
@@ -45,7 +45,7 @@ workflows:
             --app app/build/outputs/apk/debug/app-debug.apk \
             --test app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk \
             --device model=Pixel7,version=34 \
-            --test-targets "class com.kakaanime.app.provider.SamehadakuProviderE2ETest#onePieceEpisodeSevenRendersFirstFrame" \
+            --test-targets "class com.kakaanime.app.provider.SamehadakuProviderE2ETest#onePieceEpisodeOneRendersFirstFrame" \
             --record-video \
             --side-effects \
             --timeout 10m \
