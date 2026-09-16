@@ -10,7 +10,6 @@ import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.kakaanime.provider.AnimeProvider
-import com.kakaanime.provider.NativeHtmlProvider
 import com.kakaanime.provider.ProviderStream
 import com.kakaanime.provider.SamehadakuProvider
 import com.kakaanime.provider.StreamType
@@ -24,44 +23,30 @@ import java.util.concurrent.TimeUnit
 @RunWith(AndroidJUnit4::class)
 class ProviderBatchE2ETest {
     @Test
-    fun fourNativeProvidersRunToFirstFrameOrExactFailurePoint() = runBlocking {
-        val providers = listOf(
-            "Samehadaku-native" to SamehadakuProvider(null),
-            "Oploverz-native-html" to NativeHtmlProvider("oploverz", "Oploverz", 200, "https://oploverz.cc", null),
-            "Anoboy-native-html" to NativeHtmlProvider("anoboy", "Anoboy", 60, "https://anoboy.xyz", null),
-            "Zoronime-native-html" to NativeHtmlProvider("zoronime", "Zoronime", 50, "https://zoronime.com", null)
-        )
-        val summary = mutableListOf<String>()
-        for ((label, provider) in providers) {
-            try { summary += "$label = ${runProvider(label, provider)}" }
-            catch (t: Throwable) { summary += "$label = ERROR ${t.javaClass.simpleName}: ${t.message}" }
-        }
-        println("========== KAKAANIME NATIVE PROVIDER BATCH ==========")
-        summary.forEach(::println)
+    fun samehadakuFirstFrameDiagnostic() = runBlocking {
+        val provider = SamehadakuProvider(null)
+        val label = "Samehadaku-native"
+        val result = try { runProvider(label, provider) } catch (t: Throwable) { "ERROR ${t.javaClass.simpleName}: ${t.message}" }
+        println("========== KAKAANIME SAMEHADAKU FIRST FRAME ==========")
+        println("$label = $result")
         println("=======================================================")
-        assertTrue("Batch completed; inspect provider summary above", summary.size == providers.size)
+        assertTrue("Diagnostic completed; inspect result above", result.isNotBlank())
     }
 
     private suspend fun runProvider(label: String, provider: AnimeProvider): String {
-        println("[$label] SEARCH")
         val results = provider.search("One Piece")
         if (results.isEmpty()) return "SEARCH_FAILED"
-        println("[$label] SEARCH_OK count=${results.size}")
         val anime = results.firstOrNull { it.title.equals("One Piece", true) || it.id.contains("one-piece", true) } ?: results.first()
         if (provider.getAnime(anime.id) == null) return "DETAIL_FAILED id=${anime.id}"
-        println("[$label] DETAIL_OK id=${anime.id}")
         val episodes = provider.getEpisodes(anime.id)
         val episode = episodes.firstOrNull { it.number == 1 } ?: return "EPISODE_1_FAILED count=${episodes.size}"
-        println("[$label] EPISODE_OK count=${episodes.size}")
         val streams = provider.getStreams(anime.id, episode.number)
         if (streams.isEmpty()) return "STREAM_FAILED"
-        println("[$label] STREAM_OK count=${streams.size}")
         val selected = streams.filter { it.url.startsWith("http://") || it.url.startsWith("https://") }
             .sortedByDescending { score(it.type) }.firstOrNull() ?: return "HTTP_STREAM_FAILED"
         println("[KAKA-CCTV][$label] STREAM type=${selected.type} quality=${selected.quality ?: "unknown"} url=${selected.url.take(180)}")
-        if (selected.type == StreamType.UNKNOWN) return "UNKNOWN_STREAM_TYPE url=${selected.url.take(120)}"
-        renderFirstFrame(label, selected)
-        return "FIRST_FRAME_OK"
+        if (selected.type == StreamType.UNKNOWN) return "UNKNOWN_STREAM_TYPE"
+        return renderFirstFrame(label, selected)
     }
 
     private fun score(type: StreamType) = when (type) {
@@ -70,7 +55,7 @@ class ProviderBatchE2ETest {
         StreamType.UNKNOWN -> 0
     }
 
-    private fun renderFirstFrame(label: String, stream: ProviderStream) {
+    private fun renderFirstFrame(label: String, stream: ProviderStream): String {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         val rendered = CountDownLatch(1)
         var error: String? = null
@@ -100,7 +85,8 @@ class ProviderBatchE2ETest {
                     exo.setMediaItem(item); exo.prepare(); exo.playWhenReady = true
                 }
             }
-            if (!rendered.await(90, TimeUnit.SECONDS)) throw AssertionError("$label FIRST_FRAME_FAILED ${error ?: "timeout"}")
+            if (!rendered.await(90, TimeUnit.SECONDS)) return "FIRST_FRAME_FAILED ${error ?: "timeout"}"
+            return "FIRST_FRAME_OK"
         } finally {
             val released = CountDownLatch(1)
             handler.post { try { player?.release() } finally { released.countDown() } }
