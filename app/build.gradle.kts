@@ -57,11 +57,9 @@ dependencies {
     implementation("com.google.android.gms:play-services-ads:24.8.0")
     implementation("com.android.billingclient:billing:9.1.0")
 
-    implementation("com.kakaanime:provider") {
-        version {
-            branch = "main"
-        }
-    }
+    // Pin E2E to the exact provider commit under test so Codemagic cannot reuse
+    // a stale main-branch artifact.
+    implementation("com.kakaanime:provider:3e2b2bf765cb5b88ce221c84e8ccc14e986aaa19")
 
     androidTestImplementation("androidx.test:core:1.7.0")
     androidTestImplementation("androidx.test.ext:junit:1.3.0")
