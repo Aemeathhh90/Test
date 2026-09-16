@@ -10,9 +10,9 @@ import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.kakaanime.provider.AnimeProvider
+import com.kakaanime.provider.NativeHtmlProvider
 import com.kakaanime.provider.OtakudesuProvider
 import com.kakaanime.provider.ProviderStream
-import com.kakaanime.provider.RemoteSourceProviderV2
 import com.kakaanime.provider.SamehadakuProvider
 import com.kakaanime.provider.StreamType
 import kotlinx.coroutines.runBlocking
@@ -25,21 +25,21 @@ import java.util.concurrent.TimeUnit
 @RunWith(AndroidJUnit4::class)
 class ProviderBatchE2ETest {
     @Test
-    fun fourProvidersRunToFirstFrameOrExactFailurePoint() = runBlocking {
+    fun fourNativeProvidersRunToFirstFrameOrExactFailurePoint() = runBlocking {
         val providers = listOf(
-            "Otakudesu-native" to OtakudesuProvider(null),
             "Samehadaku-native" to SamehadakuProvider(null),
-            "Anoboy-remote-v2" to RemoteSourceProviderV2("anoboy", "Anoboy", 60, "anoboy"),
-            "AnimeKompi-remote-v2" to RemoteSourceProviderV2("animekompi", "AnimeKompi", 70, "animekompi")
+            "Otakudesu-native" to OtakudesuProvider(null),
+            "Anoboy-native-html" to NativeHtmlProvider("anoboy", "Anoboy", 60, "https://anoboy.xyz", null),
+            "Kuronime-native-html" to NativeHtmlProvider("kuronime", "Kuronime", 80, "https://kuronime.net", null)
         )
         val summary = mutableListOf<String>()
         for ((label, provider) in providers) {
             try { summary += "$label = ${runProvider(label, provider)}" }
             catch (t: Throwable) { summary += "$label = ERROR ${t.javaClass.simpleName}: ${t.message}" }
         }
-        println("========== KAKAANIME PROVIDER BATCH ==========")
+        println("========== KAKAANIME NATIVE PROVIDER BATCH ==========")
         summary.forEach(::println)
-        println("===============================================")
+        println("=======================================================")
         assertTrue("Batch completed; inspect provider summary above", summary.size == providers.size)
     }
 
