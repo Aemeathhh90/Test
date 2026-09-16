@@ -17,9 +17,12 @@ import com.kakaanime.provider.ProviderStream
 import com.kakaanime.provider.SamehadakuProvider
 import com.kakaanime.provider.StreamType
 import kotlinx.coroutines.runBlocking
+import okhttp3.OkHttpClient
+import okhttp3.Request
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
+import java.net.URLEncoder
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 
@@ -29,6 +32,7 @@ class ProviderBatchE2ETest {
     fun samehadakuFirstFrameDiagnostic() = runBlocking {
         val provider = SamehadakuProvider(null)
         val label = "Samehadaku-native"
+        diagnoseSearchNetwork()
         val result = try {
             runProvider(label, provider)
         } catch (t: Throwable) {
@@ -38,6 +42,40 @@ class ProviderBatchE2ETest {
         println("$label = $result")
         println("=======================================================")
         assertTrue("Diagnostic completed; inspect result above", result.isNotBlank())
+    }
+
+    private fun diagnoseSearchNetwork() {
+        val client = OkHttpClient.Builder()
+            .connectTimeout(10, TimeUnit.SECONDS)
+            .readTimeout(15, TimeUnit.SECONDS)
+            .followRedirects(true)
+            .build()
+        val q = URLEncoder.encode("One Piece", "UTF-8")
+        val urls = listOf(
+            "https://v2.samehadaku.how/?s=$q",
+            "https://v2.samehadaku.how/search/one-piece/",
+            "https://v2.samehadaku.how/search/?q=$q",
+            "https://v2.samehadaku.how/anime/one-piece/"
+        )
+        for (url in urls) {
+            runCatching {
+                val request = Request.Builder()
+                    .url(url)
+                    .header("User-Agent", "Mozilla/5.0 (Linux; Android 15) AppleWebKit/537.36 Chrome/140.0.0.0 Mobile Safari/537.36")
+                    .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
+                    .header("Accept-Language", "id-ID,id;q=0.9,en-US;q=0.8,en;q=0.7")
+                    .header("Referer", "https://v2.samehadaku.how/")
+                    .build()
+                client.newCall(request).execute().use { response ->
+                    val body = response.body?.string().orEmpty()
+                    val marker = listOf("one piece", "animepost", "animpost", "listupd", "entry-title")
+                        .firstOrNull { body.contains(it, ignoreCase = true) } ?: "none"
+                    println("[KAKA-CCTV][Samehadaku-search] code=${response.code} final=${response.request.url} bytes=${body.length} marker=$marker")
+                }
+            }.onFailure { t ->
+                println("[KAKA-CCTV][Samehadaku-search] ERROR url=$url type=${t.javaClass.simpleName} msg=${t.message}")
+            }
+        }
     }
 
     private suspend fun runProvider(label: String, provider: AnimeProvider): String {
