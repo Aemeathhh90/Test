@@ -45,7 +45,7 @@ workflows:
             --app app/build/outputs/apk/debug/app-debug.apk \
             --test app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk \
             --device model=Pixel7,version=34 \
-            --test-targets "class com.kakaanime.app.provider.ProviderBatchE2ETest#fourProvidersRunToFirstFrameOrExactFailurePoint" \
+            --test-targets "class com.kakaanime.app.provider.ProviderBatchE2ETest#fourNativeProvidersRunToFirstFrameOrExactFailurePoint" \
             --record-video \
             --side-effects \
             --timeout 10m \
